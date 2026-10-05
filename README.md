@@ -43,7 +43,8 @@ cloudflared tunnel --url http://localhost:4173
 | Souris | Viser (axe vertical inversé par défaut, réglable) |
 | Clic gauche | Tirer |
 | R | Recharger |
-| 1 / 2 / 3 | Fusil (M4A1) / pistolet (M1911) / couteau |
+| 1 / 2 / 3 | Arme principale (M4A1, MP5-SD ou Nova) / pistolet (M1911) / couteau |
+| B | Menu d'achat (puis 1 à 0 pour acheter) |
 | Clic gauche / droit | Avec le couteau : coup rapide / coup puissant |
 | 4 | Grenades (appuyer à nouveau pour passer à la suivante) |
 | Clic gauche / droit / les deux | Avec une grenade : lancer loin / en cloche / à mi-distance |
@@ -82,6 +83,10 @@ Le menu de pause (Échap) contient tous les réglages, mémorisés dans le navig
 
 Les réglages sont décrits dans `src/core/settings.ts` : le panneau est construit à partir de cette liste, donc ajouter un réglage se fait en quelques lignes. Les préréglages de difficulté sont dans `src/config.ts` (`DIFFICULTY`).
 
+## Armes et équipement
+
+Armes principales (touche 1, une seule à la fois) : **M4A1**, **MP5-SD** (SMG silencieux, précis en mouvement) et **Nova** (fusil à pompe, 9 plombs, rechargé cartouche par cartouche). Les dégâts baissent avec la distance comme dans CS. **Gilet** et **casque** : le gilet réduit les dégâts au corps et aux explosions selon l'arme, le casque protège la tête, rien ne protège les jambes ni le feu. Les bots portent gilet et casque.
+
 ## Couteau
 
 Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90 dans le dos, portée 1,2 m), clic droit puissant (65, 180 dans le dos, portée au contact). On le tient de la main droite, avec les mêmes bras que pour les armes à feu ; les coups sont animés par le code (balayage, coup de pointe).
@@ -90,8 +95,8 @@ Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90
 
 À choisir dans les réglages :
 
-- **Deathmatch** : on réapparaît 3 s après chaque mort, les bots aussi.
-- **Manches** : comme dans CS, une vie par manche. Tu pars du sud, les bots du nord. 3 s de gel au départ, 1:55 de chrono ; on gagne la manche en éliminant l'autre camp, et les bots la gagnent si le temps s'écoule. Le premier à 5 manches remporte le match. Réglages dans `src/config.ts`, section `ROUNDS`.
+- **Deathmatch** : on réapparaît 3 s après chaque mort (avec gilet, casque et grenades), les bots aussi. Le menu d'achat (B) est gratuit : on y choisit son arme principale.
+- **Manches** : comme dans CS, une vie par manche, avec l'économie de CS:GO (800 $ au départ, primes d'élimination selon l'arme, 3 250 $ par manche gagnée, bonus de défaite de 1 400 à 3 400 $). On achète avec B pendant le gel et les 20 premières secondes ; en survivant on garde son équipement, en mourant il ne reste que le pistolet. Tu pars du sud, les bots du nord. 3 s de gel au départ, 1:55 de chrono ; on gagne la manche en éliminant l'autre camp, et les bots la gagnent si le temps s'écoule. Le premier à 5 manches remporte le match. Réglages dans `src/config.ts`, section `ROUNDS`.
 
 ## Grenades
 

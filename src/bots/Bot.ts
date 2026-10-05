@@ -43,6 +43,9 @@ export class Bot {
   readonly body = new Body(PLAYER.radius, PLAYER.height);
   readonly model = new BotModel();
   health: number = BOTS.health;
+  /** Les bots portent gilet et casque, comme les bots de CS quand ils ont de l'argent. */
+  armor = 100;
+  helmet = true;
   /** En mode passif, le bot patrouille sans jamais attaquer ni chercher le joueur. */
   private aggressive = true;
   /** Temps écoulé depuis la mort. */
@@ -102,6 +105,8 @@ export class Bot {
   spawn(position: THREE.Vector3, yaw = Math.random() * Math.PI * 2): void {
     this.body.teleport(position);
     this.health = BOTS.health;
+    this.armor = 100;
+    this.helmet = true;
     this.deadTime = 0;
     this.state = 'patrol';
     this.path = [];

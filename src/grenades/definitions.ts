@@ -28,7 +28,13 @@ export const GRENADES: Record<GrenadeType, GrenadeDef> = {
 /** Ordre de défilement avec la touche 4, comme dans CS:GO. */
 export const GRENADE_ORDER: GrenadeType[] = ['he', 'flash', 'smoke', 'molotov', 'decoy'];
 
-/** Grenades reçues à chaque manche ou réapparition. CS:GO limite à 4 au total ; pas ici. */
+/** Ce qu'on peut porter au plus quand on achète (CS:GO) : une par type, deux flashs, quatre en tout. */
+export const GRENADE_CARRY = {
+  perType: { he: 1, flash: 2, smoke: 1, molotov: 1, decoy: 1 } as Record<GrenadeType, number>,
+  total: 4,
+};
+
+/** Grenades offertes à chaque réapparition en deathmatch (la limite d'achat ne s'y applique pas). */
 export const GRENADE_LOADOUT: Record<GrenadeType, number> = { he: 1, flash: 2, smoke: 1, molotov: 1, decoy: 1 };
 
 /** Valeurs reprises de CS:GO (unités Source converties en mètres). */

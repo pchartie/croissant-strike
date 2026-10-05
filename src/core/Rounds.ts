@@ -25,12 +25,21 @@ export class Rounds {
   private status: RoundStatus = this.initial();
 
   constructor(
-    /** Remet tout le monde en place pour une nouvelle manche. */
-    private readonly resetRound: () => void,
+    private readonly hooks: {
+      /** Remet tout le monde en place pour une nouvelle manche (`newMatch` : premier tour d'un match). */
+      reset(newMatch: boolean): void;
+      /** Une manche vient de se terminer. */
+      ended(winner: Side): void;
+    },
   ) {}
 
   get current(): Readonly<RoundStatus> {
     return this.status;
+  }
+
+  /** Temps écoulé depuis le début de la manche en cours (gel exclu), pour la fenêtre d'achat. */
+  get elapsed(): number {
+    return this.status.phase === 'live' ? ROUNDS.roundTime - this.status.timeLeft : 0;
   }
 
   /** Personne ne bouge pendant le gel ni entre deux manches. */
@@ -81,7 +90,7 @@ export class Rounds {
     this.status.timeLeft = ROUNDS.freezeTime;
     this.status.winner = null;
     this.status.reason = '';
-    this.resetRound();
+    this.hooks.reset(this.status.round === 1);
   }
 
   private endRound(winner: Side, reason: string): void {
@@ -92,6 +101,7 @@ export class Rounds {
     s.winner = winner;
     s.reason = reason;
     s.timeLeft = ROUNDS.roundOverTime;
+    this.hooks.ended(winner);
   }
 
   private initial(): RoundStatus {

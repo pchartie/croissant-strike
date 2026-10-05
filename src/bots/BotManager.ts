@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { BOTS, DIFFICULTY, PLAYER } from '../config';
+import { absorbDamage, type DamageZone } from '../core/armor';
 import { flashDuration } from '../grenades/flashbang';
 import type { Player } from '../player/Player';
 import { RIFLE } from '../weapons/definitions';
@@ -23,7 +24,9 @@ export interface BotShot {
   /** Mur ou objet touché, si la balle n'a pas touché le joueur. */
   worldHit: THREE.Intersection | null;
   /** Dégâts infligés au joueur, ou 0 s'il n'est pas touché. */
+  /** Dégâts bruts infligés au joueur (avant son gilet), ou 0 s'il n'est pas touché. */
   playerDamage: number;
+  part: HitPart | null;
   headshot: boolean;
 }
 
@@ -171,8 +174,8 @@ export class BotManager {
   }
 
   /** Dégâts directs (grenade, feu) ; renvoie vrai si le bot en meurt. */
-  damageBot(bot: Bot, amount: number): boolean {
-    return bot.damage(amount, this.player.position);
+  damageBot(bot: Bot, amount: number, zone: DamageZone = 'fire', armorRatio = 1): boolean {
+    return bot.damage(absorbDamage(bot, amount, zone, armorRatio), this.player.position);
   }
 
   /** Flash : chaque bot qui la voit est aveuglé selon l'angle et la distance. */
@@ -197,10 +200,11 @@ export class BotManager {
   }
 
   /** Applique un tir du joueur sur une zone touchée ; renvoie les dégâts et si le bot est mort. */
-  hit(mesh: THREE.Object3D, baseDamage: number): { bot: Bot; part: HitPart; killed: boolean } {
+  hit(mesh: THREE.Object3D, baseDamage: number, armorRatio: number): { bot: Bot; part: HitPart; killed: boolean } {
     const bot = mesh.userData.bot as Bot;
     const part = mesh.userData.part as HitPart;
-    const killed = bot.damage(baseDamage * DAMAGE_MULTIPLIER[part], this.player.position);
+    const health = absorbDamage(bot, baseDamage * DAMAGE_MULTIPLIER[part], part, armorRatio);
+    const killed = bot.damage(health, this.player.position);
     return { bot, part, killed };
   }
 
@@ -241,13 +245,14 @@ export class BotManager {
         end: this.playerHit.clone(),
         worldHit: null,
         playerDamage: Math.round(RIFLE.damage * DAMAGE_MULTIPLIER[part]),
+        part,
         headshot: part === 'head',
       });
       return;
     }
 
     const end = origin.clone().addScaledVector(direction, worldHit ? worldHit.distance : RIFLE.range);
-    this.events.shot({ bot, origin: muzzle, end, worldHit, playerDamage: 0, headshot: false });
+    this.events.shot({ bot, origin: muzzle, end, worldHit, playerDamage: 0, part: null, headshot: false });
   }
 
   /** Point de réapparition du joueur : hors de vue des bots et le plus loin possible d'eux. */

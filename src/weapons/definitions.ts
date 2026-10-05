@@ -48,6 +48,8 @@ export interface WeaponDef {
   /** Recul visuel de l'arme en main. */
   viewKick: { back: number; pitch: number };
   sound: { cutoff: number; thump: number; decay: number; volume: number };
+  /** Part des dégâts qui passe un gilet pare-balles (pénétration de l'arme, CS:GO). */
+  armorRatio: number;
   /** Prix au menu d'achat, et prime par élimination (valeurs de CS:GO). */
   price: number;
   killReward: number;
@@ -95,6 +97,7 @@ export const RIFLE: WeaponDef = {
   },
   viewKick: { back: 0.045, pitch: 0.06 },
   sound: { cutoff: 2600, thump: 110, decay: 0.32, volume: 0.9 },
+  armorRatio: 0.7,
   price: 3100,
   killReward: 300,
   rangeModifier: 0.97,
@@ -120,6 +123,7 @@ export const PISTOL: WeaponDef = {
   },
   viewKick: { back: 0.03, pitch: 0.12 },
   sound: { cutoff: 4200, thump: 160, decay: 0.2, volume: 0.7 },
+  armorRatio: 0.55,
   price: 200,
   killReward: 300,
   rangeModifier: 0.85,
@@ -142,6 +146,7 @@ export const KNIFE: WeaponDef = {
   recoil: { pattern: [[0, 0]], random: 0, recovery: 10 },
   viewKick: { back: 0, pitch: 0 },
   sound: { cutoff: 0, thump: 0, decay: 0, volume: 0 },
+  armorRatio: 0.85,
   price: 0,
   killReward: 1500,
   melee: {
@@ -178,6 +183,7 @@ export const SMG: WeaponDef = {
   },
   viewKick: { back: 0.025, pitch: 0.035 },
   sound: { cutoff: 1800, thump: 90, decay: 0.18, volume: 0.5 },
+  armorRatio: 0.6,
   price: 1500,
   killReward: 600,
   rangeModifier: 0.85,
@@ -201,6 +207,7 @@ export const SHOTGUN: WeaponDef = {
   recoil: { pattern: [[2.6, 0.3]], random: 0.8, recovery: 4 },
   viewKick: { back: 0.07, pitch: 0.16 },
   sound: { cutoff: 1500, thump: 70, decay: 0.45, volume: 1 },
+  armorRatio: 0.5,
   price: 1050,
   killReward: 900,
   pellets: 9,

@@ -20,6 +20,9 @@ export class Player extends Body {
   yaw = 0;
   pitch = 0;
   health = MAX_HEALTH;
+  /** Gilet pare-balles (0 à 100) et casque. */
+  armor = 0;
+  helmet = false;
   /** Radians par point de souris (réglage « Sensibilité »). */
   sensitivity = CAMERA.sensitivity;
   invertY = true;

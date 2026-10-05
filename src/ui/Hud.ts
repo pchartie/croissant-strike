@@ -36,6 +36,10 @@ export class Hud {
   private readonly overlay = document.getElementById('overlay')!;
   private readonly play = document.getElementById('play')!;
   private readonly crosshair = document.getElementById('crosshair')!;
+  private readonly money = document.getElementById('money')!;
+  private readonly armor = document.getElementById('armor')!;
+  private lastMoney = '';
+  private lastArmor = '';
   private readonly grenades = document.getElementById('grenades')!;
   private readonly round = document.getElementById('round')!;
   private readonly roundScore = document.getElementById('round-score')!;
@@ -183,6 +187,30 @@ export class Hud {
     style.setProperty('--len', `${len}px`);
     style.setProperty('--gap', `${gap}px`);
     style.setProperty('--thick', `${thick}px`);
+  }
+
+  /** Argent (mode manches) et dernier gain récent ; null pour cacher (deathmatch). */
+  setMoney(money: number | null, gain: { amount: number; reason: string } | null): void {
+    const text = money === null ? '' : `${money} $${gain ? `|+${gain.amount} $ ${gain.reason}` : ''}`;
+    if (text === this.lastMoney) return;
+    this.lastMoney = text;
+    const [amount, extra] = text.split('|');
+    this.money.textContent = amount;
+    if (extra) {
+      const span = document.createElement('span');
+      span.className = 'gain';
+      span.textContent = extra;
+      this.money.append(span);
+    }
+  }
+
+  /** Gilet pare-balles (et casque) affiché à côté de la santé. */
+  setArmor(armor: number, helmet: boolean): void {
+    const value = Math.ceil(armor);
+    const text = value > 0 ? `${helmet ? 'Gilet + casque' : 'Gilet'} ${value}` : '';
+    if (text === this.lastArmor) return;
+    this.lastArmor = text;
+    this.armor.textContent = text;
   }
 
   setSpeedVisible(visible: boolean): void {

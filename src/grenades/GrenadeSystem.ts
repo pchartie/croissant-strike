@@ -3,6 +3,7 @@ import type { Input } from '../core/Input';
 import type { Player } from '../player/Player';
 import {
   DECOY,
+  GRENADE_CARRY,
   GRENADE_LOADOUT,
   GRENADE_ORDER,
   GRENADE_PHYSICS,
@@ -101,6 +102,28 @@ export class GrenadeSystem {
 
   refill(): void {
     Object.assign(this.counts, GRENADE_LOADOUT);
+  }
+
+  /** Plus aucune grenade (mort en mode manches). */
+  empty(): void {
+    for (const type of GRENADE_ORDER) this.counts[type] = 0;
+    this.current = null;
+  }
+
+  /** Vrai si on peut encore acheter une grenade de ce type (limites de CS:GO). */
+  canGive(type: GrenadeType): boolean {
+    const total = GRENADE_ORDER.reduce((sum, t) => sum + this.counts[t], 0);
+    return total < GRENADE_CARRY.total && this.counts[type] < GRENADE_CARRY.perType[type];
+  }
+
+  /**
+   * Ajoute une grenade achetée, dans les limites de CS:GO : une par type (deux
+   * flashs) et quatre en tout. Renvoie faux si la limite est atteinte.
+   */
+  give(type: GrenadeType): boolean {
+    if (!this.canGive(type)) return false;
+    this.counts[type]++;
+    return true;
   }
 
   /** Retire toutes les grenades et leurs effets (nouvelle manche). */

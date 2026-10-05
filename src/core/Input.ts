@@ -80,6 +80,11 @@ export class Input {
     return pressed;
   }
 
+  /** Vrai une seule fois par appui sur cette touche précise (menu d'achat : touches 1 à 0). */
+  consumeCode(code: string): boolean {
+    return this.pressed.delete(code);
+  }
+
   /** Oublie les appuis non utilisés pendant ce tick (sauter en l'air, recharger plein…). */
   endTick(): void {
     this.pressed.clear();

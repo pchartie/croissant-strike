@@ -74,6 +74,19 @@ export const ROUNDS = {
   toWin: 5,
 };
 
+/** Économie du mode manches, valeurs de CS:GO. */
+export const ECONOMY = {
+  start: 800,
+  max: 16000,
+  roundWin: 3250,
+  /** Manche perdue : 1 400 $, plus 500 $ par défaite d'affilée, jusqu'à 3 400 $. */
+  lossBase: 1400,
+  lossStep: 500,
+  lossMax: 3400,
+  /** On peut acheter pendant le gel et ce nombre de secondes de manche. */
+  buyTime: 20,
+};
+
 export const CAMERA = {
   fov: 75,
   // Sensibilité par défaut : 0,022 × 2 degrés par point de souris, comme dans CS (réglable dans le menu).

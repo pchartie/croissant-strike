@@ -13,7 +13,8 @@ export type Action =
   | 'weapon1'
   | 'weapon2'
   | 'weapon3'
-  | 'grenades';
+  | 'grenades'
+  | 'buy';
 
 /** Codes de touches : ceux du clavier (`KeyW`…), `Mouse0` à `Mouse4` et `Wheel` pour la molette. */
 export type Bindings = Record<Action, string[]>;
@@ -32,10 +33,11 @@ export const ACTIONS: { action: Action; label: string }[] = [
   { action: 'attack', label: 'Tirer / lancer loin / coup rapide' },
   { action: 'attack2', label: 'Lancer en cloche / coup puissant' },
   { action: 'reload', label: 'Recharger' },
-  { action: 'weapon1', label: 'Fusil' },
+  { action: 'weapon1', label: 'Arme principale' },
   { action: 'weapon2', label: 'Pistolet' },
   { action: 'weapon3', label: 'Couteau' },
   { action: 'grenades', label: 'Grenades (appuyer à nouveau pour changer)' },
+  { action: 'buy', label: "Menu d'achat" },
 ];
 
 // Codes physiques : sur un clavier AZERTY, KeyW est la touche Z et KeyA la touche Q.
@@ -55,6 +57,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   weapon2: ['Digit2'],
   weapon3: ['Digit3'],
   grenades: ['Digit4'],
+  buy: ['KeyB'],
 };
 
 /** Touches qu'on ne peut pas assigner : Échap met le jeu en pause. */

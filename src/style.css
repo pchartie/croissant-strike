@@ -556,3 +556,89 @@ kbd {
   font-size: 13px;
   opacity: 0.7;
 }
+
+#armor {
+  margin-left: 18px;
+  font-size: 24px;
+  opacity: 0.85;
+}
+
+#money {
+  position: absolute;
+  left: 32px;
+  bottom: 78px;
+  color: #8dff8d;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px #000;
+}
+
+#money .gain {
+  margin-left: 10px;
+  font-size: 15px;
+  font-weight: 400;
+  color: #fff;
+  opacity: 0.85;
+}
+
+#buy-menu {
+  position: absolute;
+  left: 32px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 300px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: rgba(15, 17, 20, 0.88);
+  color: #eee;
+  font-size: 15px;
+}
+
+#buy-menu.hidden {
+  display: none;
+}
+
+#buy-menu h2 {
+  margin-bottom: 8px;
+  font-size: 18px;
+  letter-spacing: 1px;
+}
+
+#buy-menu .item {
+  display: flex;
+  gap: 10px;
+  padding: 3px 0;
+}
+
+#buy-menu .item .key {
+  min-width: 22px;
+  color: #4dff4d;
+  font-weight: 700;
+}
+
+#buy-menu .item .name {
+  flex: 1;
+}
+
+#buy-menu .item.expensive {
+  opacity: 0.4;
+}
+
+#buy-menu .item.owned .name::after {
+  content: ' ✓';
+  color: #4dff4d;
+}
+
+#buy-menu .footer {
+  margin-top: 10px;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+#buy-menu .message {
+  margin-top: 6px;
+  min-height: 18px;
+  color: #ffd34d;
+  font-size: 13px;
+}

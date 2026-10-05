@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import type { Bot } from '../bots/Bot';
 import { BotManager, type BotShot } from '../bots/BotManager';
-import { CAMERA, MOVE, PLAYER, TICK, UNIT } from '../config';
+import { CAMERA, ECONOMY, MOVE, PLAYER, TICK, UNIT } from '../config';
 import { DECOY, GRENADE_ORDER, GRENADES, HE, MOLOTOV } from '../grenades/definitions';
 import { flashDuration } from '../grenades/flashbang';
 import { GrenadeSystem } from '../grenades/GrenadeSystem';
 import { Player } from '../player/Player';
+import { BuyMenu } from '../ui/BuyMenu';
 import { Hud } from '../ui/Hud';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { RIFLE, type WeaponDef } from '../weapons/definitions';
@@ -18,7 +19,10 @@ import { buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { loadSky } from '../world/sky';
 import { World } from '../world/World';
+import { absorbDamage, BLAST_ARMOR_RATIO, type DamageZone } from './armor';
 import { Audio } from './Audio';
+import { Economy } from './Economy';
+import { HELMET_UPGRADE_PRICE, SHOP_ITEMS, type ShopItem } from './shop';
 import { Input } from './Input';
 import { Rounds } from './Rounds';
 import { loadSettings, saveSettings, type GameMode, type Settings } from './settings';
@@ -34,6 +38,10 @@ const CLOSE_SHOT_DISTANCE = 10;
 const HURT_SOUND_INTERVAL = 0.35;
 /** 500 unités Source : distance de référence du « range modifier » des armes. */
 const RANGE_UNIT = 500 * UNIT;
+/** Prime d'élimination à la grenade (CS:GO). */
+const GRENADE_KILL_REWARD = 300;
+/** Durée d'affichage d'un gain d'argent (« +300 $ Élimination »). */
+const GAIN_DISPLAY_MS = 2500;
 /** Coup dans le dos si le bot regarde à moins de ~65° de la direction opposée au joueur. */
 const BACKSTAB_DOT = 0.4;
 
@@ -55,6 +63,8 @@ export class Game {
   private readonly bots: BotManager;
   private readonly rounds: Rounds;
   private mode: GameMode = 'deathmatch';
+  private readonly economy = new Economy();
+  private readonly buyMenu = new BuyMenu();
 
   /** Éclaire brièvement les alentours à chaque tir. */
   private readonly muzzleLight = new THREE.PointLight(0xffb060, 0, 8, 2);
@@ -123,11 +133,19 @@ export class Game {
 
     this.grenades = this.createGrenades();
     this.bots.setVisionBlocker((from, to) => this.grenades.blocksVision(from, to));
-    this.rounds = new Rounds(() => this.resetRound());
+    this.rounds = new Rounds({
+      reset: (newMatch) => this.resetRound(newMatch),
+      ended: (winner) => this.economy.roundEnded(winner === 'player'),
+    });
 
     this.hud.setScore(0, 0);
     const settings = loadSettings();
     this.applySettings(settings);
+    // Deathmatch dès le lancement : gilet et casque, comme à chaque réapparition.
+    if (this.mode === 'deathmatch') {
+      this.player.armor = 100;
+      this.player.helmet = true;
+    }
     new SettingsPanel(document.getElementById('settings')!, settings, (changed) => {
       this.applySettings(changed);
       saveSettings(changed);
@@ -185,6 +203,8 @@ export class Game {
     // Pendant le gel de début de manche, on peut regarder autour mais pas bouger ni tirer.
     const frozen = this.mode === 'rounds' && this.rounds.frozen;
 
+    // Le menu d'achat passe en premier : ses touches 1 à 0 ne doivent pas changer d'arme.
+    this.updateBuyMenu();
     if (this.player.alive && !frozen) {
       this.player.update(TICK, this.input, [...this.world.colliders, ...this.bots.colliders]);
       if (this.player.outOfMap) this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
@@ -213,9 +233,10 @@ export class Game {
   // --- Dégâts ---
 
   /** Dégâts infligés au joueur, par un bot ou par une grenade (les siennes comprises). */
-  private damagePlayer(amount: number, attacker: string, weapon: string, headshot = false): void {
+  /** Dégâts au joueur (`amount` brut : son gilet en arrête une partie selon la zone et l'arme). */
+  private damagePlayer(amount: number, zone: DamageZone, armorRatio: number, attacker: string, weapon: string, headshot = false): void {
     if (!this.player.alive) return;
-    this.player.health -= amount;
+    this.player.health -= absorbDamage(this.player, amount, zone, armorRatio);
     if (this.hurtCooldown === 0) {
       this.hud.showDamage();
       this.audio.hurt();
@@ -231,14 +252,102 @@ export class Game {
   }
 
   /** Dégâts infligés à un bot par le joueur ; renvoie vrai s'il en meurt. */
-  private damageBot(bot: Bot, amount: number, weapon: string, headshot = false): boolean {
-    const killed = this.bots.damageBot(bot, amount);
-    if (killed) {
-      this.kills++;
-      this.hud.addKill('Toi', bot.name, weapon, headshot);
-      this.hud.setScore(this.kills, this.deaths);
-    }
+  /** Dégâts du joueur à un bot (grenade, feu, couteau) ; renvoie vrai s'il en meurt. */
+  private damageBot(bot: Bot, amount: number, zone: DamageZone, armorRatio: number, weapon: string, reward: number, headshot = false): boolean {
+    const killed = this.bots.damageBot(bot, amount, zone, armorRatio);
+    if (killed) this.onBotKilled(bot, weapon, reward, headshot);
     return killed;
+  }
+
+  private onBotKilled(bot: Bot, weapon: string, reward: number, headshot: boolean): void {
+    this.kills++;
+    this.hud.addKill('Toi', bot.name, weapon, headshot);
+    this.hud.setScore(this.kills, this.deaths);
+    if (this.mode === 'rounds') this.economy.earn(reward, 'Élimination');
+  }
+
+  // --- Achat ---
+
+  /** On achète partout en deathmatch ; en manches, pendant le gel et le début de manche. */
+  private get canBuy(): boolean {
+    if (!this.player.alive) return false;
+    if (this.mode === 'deathmatch') return true;
+    const { phase } = this.rounds.current;
+    return phase === 'freeze' || (phase === 'live' && this.rounds.elapsed < ECONOMY.buyTime);
+  }
+
+  /** Secondes restantes pour acheter (manches), ou null (deathmatch). */
+  private get buyTimeLeft(): number | null {
+    if (this.mode === 'deathmatch') return null;
+    const { phase, timeLeft } = this.rounds.current;
+    return phase === 'freeze' ? timeLeft + ECONOMY.buyTime : Math.max(0, ECONOMY.buyTime - this.rounds.elapsed);
+  }
+
+  private updateBuyMenu(): void {
+    const canBuy = this.canBuy;
+    if (this.input.consumePress('buy') && canBuy) this.buyMenu.toggle();
+    if (!this.buyMenu.open) return;
+    if (!canBuy) {
+      this.buyMenu.close();
+      return;
+    }
+    for (const item of SHOP_ITEMS) if (this.input.consumeCode(item.code)) this.buy(item);
+  }
+
+  private priceOf(item: ShopItem): number {
+    if (this.mode === 'deathmatch') return 0;
+    // Casque seul si on a déjà un gilet neuf.
+    if (item.kind === 'helmet' && this.player.armor >= 100 && !this.player.helmet) return HELMET_UPGRADE_PRICE;
+    return item.price;
+  }
+
+  private itemState(item: ShopItem): 'ok' | 'expensive' | 'owned' {
+    let owned: boolean;
+    switch (item.kind) {
+      case 'weapon':
+        owned = this.weapons.primary?.def.id === item.weapon.id;
+        break;
+      case 'armor':
+        owned = this.player.armor >= 100;
+        break;
+      case 'helmet':
+        owned = this.player.armor >= 100 && this.player.helmet;
+        break;
+      case 'grenade':
+        owned = !this.grenades.canGive(item.grenade);
+        break;
+    }
+    if (owned) return 'owned';
+    return this.mode === 'rounds' && this.priceOf(item) > this.economy.money ? 'expensive' : 'ok';
+  }
+
+  private buy(item: ShopItem): void {
+    const state = this.itemState(item);
+    if (state === 'owned') {
+      this.buyMenu.message = item.kind === 'grenade' ? 'Limite de grenades atteinte' : 'Déjà équipé';
+      return;
+    }
+    if (this.mode === 'rounds' && !this.economy.spend(this.priceOf(item))) {
+      this.buyMenu.message = "Pas assez d'argent";
+      return;
+    }
+    switch (item.kind) {
+      case 'weapon':
+        this.weapons.setPrimary(item.weapon);
+        break;
+      case 'armor':
+        this.player.armor = 100;
+        break;
+      case 'helmet':
+        this.player.armor = 100;
+        this.player.helmet = true;
+        break;
+      case 'grenade':
+        this.grenades.give(item.grenade);
+        break;
+    }
+    this.audio.draw();
+    this.buyMenu.message = `${item.label} : acheté`;
   }
 
   /**
@@ -258,11 +367,11 @@ export class Game {
     for (const bot of this.bots.bots) {
       if (!bot.alive) continue;
       const damage = hits(bot.body.position, bot.body.height);
-      if (damage >= 1) this.damageBot(bot, damage, weapon);
+      if (damage >= 1) this.damageBot(bot, damage, 'blast', BLAST_ARMOR_RATIO, weapon, GRENADE_KILL_REWARD);
     }
     if (this.player.alive) {
       const damage = hits(this.player.position, this.player.height);
-      if (damage >= 1) this.damagePlayer(damage, 'Toi', weapon);
+      if (damage >= 1) this.damagePlayer(damage, 'blast', BLAST_ARMOR_RATIO, 'Toi', weapon);
     }
   }
 
@@ -270,8 +379,8 @@ export class Game {
   private applyFire(): void {
     const burning = (feet: THREE.Vector3) => this.grenades.burning(feet);
     const damage = MOLOTOV.damagePerSecond * TICK;
-    if (this.player.alive && burning(this.player.position)) this.damagePlayer(damage, 'Toi', GRENADES.molotov.name);
-    this.bots.burn((feet) => this.grenades.fireAt(feet), (bot) => this.damageBot(bot, damage, GRENADES.molotov.name));
+    if (this.player.alive && burning(this.player.position)) this.damagePlayer(damage, 'fire', 1, 'Toi', GRENADES.molotov.name);
+    this.bots.burn((feet) => this.grenades.fireAt(feet), (bot) => this.damageBot(bot, damage, 'fire', 1, GRENADES.molotov.name, GRENADE_KILL_REWARD));
   }
 
   // --- Tirs ---
@@ -292,16 +401,12 @@ export class Game {
         continue;
       }
       const falloff = Math.pow(def.rangeModifier ?? 1, hit.distance / RANGE_UNIT);
-      const { bot, part, killed } = this.bots.hit(hit.object, def.damage * falloff);
+      const { bot, part, killed } = this.bots.hit(hit.object, def.damage * falloff, def.armorRatio);
       const headshot = part === 'head';
       touched = true;
       headshotHit ||= headshot;
       this.impacts.addBlood(hit.point, direction, shots.length > 1 ? 4 : headshot ? 18 : 10);
-      if (killed) {
-        this.kills++;
-        this.hud.addKill('Toi', bot.name, def.name, headshot);
-        this.hud.setScore(this.kills, this.deaths);
-      }
+      if (killed) this.onBotKilled(bot, def.name, def.killReward, headshot);
     }
     if (touched) {
       this.hud.showHitmarker(headshotHit);
@@ -327,7 +432,8 @@ export class Game {
     this.impacts.addBlood(hit.point, direction, backstab ? 20 : 12);
     this.hud.showHitmarker(backstab);
     this.audio.knifeHit();
-    this.damageBot(bot, damage, backstab ? `${def.name} · dans le dos` : def.name);
+    const zone = (hit.object.userData.part ?? 'body') as DamageZone;
+    this.damageBot(bot, damage, zone, def.armorRatio, backstab ? `${def.name} · dans le dos` : def.name, def.killReward);
   }
 
   /** Vrai si le joueur est derrière le bot (le bot lui tourne le dos). */
@@ -342,7 +448,7 @@ export class Game {
     this.audio.shot(RIFLE, { distant: distance > CLOSE_SHOT_DISTANCE, loudness: Math.min(loudness, 0.8), pan });
     this.tracers.add(shot.origin, shot.end);
     if (shot.worldHit) this.impacts.add(shot.worldHit);
-    if (shot.playerDamage > 0) this.damagePlayer(shot.playerDamage, shot.bot.name, RIFLE.name, shot.headshot);
+    if (shot.playerDamage > 0) this.damagePlayer(shot.playerDamage, shot.part ?? 'body', RIFLE.armorRatio, shot.bot.name, RIFLE.name, shot.headshot);
   }
 
   // --- Grenades ---
@@ -465,8 +571,19 @@ export class Game {
     }
   }
 
-  /** Nouvelle manche : tout le monde à sa place, santé, munitions et grenades refaites. */
-  private resetRound(): void {
+  /**
+   * Nouvelle manche, comme dans CS : si on a survécu, on garde armes, gilet et
+   * grenades ; si on est mort (ou en début de match), il ne reste que le pistolet.
+   */
+  private resetRound(newMatch: boolean): void {
+    const diedLastRound = !this.player.alive;
+    if (newMatch) this.economy.reset();
+    if (newMatch || diedLastRound) {
+      this.weapons.setPrimary(null, false);
+      this.player.armor = 0;
+      this.player.helmet = false;
+      this.grenades.empty();
+    }
     this.respawnTimer = null;
     this.killer = '';
     this.flashTime = 0;
@@ -474,7 +591,7 @@ export class Game {
     this.player.spawn(PLAYER_SPAWN.position.clone().add(offset), PLAYER_SPAWN.yaw);
     this.weapons.reset();
     this.grenades.clear();
-    this.grenades.refill();
+    this.buyMenu.close();
     this.bots.resetForRound();
   }
 
@@ -485,6 +602,10 @@ export class Game {
     const position = this.bots.playerSpawnPoint();
     // Face au centre de la carte.
     this.player.spawn(position, Math.atan2(position.x, position.z));
+    // Deathmatch : gilet, casque et grenades offerts ; on garde l'arme principale choisie.
+    this.player.armor = 100;
+    this.player.helmet = true;
+    if (!this.weapons.primary) this.weapons.setPrimary(RIFLE, false);
     this.weapons.reset();
     this.grenades.unequip();
     this.grenades.refill();
@@ -517,6 +638,15 @@ export class Game {
     // Écran blanc tant que la flash fait effet (voir Hud.setFlash).
     this.hud.setFlash(this.flashTime);
     this.hud.setSmoke(this.grenades.smokeAt(this.camera.position) * 0.92);
+
+    const gain = this.economy.lastGain && performance.now() - this.economy.lastGain.time < GAIN_DISPLAY_MS ? this.economy.lastGain : null;
+    this.hud.setMoney(this.mode === 'rounds' ? this.economy.money : null, gain);
+    this.hud.setArmor(this.player.armor, this.player.helmet);
+    this.buyMenu.render(
+      SHOP_ITEMS.map((item) => ({ key: item.key, label: item.label, price: this.priceOf(item), state: this.itemState(item) })),
+      this.mode === 'rounds' ? this.economy.money : null,
+      this.buyTimeLeft,
+    );
 
     const grenade = this.grenades.def;
     if (grenade) this.hud.setAmmo(grenade.name, this.grenades.counts[grenade.type], null);
