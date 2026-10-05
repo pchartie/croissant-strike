@@ -21,6 +21,8 @@ const MUZZLE_LIGHT_DURATION = 0.04;
 const RESPAWN_DELAY = 3;
 /** Distance à laquelle un tir de bot devient presque inaudible. */
 const HEARING_DISTANCE = 60;
+/** En deçà, un tir de bot utilise la prise de son rapprochée. */
+const CLOSE_SHOT_DISTANCE = 10;
 
 export class Game {
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -42,6 +44,8 @@ export class Game {
   private muzzleLightTimer = 0;
   private readonly forward = new THREE.Vector3();
   private readonly eye = new THREE.Vector3();
+  private readonly toSound = new THREE.Vector3();
+  private readonly right = new THREE.Vector3();
 
   private kills = 0;
   private deaths = 0;
@@ -183,7 +187,14 @@ export class Game {
 
   private onBotShot(shot: BotShot): void {
     const distance = shot.origin.distanceTo(this.player.eyePosition(this.eye));
-    this.audio.shot(RIFLE, THREE.MathUtils.clamp(1 - distance / HEARING_DISTANCE, 0.12, 0.8));
+    // Gauche/droite selon la position du tireur par rapport au regard, pour le repérer à l'oreille.
+    this.toSound.subVectors(shot.origin, this.camera.position).normalize();
+    this.right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    this.audio.shot(RIFLE, {
+      distant: distance > CLOSE_SHOT_DISTANCE,
+      loudness: THREE.MathUtils.clamp(1 - distance / HEARING_DISTANCE, 0.12, 0.8),
+      pan: this.toSound.dot(this.right) * 0.8,
+    });
     this.tracers.add(shot.origin, shot.end);
     if (shot.worldHit) this.impacts.add(shot.worldHit);
     if (shot.playerDamage === 0) return;
