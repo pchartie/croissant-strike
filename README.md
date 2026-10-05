@@ -23,6 +23,10 @@ Le jeu utilise les armes et les bras animés du [Retro Weapon Pack](https://kupt
 
 Le script extrait du zip (500 Mo) uniquement ce qui sert et compresse les animations : il reste ~2 Mo dans `public/assets/weapons/`.
 
+## En ligne (GitHub Pages)
+
+Une GitHub Action (`.github/workflows/fps1-pages.yml`, à la racine du dépôt) compile et publie le jeu à chaque push qui touche `FPS1/`, à l'adresse **https://leochartrain.github.io/projets/**. À activer une seule fois : sur GitHub, *Settings → Pages → Source : GitHub Actions* (on peut aussi la lancer à la main depuis l'onglet *Actions*). Le Retro Weapon Pack n'étant pas dans le dépôt, la version en ligne utilise les armes en blocs ; le ciel, les textures et les sons, en CC0, y sont.
+
 ## Faire tester à distance (tunnel Cloudflare)
 
 Sans compte ni nom de domaine, avec [cloudflared](https://github.com/cloudflare/cloudflared/releases) (ici dans `D:Tools`) :
