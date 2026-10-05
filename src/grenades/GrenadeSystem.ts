@@ -14,7 +14,7 @@ import {
   type GrenadeType,
 } from './definitions';
 import { Explosion, FireArea, Scorch, SmokeCloud } from './effects';
-import { Projectile } from './Projectile';
+import { Projectile, type GrenadeOwner } from './Projectile';
 
 const DEG = Math.PI / 180;
 const DRAW_TIME = 0.4;
@@ -37,8 +37,9 @@ export interface GrenadeHooks {
   /** Plus de grenade de ce type en main : le jeu ressort l'arme. */
   emptyHanded(): void;
   bounce(position: THREE.Vector3, speed: number): void;
-  explode(position: THREE.Vector3): void;
-  flashbang(position: THREE.Vector3): void;
+  /** `owner` : null si c'est la grenade du joueur, sinon le bot qui l'a lancée. */
+  explode(position: THREE.Vector3, owner: GrenadeOwner | null): void;
+  flashbang(position: THREE.Vector3, owner: GrenadeOwner | null): void;
   smoke(position: THREE.Vector3): void;
   fire(position: THREE.Vector3, fizzled: boolean): void;
   decoyShot(position: THREE.Vector3): void;
@@ -191,6 +192,13 @@ export class GrenadeSystem {
     }
   }
 
+  /** Lance une grenade d'un bot (les bots n'ont pas d'inventaire ici : c'est leur code qui compte). */
+  launch(type: GrenadeType, origin: THREE.Vector3, velocity: THREE.Vector3, throwerBox: THREE.Box3, owner: GrenadeOwner): void {
+    const projectile = new Projectile(type, origin.clone(), velocity.clone(), throwerBox, owner);
+    this.projectiles.push(projectile);
+    this.scene.add(projectile.mesh);
+  }
+
   /** Grenades en vol et effets au sol (à chaque tick). */
   update(dt: number): void {
     const colliders = this.hooks.colliders();
@@ -297,11 +305,11 @@ export class GrenadeSystem {
         // Trace noire au sol si l'explosion a lieu près du sol.
         const floorY = this.hooks.floorBelow(position.clone().setY(position.y + 0.1));
         if (position.y - floorY < 1.5) this.addEffect(this.scorches, new Scorch(position.clone().setY(floorY), 3.4, 25));
-        this.hooks.explode(position);
+        this.hooks.explode(position, projectile.owner);
         break;
       case 'flash':
         this.addEffect(this.explosions, new Explosion(position, 'flash'));
-        this.hooks.flashbang(position);
+        this.hooks.flashbang(position, projectile.owner);
         break;
       case 'smoke': {
         const floor = position.clone().setY(position.y - GRENADE_PHYSICS.radius);

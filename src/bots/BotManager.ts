@@ -32,6 +32,8 @@ export interface BotShot {
 
 export interface BotEvents {
   shot(shot: BotShot): void;
+  /** Un bot lance une grenade vers `target`. */
+  grenade(bot: Bot, type: 'he' | 'flash', target: THREE.Vector3): void;
 }
 
 /** Fait apparaître, vivre, tirer et réapparaître les bots. */
@@ -66,6 +68,7 @@ export class BotManager {
       colliders: (bot) => this.collidersFor(bot),
       lineOfSight: (from, to) => this.lineOfSight(from, to) && !this.visionBlocker(from, to),
       shoot: (bot, origin, direction) => this.shoot(bot, origin, direction),
+      throwGrenade: (bot, type, target) => this.events.grenade(bot, type, target),
     };
 
     this.setCount(BOTS.count);
@@ -191,9 +194,10 @@ export class BotManager {
   }
 
   /** Flash : chaque bot qui la voit est aveuglé selon l'angle et la distance. */
-  flash(position: THREE.Vector3): void {
+  flash(position: THREE.Vector3, thrower: unknown = null): void {
     for (const bot of this.bots) {
-      if (!bot.alive) continue;
+      // Le lanceur se détourne de sa propre flash.
+      if (!bot.alive || bot === thrower) continue;
       bot.eyePosition(this.flashEye);
       const visible = this.context.lineOfSight(position, this.flashEye);
       bot.blind(flashDuration(position, this.flashEye, bot.forward(this.flashForward), visible));

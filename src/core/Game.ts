@@ -3,6 +3,7 @@ import type { Bot } from '../bots/Bot';
 import { BotManager, type BotShot } from '../bots/BotManager';
 import { CAMERA, ECONOMY, MOVE, PLAYER, TICK, UNIT } from '../config';
 import { DECOY, GRENADE_ORDER, GRENADES, HE, MOLOTOV } from '../grenades/definitions';
+import { throwVelocity } from '../grenades/ballistics';
 import { flashDuration } from '../grenades/flashbang';
 import { GrenadeSystem } from '../grenades/GrenadeSystem';
 import { Player } from '../player/Player';
@@ -141,6 +142,7 @@ export class Game {
     this.radar = new Radar(document.getElementById('radar') as HTMLCanvasElement, this.nav);
     this.bots = new BotManager(this.scene, this.world, this.nav, this.player, {
       shot: (shot) => this.onBotShot(shot),
+      grenade: (bot, type, target) => this.onBotGrenade(bot, type, target),
     });
 
     this.weapons = new WeaponSystem(this.player, () => [...this.world.meshes, ...this.bots.hitboxes], {
@@ -413,7 +415,7 @@ export class Game {
    * Explosion : dégâts à tous ceux qu'elle « voit » (les murs protègent), forts
    * au centre et qui baissent vite avec la distance, comme la HE de CS:GO.
    */
-  private applyAreaDamage(center: THREE.Vector3, radius: number, maxDamage: number, weapon: string): void {
+  private applyAreaDamage(center: THREE.Vector3, radius: number, maxDamage: number, weapon: string, thrower: Bot | null = null): void {
     const sigma = radius / 3;
     const origin = center.clone().setY(center.y + 0.1);
     const hits = (feet: THREE.Vector3, height: number) => {
@@ -423,14 +425,15 @@ export class Game {
       return maxDamage * Math.exp(-(distance * distance) / (2 * sigma * sigma));
     };
 
-    for (const bot of this.bots.bots) {
+    // Pas de tir ami : la grenade d'un bot ne blesse que le joueur.
+    for (const bot of thrower ? [] : this.bots.bots) {
       if (!bot.alive) continue;
       const damage = hits(bot.body.position, bot.body.height);
       if (damage >= 1) this.damageBot(bot, damage, 'blast', BLAST_ARMOR_RATIO, weapon, GRENADE_KILL_REWARD);
     }
     if (this.player.alive) {
       const damage = hits(this.player.position, this.player.height);
-      if (damage >= 1) this.damagePlayer(damage, 'blast', BLAST_ARMOR_RATIO, 'Toi', weapon);
+      if (damage >= 1) this.damagePlayer(damage, 'blast', BLAST_ARMOR_RATIO, thrower?.name ?? 'Toi', weapon, false, thrower ?? undefined);
     }
   }
 
@@ -534,20 +537,20 @@ export class Game {
         const { loudness, pan } = this.hearing(position);
         this.audio.bounce(loudness * Math.min(speed / 8, 1), pan);
       },
-      explode: (position) => {
+      explode: (position, owner) => {
         const { loudness, pan, distance } = this.hearing(position);
         this.audio.explosion(loudness, pan);
-        this.applyAreaDamage(position, HE.radius, HE.damage, GRENADES.he.name);
+        this.applyAreaDamage(position, HE.radius, HE.damage, GRENADES.he.name, owner as Bot | null);
         this.bots.playerFired(position);
         // Secousse de la vue si l'explosion est proche.
         const shake = Math.max(0, 1 - distance / 15) * 0.06;
         this.weapons.punch.pitch += (Math.random() - 0.3) * shake;
         this.weapons.punch.yaw += (Math.random() - 0.5) * shake;
       },
-      flashbang: (position) => {
+      flashbang: (position, owner) => {
         const { loudness, pan } = this.hearing(position);
         this.audio.flashbang(loudness, pan);
-        this.bots.flash(position);
+        this.bots.flash(position, owner);
         if (!this.player.alive) return;
         this.player.eyePosition(this.eye);
         this.camera.getWorldDirection(this.forward);
@@ -624,6 +627,16 @@ export class Game {
     this.raycaster.set(feet.clone().setY(feet.y + 0.2), DOWN);
     this.raycaster.far = 0.6;
     return surfaceOf(this.raycaster.intersectObjects(this.world.meshes, false)[0]?.object);
+  }
+
+  /** Un bot lance une grenade : trajectoire calculée pour retomber près de la cible. */
+  private onBotGrenade(bot: Bot, type: 'he' | 'flash', target: THREE.Vector3): void {
+    const origin = bot.eyePosition(new THREE.Vector3());
+    const aim = target.clone().setY(target.y + 0.3);
+    origin.addScaledVector(aim.clone().sub(origin).setY(0).normalize(), 0.4);
+    this.grenades.launch(type, origin, throwVelocity(origin, aim), bot.body.box, bot);
+    const { loudness, pan } = this.hearing(origin);
+    this.audio.bounce(loudness * 0.6, pan);
   }
 
   /** Volume et position gauche/droite d'un son, selon où il se trouve par rapport au joueur. */

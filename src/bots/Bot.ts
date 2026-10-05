@@ -17,6 +17,12 @@ const SEARCH_LOOK_TIME = 2;
 const FALL_DURATION = 0.35;
 /** Temps passé à s'écarter tout droit d'un feu. */
 const ESCAPE_TIME = 0.6;
+/** Grenades : pas avant ce délai après l'apparition, puis au plus une toutes les 8 à 14 s. */
+const GRENADE_FIRST_DELAY = 6;
+/** Distance du joueur (sa dernière position connue) entre laquelle un bot lance une grenade. */
+const GRENADE_RANGE = { min: 6, max: 28 };
+/** Chance de sauter à chaque changement de sens d'un pas de côté en combat. */
+const STRAFE_JUMP_CHANCE = 0.15;
 /** Hauteur visée sur le joueur selon sa taille (debout ou accroupi). */
 const chestHeight = (height: number) => height * 0.68;
 const headHeight = (height: number) => height - 0.15;
@@ -32,6 +38,8 @@ export interface BotContext {
   /** Vrai si rien ne bloque la ligne entre deux points. */
   lineOfSight(from: THREE.Vector3, to: THREE.Vector3): boolean;
   shoot(bot: Bot, origin: THREE.Vector3, direction: THREE.Vector3): void;
+  /** Lance une grenade vers `target`. */
+  throwGrenade(bot: Bot, type: 'he' | 'flash', target: THREE.Vector3): void;
 }
 
 /**
@@ -82,6 +90,9 @@ export class Bot {
   private readonly aimError = { yaw: 0, pitch: 0, timer: 0 };
 
   private ammo = RIFLE.magazine;
+  /** Une HE et une flash par vie, lancées quand il perd le joueur de vue. */
+  private grenades = { he: 1, flash: 1 };
+  private grenadeCooldown = GRENADE_FIRST_DELAY;
   private reloadTimer = 0;
   private fireCooldown = 0;
   private burstLeft = 0;
@@ -114,6 +125,8 @@ export class Bot {
     this.state = 'patrol';
     this.path = [];
     this.ammo = RIFLE.magazine;
+    this.grenades = { he: 1, flash: 1 };
+    this.grenadeCooldown = GRENADE_FIRST_DELAY * (0.5 + Math.random());
     this.reloadTimer = 0;
     this.burstLeft = 0;
     this.seesPlayer = false;
@@ -256,6 +269,7 @@ export class Bot {
       }
     }
     this.seesPlayer = sees;
+    this.considerGrenade(ctx);
 
     if (this.state === 'patrol' && this.pathDone) {
       this.setPath(ctx, ctx.nav.randomWalkablePoint());
@@ -278,12 +292,35 @@ export class Bot {
     if (this.stuckTimer >= 1) {
       const moved = this.stuckCheck.distanceTo(this.body.position);
       if (moved < 0.3 && !this.pathDone && this.state !== 'combat') {
+        // Un petit saut décoince souvent d'un rebord ou d'un coin.
+        if (this.body.onGround) this.body.velocity.y = MOVE.jumpSpeed;
         this.state = 'patrol';
         this.setPath(ctx, ctx.nav.randomWalkablePoint());
       }
       this.stuckCheck.copy(this.body.position);
       this.stuckTimer = 0;
     }
+  }
+
+  /**
+   * Le joueur vient de disparaître (il se cache, ou le bot va le chercher) : de
+   * temps en temps, une flash avant d'aller voir, ou une HE sur sa cachette.
+   */
+  private considerGrenade(ctx: BotContext): void {
+    this.grenadeCooldown -= THINK_INTERVAL;
+    if (this.grenadeCooldown > 0 || this.seesPlayer || !ctx.player.alive) return;
+    if (this.state !== 'search' && this.state !== 'combat') return;
+    const distance = this.body.position.distanceTo(this.lastKnown);
+    if (distance < GRENADE_RANGE.min || distance > GRENADE_RANGE.max) return;
+
+    const type = this.state === 'search' && this.grenades.flash > 0 ? 'flash' : this.grenades.he > 0 ? 'he' : this.grenades.flash > 0 ? 'flash' : null;
+    if (!type || Math.random() > 0.35) {
+      this.grenadeCooldown = 1.5;
+      return;
+    }
+    this.grenades[type]--;
+    this.grenadeCooldown = 8 + Math.random() * 6;
+    ctx.throwGrenade(this, type, this.lastKnown);
   }
 
   private canSee(ctx: BotContext): boolean {
@@ -394,6 +431,8 @@ export class Bot {
     const blocked = !ctx.nav.canStepTo(this.body.position, this.body.position.x + sideX, this.body.position.z + sideZ);
     if (this.strafeTimer <= 0 || blocked) {
       this.strafeDir *= -1;
+      // Comme les bots de CS, ils sautent parfois en se décalant.
+      if (this.body.onGround && Math.random() < STRAFE_JUMP_CHANCE) this.body.velocity.y = MOVE.jumpSpeed;
       this.strafeTimer = 0.4 + Math.random() * 0.5;
     }
     this.desired.set(sideX * STRAFE_SPEED, 0, sideZ * STRAFE_SPEED);

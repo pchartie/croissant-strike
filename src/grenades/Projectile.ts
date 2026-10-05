@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import { GRENADE_PHYSICS, GRENADES, type GrenadeType } from './definitions';
 import { buildGrenadeModel } from './models';
 
+/** Lanceur d'une grenade autre que le joueur (un bot), repéré par son nom. */
+export interface GrenadeOwner {
+  name: string;
+}
+
 /** Au-delà de ce déplacement par sous-pas, on découpe le mouvement (pas de traversée de mur). */
 const MAX_STEP = 0.08;
 /** En dessous de cette vitesse au sol, la grenade s'arrête. */
@@ -36,6 +41,8 @@ export class Projectile {
     readonly velocity: THREE.Vector3,
     /** Boîte du lanceur, ignorée pendant un court instant. */
     private readonly throwerBox: THREE.Box3 | null,
+    /** Qui l'a lancée : null pour le joueur, sinon un bot (pour savoir qui a fait des dégâts). */
+    readonly owner: GrenadeOwner | null = null,
   ) {
     this.mesh = buildGrenadeModel(type);
     this.mesh.position.copy(position);
