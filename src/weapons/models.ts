@@ -111,10 +111,21 @@ export function buildKnife(): THREE.Group {
 function knife(): WeaponModel {
   const root = new THREE.Group();
   const model = buildKnife();
-  // Tenu lame vers l'avant et vers le haut, comme dans CS:GO.
-  model.rotation.set(-1.0, 0.25, -0.35);
+  // Lame presque horizontale, vers l'avant et un peu à gauche, comme dans CS:GO.
+  model.quaternion.copy(knifeOrientation(new THREE.Vector3(-0.4, 0.1, -1)));
   root.add(model);
   const muzzle = new THREE.Object3D();
   root.add(muzzle);
-  return { root, muzzle, rest: new THREE.Vector3(0.16, -0.2, -0.32) };
+  return { root, muzzle, rest: new THREE.Vector3(0.14, -0.17, -0.3) };
+}
+
+/**
+ * Rotation qui oriente le couteau (lame vers +y, tranchant vers +x) pour que sa
+ * lame pointe vers `blade`, tranchant vers le bas.
+ */
+export function knifeOrientation(blade: THREE.Vector3): THREE.Quaternion {
+  const y = blade.clone().normalize();
+  const x = new THREE.Vector3(0, -1, 0).addScaledVector(y, y.y).normalize();
+  const z = new THREE.Vector3().crossVectors(x, y);
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
 }

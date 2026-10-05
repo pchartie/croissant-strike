@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { WeaponId } from './definitions';
-import { buildKnife } from './models';
+import { buildKnife, knifeOrientation } from './models';
 
 // Armes et bras animés du Retro Weapon Pack, préparés par
 // `npm run import-weapons` dans public/assets/weapons/.
@@ -34,12 +34,13 @@ const GUNS: Record<GunId, GunSpec> = {
 };
 
 /**
- * Couteau dans la main droite (repère de l'os hand_item_r, en cm) : le manche suit
- * l'axe de la poignée du pistolet, incliné de 20° vers l'avant.
+ * Couteau dans la main droite (repère de l'os hand_item_r, en cm : +x vers l'avant,
+ * +y vers le haut, -z vers la gauche) : manche dans le poing, lame presque
+ * horizontale, vers l'avant et un peu à gauche, tranchant vers le bas, comme dans CS:GO.
  */
-const KNIFE_GRIP = { position: new THREE.Vector3(0.8, 4.5, 0), tilt: -0.35 };
-/** Bras inclinés pour que la lame pointe vers l'avant, comme dans CS:GO (rotation et décalage en mètres). */
-const KNIFE_POSE = { pitch: -0.4, offset: new THREE.Vector3(0.05, 0.18, -0.06) };
+const KNIFE_GRIP = { position: new THREE.Vector3(0.8, 4.5, 0), blade: new THREE.Vector3(1, 0.1, -0.4) };
+/** Décalage des bras (mètres) pour que la main reste bien visible en bas à droite. */
+const KNIFE_POSE = { pitch: 0, offset: new THREE.Vector3(0.06, 0.07, 0) };
 
 type OneShot = 'fire' | 'reload' | 'draw';
 
@@ -266,7 +267,7 @@ function buildKnifeArms(
 
   const mount = new THREE.Group();
   mount.position.copy(KNIFE_GRIP.position);
-  mount.rotation.z = KNIFE_GRIP.tilt;
+  mount.quaternion.copy(knifeOrientation(KNIFE_GRIP.blade));
   const knife = buildKnife();
   knife.scale.setScalar(1 / CM);
   mount.add(knife);
