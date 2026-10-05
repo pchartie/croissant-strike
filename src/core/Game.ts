@@ -9,7 +9,7 @@ import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
 import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { WeaponSystem } from '../weapons/WeaponSystem';
-import { ARENA_BOUNDS, buildArena, SPAWN } from '../world/Arena';
+import { buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { World } from '../world/World';
 import { Audio } from './Audio';
@@ -67,11 +67,11 @@ export class Game {
     });
     this.input.onLockChange((locked) => this.hud.setPaused(!locked));
 
-    buildArena(this.world, this.renderer.capabilities.getMaxAnisotropy());
+    buildLevel(this.world, this.renderer.capabilities.getMaxAnisotropy());
     this.scene.add(this.muzzleLight);
-    this.player.spawn(SPAWN.position, SPAWN.yaw);
+    this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
 
-    const nav = new NavGrid(this.world.colliders, ARENA_BOUNDS, PLAYER.radius + 0.1);
+    const nav = new NavGrid(this.world.colliders, LEVEL_BOUNDS, PLAYER.radius + 0.1, PLAYER_SPAWN.position);
     this.bots = new BotManager(this.scene, this.world, nav, this.player, {
       shot: (shot) => this.onBotShot(shot),
     });
@@ -148,7 +148,7 @@ export class Game {
   private tick(): void {
     if (this.player.alive) {
       this.player.update(TICK, this.input, [...this.world.colliders, ...this.bots.colliders]);
-      if (this.player.outOfMap) this.player.spawn(SPAWN.position, SPAWN.yaw);
+      if (this.player.outOfMap) this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
       this.weapons.update(TICK, this.input);
     } else if (this.respawnTimer !== null) {
       this.respawnTimer -= TICK;

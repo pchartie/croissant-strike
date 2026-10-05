@@ -217,12 +217,14 @@ export class Bot {
       }
     }
 
-    // Bloqué contre quelque chose : on recalcule le chemin.
+    // Bloqué (souvent par un autre bot qui vient en face) : on part ailleurs,
+    // sinon les deux recalculent le même chemin et restent coincés.
     this.stuckTimer += THINK_INTERVAL;
     if (this.stuckTimer >= 1) {
       const moved = this.stuckCheck.distanceTo(this.body.position);
       if (moved < 0.3 && !this.pathDone && this.state !== 'combat') {
-        this.setPath(ctx, this.state === 'search' ? this.lastKnown : ctx.nav.randomWalkablePoint());
+        this.state = 'patrol';
+        this.setPath(ctx, ctx.nav.randomWalkablePoint());
       }
       this.stuckCheck.copy(this.body.position);
       this.stuckTimer = 0;
@@ -334,7 +336,7 @@ export class Bot {
     const length = Math.hypot(toX, toZ) || 1;
     const sideX = (-toZ / length) * this.strafeDir;
     const sideZ = (toX / length) * this.strafeDir;
-    const blocked = !ctx.nav.isWalkable(this.body.position.x + sideX, this.body.position.z + sideZ);
+    const blocked = !ctx.nav.canStepTo(this.body.position, this.body.position.x + sideX, this.body.position.z + sideZ);
     if (this.strafeTimer <= 0 || blocked) {
       this.strafeDir *= -1;
       this.strafeTimer = 0.4 + Math.random() * 0.5;

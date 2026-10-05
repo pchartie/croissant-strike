@@ -20,10 +20,11 @@ export const MOVE = {
   stopSpeed: 75 * UNIT, // sv_stopspeed
   gravity: 800 * UNIT, // sv_gravity
   jumpSpeed: 301.99 * UNIT, // saut de 57 unités de haut
+  stepSize: 18 * UNIT, // sv_stepsize : hauteur de marche franchie sans sauter
 };
 
 export const BOTS = {
-  count: 3,
+  count: 5,
   health: 100,
   respawnDelay: 5,
   /** Temps avant de tirer après avoir repéré le joueur, en secondes. */

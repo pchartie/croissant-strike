@@ -10,7 +10,7 @@ import { DAMAGE_MULTIPLIER, type HitPart } from './BotModel';
 
 const NAMES = ['Gaston', 'Marcel', 'Lucien', 'Raymond', 'Didier', 'Hubert', 'Roger', 'Firmin'];
 /** Distance minimale entre le joueur et un bot qui réapparaît. */
-const MIN_SPAWN_DISTANCE = 15;
+const MIN_SPAWN_DISTANCE = 25;
 
 export interface BotShot {
   bot: Bot;
@@ -172,7 +172,7 @@ export class BotManager {
     let bestScore = -Infinity;
     for (let i = 0; i < 40; i++) {
       const candidate = this.nav.randomWalkablePoint();
-      target.copy(candidate).setY(PLAYER.eyeHeight);
+      target.copy(candidate).setY(candidate.y + PLAYER.eyeHeight);
       let nearest = Infinity;
       let seen = false;
       for (const bot of alive) {

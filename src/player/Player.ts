@@ -9,6 +9,8 @@ const MAX_VELOCITY = 3500 * UNIT;
 /** En dessous de cette hauteur, le joueur est tombé hors de la carte. */
 const KILL_Y = -20;
 const MAX_HEALTH = 100;
+/** Vitesse à laquelle la caméra rattrape une marche montée (par seconde). */
+const STEP_SMOOTHING = 12;
 
 /**
  * Joueur avec les déplacements de Counter-Strike: Source : frottement au sol,
@@ -73,6 +75,8 @@ export class Player extends Body {
     this.velocity.y -= MOVE.gravity * dt;
     this.velocity.clampLength(0, MAX_VELOCITY);
     this.move(dt, colliders);
+    // La caméra rattrape en douceur la hauteur gagnée sur les marches.
+    this.stepOffset *= Math.exp(-STEP_SMOOTHING * dt);
   }
 
   private applyFriction(dt: number): void {
@@ -106,7 +110,7 @@ export class Player extends Body {
    */
   applyToCamera(camera: THREE.PerspectiveCamera, alpha: number, punch: { pitch: number; yaw: number }): void {
     camera.position.lerpVectors(this.previousPosition, this.position, alpha);
-    camera.position.y += PLAYER.eyeHeight;
+    camera.position.y += PLAYER.eyeHeight + this.stepOffset;
     camera.rotation.set(this.pitch + punch.pitch, this.yaw + punch.yaw, 0, 'YXZ');
   }
 }

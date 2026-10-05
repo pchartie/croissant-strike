@@ -106,3 +106,32 @@ export function crate(anisotropy: number): THREE.CanvasTexture {
     ctx.strokeRect(frame, frame, SIZE - frame * 2, SIZE - frame * 2);
   });
 }
+
+/** Sable tassé, pour le sol extérieur. */
+export function sand(anisotropy: number): THREE.CanvasTexture {
+  return makeTexture(anisotropy, (ctx) => {
+    ctx.fillStyle = '#c9ad7f';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    for (let i = 0; i < 120; i++) {
+      const light = Math.random() < 0.5;
+      ctx.fillStyle = light ? `rgba(240, 222, 185, ${Math.random() * 0.12})` : `rgba(120, 95, 60, ${Math.random() * 0.1})`;
+      ctx.beginPath();
+      ctx.ellipse(Math.random() * SIZE, Math.random() * SIZE, 6 + Math.random() * 30, 3 + Math.random() * 12, Math.random() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+
+/** Crépi beige avec des taches, pour les murs des bâtiments. */
+export function plaster(anisotropy: number): THREE.CanvasTexture {
+  return makeTexture(anisotropy, (ctx) => {
+    ctx.fillStyle = '#d8c39b';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    for (let i = 0; i < 25; i++) {
+      ctx.fillStyle = `rgba(150, 120, 80, ${Math.random() * 0.12})`;
+      ctx.beginPath();
+      ctx.arc(Math.random() * SIZE, Math.random() * SIZE, 15 + Math.random() * 50, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}

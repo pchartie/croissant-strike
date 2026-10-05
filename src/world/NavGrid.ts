@@ -1,62 +1,84 @@
 import * as THREE from 'three';
+import { MOVE } from '../config';
 
 const CELL = 0.5;
-/** Seuls les obstacles à hauteur de pieds bloquent le passage (le sol, lui, ne bloque pas). */
-const FOOT_LEVEL = 0.4;
 const SQRT2 = Math.SQRT2;
+/** Petite marge pour les comparaisons de hauteurs. */
+const EPSILON = 0.01;
 
 /**
- * Grille de navigation pour les bots : le sol découpé en cases de 50 cm,
- * marquées libres ou bloquées, et une recherche de chemin A* dessus.
+ * Grille de navigation pour les bots : la carte découpée en cases de 50 cm,
+ * chacune avec la hauteur de son sol (sol, marche, plateforme…). On passe
+ * d'une case à sa voisine si elle n'est pas plus haute qu'une marche ; on
+ * peut toujours descendre.
+ *
+ * La carte ne doit pas avoir de sol au-dessus d'un autre sol (pas de pont ni
+ * de tunnel) : chaque case n'a qu'une hauteur.
  */
 export class NavGrid {
   private readonly cols: number;
   private readonly rows: number;
   private readonly originX: number;
   private readonly originZ: number;
+  /** Hauteur du sol de chaque case. */
+  private readonly floor: Float32Array;
   private readonly blocked: Uint8Array;
+  /** Cases atteignables depuis le point de départ du joueur (pas le haut des murs, etc.). */
+  private readonly reachable: Uint8Array;
+  private readonly reachableCells: number[] = [];
 
-  constructor(colliders: readonly THREE.Box3[], bounds: THREE.Box3, clearance: number) {
+  constructor(colliders: readonly THREE.Box3[], bounds: THREE.Box3, clearance: number, start: THREE.Vector3) {
     this.originX = bounds.min.x;
     this.originZ = bounds.min.z;
     this.cols = Math.ceil((bounds.max.x - bounds.min.x) / CELL);
     this.rows = Math.ceil((bounds.max.z - bounds.min.z) / CELL);
-    this.blocked = new Uint8Array(this.cols * this.rows);
+    const size = this.cols * this.rows;
+    this.floor = new Float32Array(size).fill(-Infinity);
+    this.blocked = new Uint8Array(size);
+    this.reachable = new Uint8Array(size);
 
-    // Une case est bloquée si un bot centré dessus toucherait un obstacle.
+    // Sol de chaque case : le dessus du bloc le plus haut sous son centre.
     for (const box of colliders) {
-      if (box.max.y <= 0.01 || box.min.y > FOOT_LEVEL) continue;
-      const [c0, r0] = this.cellOf(box.min.x - clearance, box.min.z - clearance);
-      const [c1, r1] = this.cellOf(box.max.x + clearance, box.max.z + clearance);
-      for (let r = Math.max(r0, 0); r <= Math.min(r1, this.rows - 1); r++) {
-        for (let c = Math.max(c0, 0); c <= Math.min(c1, this.cols - 1); c++) {
-          const x = this.originX + (c + 0.5) * CELL;
-          const z = this.originZ + (r + 0.5) * CELL;
-          if (x > box.min.x - clearance && x < box.max.x + clearance && z > box.min.z - clearance && z < box.max.z + clearance) {
-            this.blocked[r * this.cols + c] = 1;
-          }
-        }
-      }
+      this.forEachCell(box, 0, (i) => {
+        this.floor[i] = Math.max(this.floor[i], box.max.y);
+      });
     }
+
+    // Case bloquée si un bot centré dessus toucherait quelque chose de plus haut qu'une marche.
+    for (const box of colliders) {
+      this.forEachCell(box, clearance, (i) => {
+        if (box.max.y > this.floor[i] + MOVE.stepSize) this.blocked[i] = 1;
+      });
+    }
+    for (let i = 0; i < size; i++) {
+      if (this.floor[i] === -Infinity) this.blocked[i] = 1;
+    }
+
+    this.markReachable(start);
   }
 
-  isWalkable(x: number, z: number): boolean {
+  /** Hauteur du sol à cet endroit. */
+  floorAt(x: number, z: number): number {
     const [c, r] = this.cellOf(x, z);
-    return this.inside(c, r) && !this.blocked[r * this.cols + c];
+    return this.inside(c, r) ? this.floor[r * this.cols + c] : -Infinity;
+  }
+
+  /** Vrai si un bot qui se tient à `from` peut faire un pas jusqu'en (x, z) en restant au même niveau. */
+  canStepTo(from: THREE.Vector3, x: number, z: number): boolean {
+    const [c, r] = this.cellOf(x, z);
+    if (!this.usable(c, r)) return false;
+    return Math.abs(this.floor[r * this.cols + c] - from.y) <= MOVE.stepSize + EPSILON;
   }
 
   randomWalkablePoint(): THREE.Vector3 {
-    for (;;) {
-      const c = Math.floor(Math.random() * this.cols);
-      const r = Math.floor(Math.random() * this.rows);
-      if (!this.blocked[r * this.cols + c]) return this.center(c, r);
-    }
+    const i = this.reachableCells[Math.floor(Math.random() * this.reachableCells.length)];
+    return this.center(i);
   }
 
   /** Chemin de `from` à `to` sous forme de points de passage, ou null si inaccessible. */
   findPath(from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] | null {
-    const start = this.nearestFree(...this.cellOf(from.x, from.z));
-    const goal = this.nearestFree(...this.cellOf(to.x, to.z));
+    const start = this.nearestUsable(...this.cellOf(from.x, from.z));
+    const goal = this.nearestUsable(...this.cellOf(to.x, to.z));
     if (start === null || goal === null) return null;
 
     const size = this.cols * this.rows;
@@ -73,54 +95,96 @@ export class NavGrid {
       if (closed[current]) continue;
       closed[current] = 1;
 
-      const cc = current % this.cols;
-      const cr = (current - cc) / this.cols;
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          if (dc === 0 && dr === 0) continue;
-          const nc = cc + dc;
-          const nr = cr + dr;
-          if (!this.free(nc, nr)) continue;
-          // Pas de coupe en diagonale à travers un coin d'obstacle.
-          if (dc !== 0 && dr !== 0 && (!this.free(cc + dc, cr) || !this.free(cc, cr + dr))) continue;
-          const next = nr * this.cols + nc;
-          const newCost = cost[current] + (dc !== 0 && dr !== 0 ? SQRT2 : 1);
-          if (newCost < cost[next]) {
-            cost[next] = newCost;
-            parent[next] = current;
-            open.push(next, newCost + this.heuristic(next, goal));
-          }
+      this.forEachNeighbor(current, (next, step) => {
+        const newCost = cost[current] + step;
+        if (newCost < cost[next]) {
+          cost[next] = newCost;
+          parent[next] = current;
+          open.push(next, newCost + this.heuristic(next, goal));
         }
-      }
+      });
     }
     return null;
   }
 
-  /** Vrai si on peut aller en ligne droite de a à b sans traverser de case bloquée. */
+  /** Vrai si on peut aller en ligne droite de a à b sans obstacle ni marche trop haute. */
   hasClearLine(a: THREE.Vector3, b: THREE.Vector3): boolean {
     const distance = Math.hypot(b.x - a.x, b.z - a.z);
     const steps = Math.ceil(distance / (CELL * 0.5));
+    let height = this.floorAt(a.x, a.z);
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
-      if (!this.isWalkable(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t)) return false;
+      const [c, r] = this.cellOf(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t);
+      if (!this.usable(c, r)) return false;
+      const next = this.floor[r * this.cols + c];
+      if (next - height > MOVE.stepSize + EPSILON) return false;
+      height = next;
     }
     return true;
   }
 
+  /** Parcourt les cases dont le centre est dans la boîte (agrandie de `margin`). */
+  private forEachCell(box: THREE.Box3, margin: number, visit: (index: number) => void): void {
+    const [c0, r0] = this.cellOf(box.min.x - margin, box.min.z - margin);
+    const [c1, r1] = this.cellOf(box.max.x + margin, box.max.z + margin);
+    for (let r = Math.max(r0, 0); r <= Math.min(r1, this.rows - 1); r++) {
+      for (let c = Math.max(c0, 0); c <= Math.min(c1, this.cols - 1); c++) {
+        const x = this.originX + (c + 0.5) * CELL;
+        const z = this.originZ + (r + 0.5) * CELL;
+        if (x > box.min.x - margin && x < box.max.x + margin && z > box.min.z - margin && z < box.max.z + margin) {
+          visit(r * this.cols + c);
+        }
+      }
+    }
+  }
+
+  /** Voisins accessibles (8 directions, sans couper les coins, marche maximale vers le haut). */
+  private forEachNeighbor(index: number, visit: (next: number, cost: number) => void): void {
+    const cc = index % this.cols;
+    const cr = (index - cc) / this.cols;
+    const from = this.floor[index];
+    const canEnter = (c: number, r: number) =>
+      this.free(c, r) && this.floor[r * this.cols + c] - from <= MOVE.stepSize + EPSILON;
+
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dc === 0 && dr === 0) continue;
+        if (!canEnter(cc + dc, cr + dr)) continue;
+        if (dc !== 0 && dr !== 0 && (!canEnter(cc + dc, cr) || !canEnter(cc, cr + dr))) continue;
+        visit((cr + dr) * this.cols + cc + dc, dc !== 0 && dr !== 0 ? SQRT2 : 1);
+      }
+    }
+  }
+
+  /** Repère toutes les cases qu'on peut atteindre en marchant depuis `start`. */
+  private markReachable(start: THREE.Vector3): void {
+    const first = this.nearestFree(...this.cellOf(start.x, start.z));
+    if (first === null) return;
+    const queue = [first];
+    this.reachable[first] = 1;
+    while (queue.length > 0) {
+      const index = queue.pop()!;
+      this.reachableCells.push(index);
+      this.forEachNeighbor(index, (next) => {
+        if (this.reachable[next]) return;
+        this.reachable[next] = 1;
+        queue.push(next);
+      });
+    }
+  }
+
   private unwind(parent: Int32Array, goal: number): THREE.Vector3[] {
     const path: THREE.Vector3[] = [];
-    for (let i = goal; i !== -1; i = parent[i]) {
-      const c = i % this.cols;
-      path.push(this.center(c, (i - c) / this.cols));
-    }
+    for (let i = goal; i !== -1; i = parent[i]) path.push(this.center(i));
     return path.reverse();
   }
 
   /** Retire les points de passage inutiles : on va directement au plus loin visible. */
   private smooth(path: THREE.Vector3[], from: THREE.Vector3, to: THREE.Vector3): THREE.Vector3[] {
-    if (this.isWalkable(to.x, to.z)) path[path.length - 1] = new THREE.Vector3(to.x, 0, to.z);
+    const [tc, tr] = this.cellOf(to.x, to.z);
+    if (this.usable(tc, tr)) path[path.length - 1] = new THREE.Vector3(to.x, this.floor[tr * this.cols + tc], to.z);
     const result: THREE.Vector3[] = [];
-    let anchor = new THREE.Vector3(from.x, 0, from.z);
+    let anchor = from;
     let i = 0;
     while (i < path.length) {
       let farthest = i;
@@ -137,11 +201,21 @@ export class NavGrid {
     return result;
   }
 
+  /** Case libre et atteignable la plus proche (pour un joueur perché sur une caisse, par exemple). */
+  private nearestUsable(c: number, r: number): number | null {
+    return this.nearest(c, r, (cc, rr) => this.usable(cc, rr));
+  }
+
   private nearestFree(c: number, r: number): number | null {
-    for (let radius = 0; radius < 6; radius++) {
+    return this.nearest(c, r, (cc, rr) => this.free(cc, rr));
+  }
+
+  private nearest(c: number, r: number, accept: (c: number, r: number) => boolean): number | null {
+    for (let radius = 0; radius < 12; radius++) {
       for (let dr = -radius; dr <= radius; dr++) {
         for (let dc = -radius; dc <= radius; dc++) {
-          if (this.free(c + dc, r + dr)) return (r + dr) * this.cols + (c + dc);
+          if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
+          if (accept(c + dc, r + dr)) return (r + dr) * this.cols + (c + dc);
         }
       }
     }
@@ -160,8 +234,10 @@ export class NavGrid {
     return [Math.floor((x - this.originX) / CELL), Math.floor((z - this.originZ) / CELL)];
   }
 
-  private center(c: number, r: number): THREE.Vector3 {
-    return new THREE.Vector3(this.originX + (c + 0.5) * CELL, 0, this.originZ + (r + 0.5) * CELL);
+  private center(index: number): THREE.Vector3 {
+    const c = index % this.cols;
+    const r = (index - c) / this.cols;
+    return new THREE.Vector3(this.originX + (c + 0.5) * CELL, this.floor[index], this.originZ + (r + 0.5) * CELL);
   }
 
   private inside(c: number, r: number): boolean {
@@ -170,6 +246,10 @@ export class NavGrid {
 
   private free(c: number, r: number): boolean {
     return this.inside(c, r) && !this.blocked[r * this.cols + c];
+  }
+
+  private usable(c: number, r: number): boolean {
+    return this.free(c, r) && this.reachable[r * this.cols + c] === 1;
   }
 }
 
