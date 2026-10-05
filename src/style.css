@@ -695,6 +695,10 @@ kbd {
   font-weight: 700;
 }
 
+#scoreboard tr.ally td {
+  color: #4da3ff;
+}
+
 #scoreboard tr.dead td {
   opacity: 0.45;
 }

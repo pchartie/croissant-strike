@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { BOTS, MOVE, PLAYER } from '../config';
-import type { Player } from '../player/Player';
 import { RIFLE } from '../weapons/definitions';
 import { Body } from '../world/Body';
 import type { NavGrid } from '../world/NavGrid';
@@ -29,10 +28,21 @@ const headHeight = (height: number) => height - 0.15;
 
 type State = 'patrol' | 'combat' | 'search' | 'dead';
 
+/** Les bots ennemis (les « terroristes ») et les coéquipiers du joueur. */
+export type Team = 'enemy' | 'ally';
+
+/** Quelqu'un sur qui un bot peut tirer : le joueur ou un bot de l'autre camp. */
+export interface Target {
+  readonly position: THREE.Vector3;
+  readonly height: number;
+  readonly alive: boolean;
+}
+
 /** Ce dont un bot a besoin pour percevoir le monde et agir dessus. */
 export interface BotContext {
   readonly nav: NavGrid;
-  readonly player: Player;
+  /** Les adversaires de ce bot (vivants ou non). */
+  targets(bot: Bot): readonly Target[];
   /** Obstacles contre lesquels ce bot se cogne. */
   colliders(bot: Bot): readonly THREE.Box3[];
   /** Vrai si rien ne bloque la ligne entre deux points. */
@@ -43,13 +53,14 @@ export interface BotContext {
 }
 
 /**
- * Un bot ennemi. Il patrouille, attaque le joueur dès qu'il le voit (après un
- * temps de réaction, avec une visée qui se stabilise), tire en rafales en se
- * déplaçant de côté entre deux rafales, puis va le chercher s'il le perd de vue.
+ * Un bot, ennemi ou coéquipier. Il patrouille, attaque l'adversaire le plus
+ * proche dès qu'il le voit (après un temps de réaction, avec une visée qui se
+ * stabilise), tire en rafales en se déplaçant de côté entre deux rafales, puis
+ * va le chercher s'il le perd de vue.
  */
-export class Bot {
+export class Bot implements Target {
   readonly body = new Body(PLAYER.radius, PLAYER.height);
-  readonly model = new BotModel();
+  readonly model: BotModel;
   health: number = BOTS.health;
   /** Les bots portent gilet et casque, comme les bots de CS quand ils ont de l'argent. */
   armor = 100;
@@ -73,10 +84,12 @@ export class Bot {
   private readonly stuckCheck = new THREE.Vector3();
   private searchTimer = 0;
 
-  private seesPlayer = false;
+  private seesFoe = false;
+  /** L'adversaire combattu (le plus proche de ceux qu'il voit). */
+  private foe: Target | null = null;
   private lostTimer = 0;
   private readonly lastKnown = new THREE.Vector3();
-  /** Taille du joueur quand il a été vu (plus petit accroupi). */
+  /** Taille de la cible quand elle a été vue (plus petite accroupie). */
   private targetHeight = PLAYER.height;
   private spottedTime = 0;
   private reactionTimer = 0;
@@ -108,12 +121,24 @@ export class Bot {
   private readonly euler = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly aim = new THREE.Quaternion();
 
-  constructor(readonly name: string) {
+  constructor(
+    readonly name: string,
+    readonly team: Team = 'enemy',
+  ) {
+    this.model = new BotModel(team);
     for (const hitbox of this.model.hitboxes) hitbox.userData.bot = this;
   }
 
   get alive(): boolean {
     return this.state !== 'dead';
+  }
+
+  get position(): THREE.Vector3 {
+    return this.body.position;
+  }
+
+  get height(): number {
+    return this.body.height;
   }
 
   spawn(position: THREE.Vector3, yaw = Math.random() * Math.PI * 2): void {
@@ -129,7 +154,8 @@ export class Bot {
     this.grenadeCooldown = GRENADE_FIRST_DELAY * (0.5 + Math.random());
     this.reloadTimer = 0;
     this.burstLeft = 0;
-    this.seesPlayer = false;
+    this.seesFoe = false;
+    this.foe = null;
     this.yaw = yaw;
     this.blindTimer = 0;
     this.pitch = 0;
@@ -143,7 +169,8 @@ export class Bot {
     this.aggressive = aggressive;
     if (aggressive || !this.alive) return;
     this.state = 'patrol';
-    this.seesPlayer = false;
+    this.seesFoe = false;
+    this.foe = null;
     this.burstLeft = 0;
     this.path = [];
   }
@@ -254,22 +281,28 @@ export class Bot {
   // --- Perception et décisions (10 fois par seconde) ---
 
   private think(ctx: BotContext): void {
-    const sees = this.aggressive && this.canSee(ctx);
-    if (sees) {
+    const targets = ctx.targets(this);
+    const foe = this.aggressive ? this.pickFoe(targets, ctx) : null;
+    const sees = foe !== null;
+    if (foe) {
       if (this.state !== 'combat') this.engage();
-      this.lastKnown.copy(ctx.player.position);
-      this.targetHeight = ctx.player.height;
+      this.foe = foe;
+      this.lastKnown.copy(foe.position);
+      this.targetHeight = foe.height;
       this.lostTimer = 0;
     } else if (this.state === 'combat') {
       this.lostTimer += THINK_INTERVAL;
-      if (this.lostTimer > LOSE_SIGHT_DELAY) {
-        this.state = ctx.player.alive && this.aggressive ? 'search' : 'patrol';
+      // Cible abattue : plus la peine d'aller voir là où elle était.
+      const foeDown = this.foe !== null && !this.foe.alive;
+      if (this.lostTimer > LOSE_SIGHT_DELAY || foeDown) {
+        this.state = !foeDown && this.aggressive ? 'search' : 'patrol';
+        this.foe = null;
         this.searchTimer = 0;
         this.path = [];
       }
     }
-    this.seesPlayer = sees;
-    this.considerGrenade(ctx);
+    this.seesFoe = sees;
+    this.considerGrenade(ctx, targets);
 
     if (this.state === 'patrol' && this.pathDone) {
       this.setPath(ctx, ctx.nav.randomWalkablePoint());
@@ -303,12 +336,12 @@ export class Bot {
   }
 
   /**
-   * Le joueur vient de disparaître (il se cache, ou le bot va le chercher) : de
-   * temps en temps, une flash avant d'aller voir, ou une HE sur sa cachette.
+   * L'adversaire vient de disparaître (il se cache, ou le bot va le chercher) :
+   * de temps en temps, une flash avant d'aller voir, ou une HE sur sa cachette.
    */
-  private considerGrenade(ctx: BotContext): void {
+  private considerGrenade(ctx: BotContext, targets: readonly Target[]): void {
     this.grenadeCooldown -= THINK_INTERVAL;
-    if (this.grenadeCooldown > 0 || this.seesPlayer || !ctx.player.alive) return;
+    if (this.grenadeCooldown > 0 || this.seesFoe || !targets.some((target) => target.alive)) return;
     if (this.state !== 'search' && this.state !== 'combat') return;
     const distance = this.body.position.distanceTo(this.lastKnown);
     if (distance < GRENADE_RANGE.min || distance > GRENADE_RANGE.max) return;
@@ -323,16 +356,31 @@ export class Bot {
     ctx.throwGrenade(this, type, this.lastKnown);
   }
 
-  private canSee(ctx: BotContext): boolean {
-    const { player } = ctx;
-    if (!player.alive || this.blindTimer > 0) return false;
+  /** L'adversaire visible le plus proche ; en combat, il garde sa cible tant qu'il la voit. */
+  private pickFoe(targets: readonly Target[], ctx: BotContext): Target | null {
+    if (this.blindTimer > 0) return null;
+    if (this.state === 'combat' && this.foe?.alive && this.canSee(this.foe, ctx)) return this.foe;
+    let best: Target | null = null;
+    let bestDistance = Infinity;
+    for (const target of targets) {
+      const distance = target.position.distanceTo(this.body.position);
+      if (distance < bestDistance && this.canSee(target, ctx)) {
+        best = target;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
+
+  private canSee(target: Target, ctx: BotContext): boolean {
+    if (!target.alive) return false;
     this.eyePosition(this.eye);
-    const dx = player.position.x - this.body.position.x;
-    const dz = player.position.z - this.body.position.z;
+    const dx = target.position.x - this.body.position.x;
+    const dz = target.position.z - this.body.position.z;
     const distance = Math.hypot(dx, dz);
     if (distance > BOTS.visionRange) return false;
 
-    // En combat, il suit le joueur même s'il passe sur le côté.
+    // En combat, il suit sa cible même si elle passe sur le côté.
     if (this.state !== 'combat') {
       const forwardX = -Math.sin(this.yaw);
       const forwardZ = -Math.cos(this.yaw);
@@ -340,8 +388,8 @@ export class Bot {
       if (cos < Math.cos((BOTS.visionAngle / 2) * DEG)) return false;
     }
 
-    for (const height of [headHeight(player.height), chestHeight(player.height)]) {
-      this.target.copy(player.position).setY(player.position.y + height);
+    for (const height of [headHeight(target.height), chestHeight(target.height)]) {
+      this.target.copy(target.position).setY(target.position.y + height);
       if (ctx.lineOfSight(this.eye, this.target)) return true;
     }
     return false;
@@ -387,7 +435,6 @@ export class Bot {
   // --- Combat ---
 
   private fight(dt: number, ctx: BotContext): void {
-    const { player } = ctx;
     this.spottedTime += dt;
     this.reactionTimer -= dt;
     this.fireCooldown -= dt;
@@ -407,7 +454,7 @@ export class Bot {
       this.aimError.timer = 0.15 + Math.random() * 0.15;
     }
 
-    const canShoot = this.seesPlayer && this.blindTimer === 0 && this.reactionTimer <= 0 && this.reloadTimer <= 0;
+    const canShoot = this.seesFoe && this.blindTimer === 0 && this.reactionTimer <= 0 && this.reloadTimer <= 0;
     if (canShoot && this.burstLeft > 0) {
       // S'arrête pour tirer, comme un vrai joueur : on est précis à l'arrêt.
       if (this.fireCooldown <= 0 && this.body.horizontalSpeed < MOVE.maxSpeed * 0.35) this.fire(ctx);
@@ -423,8 +470,8 @@ export class Bot {
 
     // Entre deux rafales : pas de côté, en changeant de sens de temps en temps.
     this.strafeTimer -= dt;
-    const toX = player.position.x - this.body.position.x;
-    const toZ = player.position.z - this.body.position.z;
+    const toX = this.lastKnown.x - this.body.position.x;
+    const toZ = this.lastKnown.z - this.body.position.z;
     const length = Math.hypot(toX, toZ) || 1;
     const sideX = (-toZ / length) * this.strafeDir;
     const sideZ = (toX / length) * this.strafeDir;

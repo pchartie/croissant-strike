@@ -71,7 +71,7 @@ src/
 ├── player/        déplacements façon CS: Source et caméra
 ├── weapons/       caractéristiques des armes, tir et recul, arme en main, impacts
 ├── grenades/      les 5 grenades : lancer, rebonds, explosion, flash, fumée, feu, leurre
-├── bots/          ennemis : modèle, IA (patrouille, combat, recherche), apparitions
+├── bots/          ennemis et coéquipiers : modèle, IA (patrouille, combat, recherche), apparitions
 └── ui/            HUD, fil des éliminations, écrans de pause et de mort
 ```
 
@@ -85,7 +85,7 @@ Le réticule est fixe, mais les balles se dispersent quand on court, saute ou ti
 
 Le menu de pause (Échap) contient tous les réglages, mémorisés dans le navigateur :
 
-- **Jeu** : mode, bots activés ou non, agressifs ou passifs, nombre (1 à 10) et difficulté (facile, normale, difficile).
+- **Jeu** : mode, bots activés ou non, agressifs ou passifs, nombre d'ennemis (1 à 10), coéquipiers (0 à 4) et difficulté (facile, normale, difficile).
 - **Contrôles** : sensibilité de la souris (même échelle que CS), axe vertical inversé ou non, champ de vision.
 - **Audio et affichage** : volume, couleur et taille du réticule, compteur de vitesse.
 - **Graphismes** : qualité des ombres (désactivées, basses, hautes), résolution de rendu (50 à 100 %, pour les PC moins puissants), compteur d'images par seconde.
@@ -110,7 +110,7 @@ Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90
 
 ## Grenades
 
-Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebonds) : **HE** (jusqu'à 98 de dégâts, arrêtée par les murs), **flash** (aveugle selon l'angle et la distance, toi comme les bots), **fumigène** (18 s, cache la vue des bots et éteint les molotovs), **molotov** (feu de 7 s, 40 dégâts par seconde) et **leurre** (imite des tirs de fusil pendant 15 s et attire les bots). On en reçoit une de chaque, plus une deuxième flash, à chaque manche ou réapparition. Les bots n'en lancent pas encore.
+Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebonds) : **HE** (jusqu'à 98 de dégâts, arrêtée par les murs), **flash** (aveugle selon l'angle et la distance, toi comme les bots), **fumigène** (18 s, cache la vue des bots et éteint les molotovs), **molotov** (feu de 7 s, 40 dégâts par seconde) et **leurre** (imite des tirs de fusil pendant 15 s et attire les bots). On en reçoit une de chaque, plus une deuxième flash, à chaque manche ou réapparition. Les bots lancent aussi des HE et des flashs (voir Bots).
 
 ## Carte
 
@@ -131,6 +131,8 @@ Vrais enregistrements d'armes (AR-15 et 1911) et de rechargements, en CC0 : voir
 ## Bots
 
 Les bots patrouillent sur toute la carte (escaliers et plateformes compris), t'attaquent dès qu'ils te voient et vont voir quand ils t'entendent tirer ou courir. Ils tirent en rafales en s'arrêtant, puis se décalent sur le côté entre deux rafales (en sautant parfois). Chacun a une HE et une flash par vie : quand tu te caches, il peut lancer une flash avant d'aller te chercher, ou une HE sur ta cachette (lancer en cloche calculé pour exploser sur place). Une balle dans la tête fait ×4 de dégâts, dans les jambes ×0,75, pour eux comme pour toi.
+
+**Coéquipiers** : jusqu'à 4 bots dans ton camp (réglage « Coéquipiers », 0 par défaut), en tenue bleu-gris. Ils combattent les ennemis avec la même IA, s'entendent tirer entre camps, et apparaissent groupés autour de toi en mode manches ; la manche continue tant qu'un membre de ton équipe est en vie. Pas de tir ami : tes balles les traversent, tes grenades et ton feu ne les blessent pas, et inversement. Ils sont toujours visibles sur le radar (en bleu) et ont leur ligne dans le tableau des scores.
 
 En mode **passif** (dans les réglages), ils se promènent sans attaquer ni réagir aux tirs : pratique pour s'entraîner à viser.
 

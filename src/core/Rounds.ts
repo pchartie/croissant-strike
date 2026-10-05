@@ -23,6 +23,8 @@ export interface RoundStatus {
  */
 export class Rounds {
   private status: RoundStatus = this.initial();
+  /** Le joueur avait des coéquipiers dans cette manche (pour le message de défaite). */
+  private hadAllies = false;
 
   constructor(
     private readonly hooks: {
@@ -52,9 +54,11 @@ export class Rounds {
     this.beginRound();
   }
 
-  update(dt: number, playerAlive: boolean, botsAlive: number): void {
+  /** `alliesAlive` : coéquipiers bots encore en vie (la manche continue tant qu'il en reste un). */
+  update(dt: number, playerAlive: boolean, botsAlive: number, alliesAlive = 0): void {
     const s = this.status;
     s.timeLeft = Math.max(0, s.timeLeft - dt);
+    if (alliesAlive > 0) this.hadAllies = true;
 
     switch (s.phase) {
       case 'freeze':
@@ -64,7 +68,7 @@ export class Rounds {
         }
         break;
       case 'live':
-        if (!playerAlive) this.endRound('bots', 'Tu as été éliminé');
+        if (!playerAlive && alliesAlive === 0) this.endRound('bots', this.hadAllies ? 'Ton équipe a été éliminée' : 'Tu as été éliminé');
         else if (botsAlive === 0) this.endRound('player', 'Tous les bots sont éliminés');
         else if (s.timeLeft === 0) this.endRound('bots', 'Temps écoulé');
         break;
@@ -86,6 +90,7 @@ export class Rounds {
   }
 
   private beginRound(): void {
+    this.hadAllies = false;
     this.status.phase = 'freeze';
     this.status.timeLeft = ROUNDS.freezeTime;
     this.status.winner = null;

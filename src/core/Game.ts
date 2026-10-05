@@ -265,7 +265,7 @@ export class Game {
     this.grenades.update(TICK);
     this.applyFire();
     this.updateFootsteps();
-    if (this.mode === 'rounds') this.rounds.update(TICK, this.player.alive, this.bots.aliveCount);
+    if (this.mode === 'rounds') this.rounds.update(TICK, this.player.alive, this.bots.aliveCount, this.bots.alliesAlive);
 
     this.flashTime = Math.max(0, this.flashTime - TICK);
     this.hurtCooldown = Math.max(0, this.hurtCooldown - TICK);
@@ -425,13 +425,17 @@ export class Game {
       return maxDamage * Math.exp(-(distance * distance) / (2 * sigma * sigma));
     };
 
-    // Pas de tir ami : la grenade d'un bot ne blesse que le joueur.
-    for (const bot of thrower ? [] : this.bots.bots) {
-      if (!bot.alive) continue;
+    // Pas de tir ami : une grenade ne blesse que le camp adverse (et le joueur qui l'a lancée).
+    const throwerTeam = thrower ? thrower.team : 'ally';
+    for (const bot of this.bots.bots) {
+      if (!bot.alive || bot.team === throwerTeam) continue;
       const damage = hits(bot.body.position, bot.body.height);
-      if (damage >= 1) this.damageBot(bot, damage, 'blast', BLAST_ARMOR_RATIO, weapon, GRENADE_KILL_REWARD);
+      if (damage < 1) continue;
+      if (thrower) this.botHurtsBot(thrower, bot, damage, 'blast', BLAST_ARMOR_RATIO, weapon, false);
+      else this.damageBot(bot, damage, 'blast', BLAST_ARMOR_RATIO, weapon, GRENADE_KILL_REWARD);
     }
-    if (this.player.alive) {
+    // Le joueur : touché par ses propres grenades et celles des ennemis, pas par celles de ses coéquipiers.
+    if (this.player.alive && thrower?.team !== 'ally') {
       const damage = hits(this.player.position, this.player.height);
       if (damage >= 1) this.damagePlayer(damage, 'blast', BLAST_ARMOR_RATIO, thrower?.name ?? 'Toi', weapon, false, thrower ?? undefined);
     }
@@ -442,7 +446,11 @@ export class Game {
     const burning = (feet: THREE.Vector3) => this.grenades.burning(feet);
     const damage = MOLOTOV.damagePerSecond * TICK;
     if (this.player.alive && burning(this.player.position)) this.damagePlayer(damage, 'fire', 1, 'Toi', GRENADES.molotov.name);
-    this.bots.burn((feet) => this.grenades.fireAt(feet), (bot) => this.damageBot(bot, damage, 'fire', 1, GRENADES.molotov.name, GRENADE_KILL_REWARD));
+    // Le feu (toujours lancé par le joueur) fait fuir tout le monde mais ne blesse pas ses coéquipiers.
+    this.bots.burn(
+      (feet) => this.grenades.fireAt(feet),
+      (bot) => bot.team === 'enemy' && this.damageBot(bot, damage, 'fire', 1, GRENADES.molotov.name, GRENADE_KILL_REWARD),
+    );
   }
 
   // --- Tirs ---
@@ -517,6 +525,17 @@ export class Game {
     this.tracers.add(shot.origin, shot.end);
     if (shot.worldHit) this.impactSound(this.impacts.add(shot.worldHit), shot.worldHit.point, true);
     if (shot.playerDamage > 0) this.damagePlayer(shot.playerDamage, shot.part ?? 'body', RIFLE.armorRatio, shot.bot.name, RIFLE.name, shot.headshot, shot.bot);
+    if (shot.victim) {
+      this.impacts.addBlood(shot.end, this.toSound.subVectors(shot.end, shot.origin).normalize(), shot.headshot ? 18 : 10);
+      if (shot.killed) this.hud.addKill(shot.bot.name, shot.victim.name, RIFLE.name, shot.headshot);
+    }
+  }
+
+  /** Un bot blesse un bot de l'autre camp (grenade) ; le tueur est crédité. */
+  private botHurtsBot(attacker: Bot, victim: Bot, amount: number, zone: DamageZone, armorRatio: number, weapon: string, headshot: boolean): void {
+    if (!this.bots.damageBot(victim, amount, zone, armorRatio, attacker.body.position)) return;
+    attacker.kills++;
+    this.hud.addKill(attacker.name, victim.name, weapon, headshot);
   }
 
   // --- Grenades ---
@@ -679,6 +698,7 @@ export class Game {
 
     this.bots.setDifficulty(settings.difficulty);
     this.bots.setCount(settings.botCount);
+    this.bots.setAllies(settings.allyCount);
     this.bots.setAggressive(settings.botsAggressive);
     this.bots.setEnabled(settings.botsEnabled);
     if (settings.mode !== this.mode) this.startMode(settings.mode);
@@ -768,10 +788,13 @@ export class Game {
       return;
     }
     const accuracy = this.stats.shots > 0 ? Math.round((100 * this.stats.hits) / this.stats.shots) : 0;
-    const rows = [
-      { name: 'Toi', kills: this.kills, deaths: this.deaths, extra: `${this.stats.headshots} HS · ${accuracy} %`, me: true, dead: !this.player.alive },
-      ...this.bots.bots.map((bot) => ({ name: bot.name, kills: bot.kills, deaths: bot.deaths, extra: '', me: false, dead: !bot.alive })),
-    ].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+    const row = (bot: Bot) => ({ name: bot.name, kills: bot.kills, deaths: bot.deaths, extra: '', me: false, dead: !bot.alive, ally: bot.team === 'ally' });
+    const byScore = (a: { kills: number; deaths: number }, b: { kills: number; deaths: number }) => b.kills - a.kills || a.deaths - b.deaths;
+    const me = { name: 'Toi', kills: this.kills, deaths: this.deaths, extra: `${this.stats.headshots} HS · ${accuracy} %`, me: true, dead: !this.player.alive, ally: true };
+    const enemies = this.bots.enemies.map(row);
+    // Avec des coéquipiers : ton équipe d'abord, puis les ennemis, chaque camp trié par éliminations.
+    const rows =
+      this.bots.allies.length > 0 ? [...[me, ...this.bots.allies.map(row)].sort(byScore), ...enemies.sort(byScore)] : [me, ...enemies].sort(byScore);
     const round = this.rounds.current;
     const title = this.mode === 'rounds' ? `Manche ${round.round} · Toi ${round.playerScore} – ${round.botScore} Bots` : 'Deathmatch';
     this.hud.setScoreboard({ title, rows });
@@ -790,7 +813,7 @@ export class Game {
     if (now - this.lastSpotting > SPOT_INTERVAL_MS && this.player.alive) {
       this.lastSpotting = now;
       this.frustum.setFromProjectionMatrix(this.projScreen.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
-      for (const bot of this.bots.bots) {
+      for (const bot of this.bots.enemies) {
         if (!bot.alive) continue;
         const head = bot.eyePosition(this.eye.clone());
         if (!this.frustum.containsPoint(head) || !this.clearLine(this.camera.position, head)) continue;
@@ -804,7 +827,9 @@ export class Game {
       if (!bot.alive || age > SPOT_MEMORY_MS) continue;
       enemies.push({ x: bot.body.position.x, z: bot.body.position.z, alpha: 1 - age / SPOT_MEMORY_MS });
     }
-    this.radar.draw({ x: this.player.position.x, z: this.player.position.z, yaw: this.player.yaw }, enemies);
+    // Les coéquipiers sont toujours affichés, comme dans CS.
+    const allies = this.bots.allies.filter((bot) => bot.alive).map((bot) => ({ x: bot.body.position.x, z: bot.body.position.z }));
+    this.radar.draw({ x: this.player.position.x, z: this.player.position.z, yaw: this.player.yaw }, enemies, allies);
   }
 
   private updateEffects(dt: number, mouse: { dx: number; dy: number }): void {

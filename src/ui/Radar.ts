@@ -39,7 +39,7 @@ export class Radar {
     map.putImageData(image, 0, 0);
   }
 
-  draw(player: { x: number; z: number; yaw: number }, enemies: { x: number; z: number; alpha: number }[]): void {
+  draw(player: { x: number; z: number; yaw: number }, enemies: { x: number; z: number; alpha: number }[], allies: { x: number; z: number }[] = []): void {
     const { ctx, canvas } = this;
     const size = canvas.width;
     const half = size / 2;
@@ -59,6 +59,12 @@ export class Radar {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(this.map, this.bounds.x, this.bounds.z, this.bounds.width, this.bounds.depth);
 
+    ctx.fillStyle = '#4da3ff';
+    for (const ally of allies) {
+      ctx.beginPath();
+      ctx.arc(ally.x, ally.z, 4.5 / scale, 0, Math.PI * 2);
+      ctx.fill();
+    }
     for (const enemy of enemies) {
       ctx.globalAlpha = enemy.alpha;
       ctx.fillStyle = '#ff3b30';

@@ -13,6 +13,7 @@ export interface Settings {
   botsEnabled: boolean;
   botsAggressive: boolean;
   botCount: number;
+  allyCount: number;
   difficulty: Difficulty;
   // Contrôles
   /** Sensibilité façon CS : degrés par point de souris = 0,022 × sensibilité. */
@@ -40,6 +41,7 @@ export const DEFAULT_SETTINGS: Settings = {
   botsEnabled: true,
   botsAggressive: true,
   botCount: 5,
+  allyCount: 0,
   difficulty: 'normal',
   sensitivity: 2,
   invertY: true,
@@ -83,7 +85,8 @@ export const SETTINGS_TABS: SettingsTab[] = [
       },
       { key: 'botsEnabled', label: 'Bots', type: 'toggle', on: 'Activés', off: 'Désactivés' },
       { key: 'botsAggressive', label: 'Comportement', type: 'toggle', on: 'Agressifs', off: 'Passifs' },
-      { key: 'botCount', label: 'Nombre de bots', type: 'range', min: 1, max: 10, step: 1 },
+      { key: 'botCount', label: "Nombre d'ennemis", type: 'range', min: 1, max: 10, step: 1 },
+      { key: 'allyCount', label: 'Coéquipiers', type: 'range', min: 0, max: 4, step: 1 },
       {
         key: 'difficulty',
         label: 'Difficulté',
@@ -154,7 +157,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
 
 /** Ces réglages n'ont pas de sens sans bots : ils sont grisés quand les bots sont désactivés. */
 export function isFieldEnabled(key: Key, settings: Settings): boolean {
-  const needsBots: Key[] = ['botsAggressive', 'botCount', 'difficulty'];
+  const needsBots: Key[] = ['botsAggressive', 'botCount', 'allyCount', 'difficulty'];
   return !needsBots.includes(key) || settings.botsEnabled;
 }
 

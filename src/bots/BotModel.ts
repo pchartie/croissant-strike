@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { flashSprite } from '../weapons/flash';
+import type { Team } from './Bot';
 
 export type HitPart = 'head' | 'body' | 'legs';
 
@@ -10,10 +11,17 @@ const HIP = 0.88;
 const SHOULDER = 1.42;
 const FLASH_DURATION = 0.05;
 
-const shirt = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.9 });
-const vest = new THREE.MeshStandardMaterial({ color: 0x4a4f3a, roughness: 0.85 });
-const pants = new THREE.MeshStandardMaterial({ color: 0x3b3a35, roughness: 0.9 });
-const mask = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.95 });
+/** Tenues : beige et cagoule noire pour les ennemis, bleu-gris et casque pour les coéquipiers (comme les CT). */
+const OUTFITS = {
+  enemy: { shirt: 0x8a7a5a, vest: 0x4a4f3a, pants: 0x3b3a35, head: 0x222222 },
+  ally: { shirt: 0x3b4a5c, vest: 0x2a3540, pants: 0x2b3038, head: 0x3d4652 },
+};
+const outfitMaterials = (team: Team) => {
+  const colors = OUTFITS[team];
+  const material = (color: number, roughness = 0.9) => new THREE.MeshStandardMaterial({ color, roughness });
+  return { shirt: material(colors.shirt), vest: material(colors.vest, 0.85), pants: material(colors.pants), head: material(colors.head, 0.95) };
+};
+const MATERIALS = { enemy: outfitMaterials('enemy'), ally: outfitMaterials('ally') };
 const skin = new THREE.MeshStandardMaterial({ color: 0xc89c7c, roughness: 0.8 });
 const gunMetal = new THREE.MeshStandardMaterial({ color: 0x1e1f21, metalness: 0.6, roughness: 0.5 });
 const gunWood = new THREE.MeshStandardMaterial({ color: 0x6e3d1e, roughness: 0.7 });
@@ -37,7 +45,8 @@ export class BotModel {
   private flashTimer = 0;
   private walkPhase = 0;
 
-  constructor() {
+  constructor(team: Team = 'enemy') {
+    const { shirt, vest, pants, head } = MATERIALS[team];
     // Lacet d'abord, puis bascule : le bot tombe en arrière par rapport à là où il regarde.
     this.root.rotation.order = 'YXZ';
     for (const [leg, x] of [[this.leftLeg, -0.11], [this.rightLeg, 0.11]] as const) {
@@ -48,7 +57,7 @@ export class BotModel {
 
     this.box(this.root, shirt, [0.46, 0.62, 0.26], [0, HIP + 0.31, 0], 'body');
     this.box(this.root, vest, [0.48, 0.4, 0.28], [0, HIP + 0.36, 0], 'body');
-    this.box(this.root, mask, [0.24, 0.26, 0.26], [0, 1.63, 0], 'head');
+    this.box(this.root, head, [0.24, 0.26, 0.26], [0, 1.63, 0], 'head');
     this.box(this.root, skin, [0.2, 0.06, 0.02], [0, 1.65, -0.13]); // fente des yeux
 
     // Bras et arme, inclinés selon la visée.

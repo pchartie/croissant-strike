@@ -208,12 +208,14 @@ export class Hud {
   }
 
   /** Tableau des scores (touche Tab), ou null pour le cacher. */
-  setScoreboard(board: { title: string; rows: { name: string; kills: number; deaths: number; extra: string; me: boolean; dead: boolean }[] } | null): void {
+  setScoreboard(
+    board: { title: string; rows: { name: string; kills: number; deaths: number; extra: string; me: boolean; dead: boolean; ally: boolean }[] } | null,
+  ): void {
     this.scoreboard.classList.toggle('hidden', board === null);
     if (!board) return;
     const escape = (text: string) => text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
     const rows = board.rows
-      .map((r) => `<tr class="${r.me ? 'me' : ''} ${r.dead ? 'dead' : ''}"><td>${escape(r.name)}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${escape(r.extra)}</td></tr>`)
+      .map((r) => `<tr class="${r.me ? 'me' : r.ally ? 'ally' : ''} ${r.dead ? 'dead' : ''}"><td>${escape(r.name)}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${escape(r.extra)}</td></tr>`)
       .join('');
     const html = `<h2>${escape(board.title)}</h2><table><tr><th>Joueur</th><th>Élim.</th><th>Morts</th><th></th></tr>${rows}</table>`;
     if (html === this.lastScoreboard) return;
