@@ -131,8 +131,8 @@ export class GrenadeSystem {
   /** Lancer de la grenade en main (appelé à chaque tick quand une grenade est sortie). */
   updateInput(dt: number, input: Input): void {
     if (!this.current) return;
-    const left = input.isDown('Mouse0') || input.consumePress('Mouse0');
-    const right = input.isDown('Mouse2') || input.consumePress('Mouse2');
+    const left = input.isDown('attack') || input.consumePress('attack');
+    const right = input.isDown('attack2') || input.consumePress('attack2');
     const mask = (left ? 1 : 0) | (right ? 2 : 0);
     this.timer = Math.max(0, this.timer - dt);
 

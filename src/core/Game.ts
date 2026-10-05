@@ -186,7 +186,7 @@ export class Game {
     if (this.player.alive && !frozen) {
       this.player.update(TICK, this.input, [...this.world.colliders, ...this.bots.colliders]);
       if (this.player.outOfMap) this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
-      if (this.input.consumePress('Digit4') && this.grenades.cycle()) {
+      if (this.input.consumePress('grenades') && this.grenades.cycle()) {
         this.weapons.holster();
         this.viewModel.showGrenade(this.grenades.current!);
         this.audio.draw();
@@ -421,6 +421,7 @@ export class Game {
 
   /** Applique tous les réglages (appelé au démarrage et à chaque changement dans le menu). */
   private applySettings(settings: Settings): void {
+    this.input.setBindings(settings.bindings);
     this.player.sensitivity = (0.022 * settings.sensitivity * Math.PI) / 180;
     this.player.invertY = settings.invertY;
     if (this.camera.fov !== settings.fov) {

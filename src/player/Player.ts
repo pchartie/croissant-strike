@@ -66,12 +66,12 @@ export class Player extends Body {
   }
 
   update(dt: number, input: Input, colliders: readonly THREE.Box3[]): void {
-    // Ctrl ou C pour s'accroupir (Ctrl+W ferme l'onglet en QWERTY), Maj pour marcher.
-    this.updateDuck(dt, input.isDown('ControlLeft') || input.isDown('KeyC'), colliders);
-    const walking = input.isDown('ShiftLeft');
+    // Touches réglables dans le menu (par défaut : Ctrl ou C pour s'accroupir, Maj pour marcher).
+    this.updateDuck(dt, input.isDown('crouch'), colliders);
+    const walking = input.isDown('walk');
 
-    const forward = (input.isDown('KeyW') ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0);
-    const side = (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
+    const forward = (input.isDown('forward') ? 1 : 0) - (input.isDown('back') ? 1 : 0);
+    const side = (input.isDown('right') ? 1 : 0) - (input.isDown('left') ? 1 : 0);
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
     // Avant = -z quand yaw vaut 0 ; droite = +x.
@@ -80,7 +80,7 @@ export class Player extends Body {
     const wishSpeed = this.wishDir.lengthSq() > 0 ? MOVE.maxSpeed * speedScale : 0;
     this.wishDir.normalize();
 
-    const jump = input.consumePress('Space');
+    const jump = input.consumePress('jump');
     if (this.onGround && jump) {
       this.velocity.y = MOVE.jumpSpeed;
       this.onGround = false;

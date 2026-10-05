@@ -1,3 +1,5 @@
+import { DEFAULT_BINDINGS, validateBindings, type Bindings } from './bindings';
+
 export type GameMode = 'deathmatch' | 'rounds';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type CrosshairColor = 'green' | 'white' | 'red' | 'cyan' | 'yellow';
@@ -23,6 +25,8 @@ export interface Settings {
   crosshairColor: CrosshairColor;
   crosshairSize: CrosshairSize;
   showSpeed: boolean;
+  /** Touches de chaque action (onglet « Touches »). */
+  bindings: Bindings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -38,9 +42,11 @@ export const DEFAULT_SETTINGS: Settings = {
   crosshairColor: 'green',
   crosshairSize: 'medium',
   showSpeed: true,
+  bindings: DEFAULT_BINDINGS,
 };
 
-type Key = keyof Settings;
+/** Réglages simples, décrits par SETTINGS_TABS (les touches ont leur propre onglet). */
+type Key = Exclude<keyof Settings, 'bindings'>;
 
 /** Description d'un réglage : le panneau est construit à partir de ces descriptions. */
 export type SettingField =
@@ -136,7 +142,7 @@ export function loadSettings(): Settings {
   } catch {
     // Stockage illisible ou bloqué : réglages par défaut.
   }
-  const settings = { ...DEFAULT_SETTINGS };
+  const settings: Settings = { ...DEFAULT_SETTINGS, bindings: validateBindings(stored.bindings) };
   for (const field of SETTINGS_TABS.flatMap((tab) => tab.fields)) {
     const value = validate(field, stored[field.key]);
     if (value !== undefined) (settings as Record<Key, unknown>)[field.key] = value;

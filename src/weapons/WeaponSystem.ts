@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MOVE } from '../config';
+import type { Action } from '../core/bindings';
 import type { Input } from '../core/Input';
 import type { Player } from '../player/Player';
 import { LOADOUT, type WeaponDef } from './definitions';
@@ -7,6 +8,8 @@ import { LOADOUT, type WeaponDef } from './definitions';
 const DEG = Math.PI / 180;
 /** Multiplicateur de la dispersion de base accroupi (environ celui de CS). */
 const CROUCH_ACCURACY = 0.75;
+/** Action qui sort l'arme de chaque emplacement (touches 1, 2, 3 par défaut). */
+const SLOT_ACTIONS: Record<number, Action> = { 1: 'weapon1', 2: 'weapon2', 3: 'weapon3' };
 /** Rayons du coup de couteau (écarts en radians, gauche/droite et haut/bas) : un éventail étroit. */
 const MELEE_FAN: [number, number][] = [[0, 0], [0.1, 0], [-0.1, 0], [0, 0.08], [0, -0.08]];
 /** Un coup rapide qui suit une touche de moins de ce temps fait moins mal (CS:GO). */
@@ -104,7 +107,7 @@ export class WeaponSystem {
     this.sinceShot += dt;
 
     this.weapons.forEach((weapon, i) => {
-      if (input.consumePress(`Digit${weapon.def.slot}`) && (i !== this.index || this.holstered)) this.equip(i);
+      if (input.consumePress(SLOT_ACTIONS[weapon.def.slot]) && (i !== this.index || this.holstered)) this.equip(i);
     });
     if (this.holstered) {
       this.recoverPunch(dt);
@@ -120,10 +123,10 @@ export class WeaponSystem {
       this.reloadTimer -= dt;
       if (this.reloadTimer <= 0) this.finishReload();
     }
-    if (input.consumePress('KeyR')) this.startReload();
+    if (input.consumePress('reload')) this.startReload();
 
-    const pressed = input.consumePress('Mouse0');
-    const held = input.isDown('Mouse0');
+    const pressed = input.consumePress('attack');
+    const held = input.isDown('attack');
     const trigger = this.current.def.automatic ? held || pressed : pressed;
     const ready = this.cooldown === 0 && this.reloadTimer <= 0 && this.drawTimer === 0;
 
@@ -195,8 +198,8 @@ export class WeaponSystem {
   private updateMelee(dt: number, input: Input): void {
     const melee = this.current.def.melee!;
     this.sinceMeleeHit += dt;
-    const light = input.consumePress('Mouse0') || input.isDown('Mouse0');
-    const heavy = input.consumePress('Mouse2') || input.isDown('Mouse2');
+    const light = input.consumePress('attack') || input.isDown('attack');
+    const heavy = input.consumePress('attack2') || input.isDown('attack2');
 
     if (this.pendingStrike) {
       this.pendingStrike.timer -= dt;

@@ -1,6 +1,12 @@
-// Les codes physiques (KeyW, KeyA…) suivent la position des touches : sur un
-// clavier AZERTY, KeyW est la touche Z, KeyA la touche Q.
+import { DEFAULT_BINDINGS, type Action, type Bindings } from './bindings';
+
+/**
+ * Clavier et souris. Le jeu demande des actions (« avancer », « tirer »…), que
+ * les réglages associent à des touches. Les codes physiques (KeyW…) suivent la
+ * position des touches : sur un clavier AZERTY, KeyW est la touche Z.
+ */
 export class Input {
+  private bindings: Bindings = DEFAULT_BINDINGS;
   private held = new Set<string>();
   private pressed = new Set<string>();
   private mouseDX = 0;
@@ -34,9 +40,9 @@ export class Input {
       this.mouseDY += e.movementY;
     });
 
-    // La molette sert aussi à sauter, comme le font beaucoup de joueurs de CS.
+    // La molette compte comme une touche « Wheel » qu'on appuie (pour sauter, par défaut).
     document.addEventListener('wheel', (e) => {
-      if (this.locked && e.deltaY !== 0) this.pressed.add('Space');
+      if (this.locked && e.deltaY !== 0) this.pressed.add('Wheel');
     });
 
     document.addEventListener('pointerlockchange', () => {
@@ -58,13 +64,20 @@ export class Input {
     this.lockListeners.push(listener);
   }
 
-  isDown(code: string): boolean {
-    return this.held.has(code);
+  setBindings(bindings: Bindings): void {
+    this.bindings = bindings;
   }
 
-  /** Vrai une seule fois par appui. */
-  consumePress(code: string): boolean {
-    return this.pressed.delete(code);
+  /** Vrai tant qu'une des touches de l'action est enfoncée. */
+  isDown(action: Action): boolean {
+    return this.bindings[action].some((code) => this.held.has(code));
+  }
+
+  /** Vrai une seule fois par appui sur une des touches de l'action. */
+  consumePress(action: Action): boolean {
+    let pressed = false;
+    for (const code of this.bindings[action]) if (this.pressed.delete(code)) pressed = true;
+    return pressed;
   }
 
   /** Oublie les appuis non utilisés pendant ce tick (sauter en l'air, recharger plein…). */
