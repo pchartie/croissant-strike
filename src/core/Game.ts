@@ -56,6 +56,8 @@ const DOWN = new THREE.Vector3(0, -1, 0);
 /** Radar : repérage des ennemis 10 fois par seconde ; un ennemi repéré reste affiché 1,5 s. */
 const SPOT_INTERVAL_MS = 100;
 const SPOT_MEMORY_MS = 1500;
+/** Taille de la carte d'ombre du soleil selon la qualité choisie (0 = pas d'ombres). */
+const SHADOW_MAP_SIZES = { off: 0, low: 1024, high: 4096 };
 /** Coup dans le dos si le bot regarde à moins de ~65° de la direction opposée au joueur. */
 const BACKSTAB_DOT = 0.4;
 
@@ -102,6 +104,9 @@ export class Game {
   private playerStride = 0;
   private readonly botStrides = new Map<Bot, number>();
   private readonly radar: Radar;
+  private readonly sun: THREE.DirectionalLight;
+  private fpsFrames = 0;
+  private fpsTime = 0;
   private readonly spotted = new Map<Bot, number>();
   private lastSpotting = 0;
   private readonly frustum = new THREE.Frustum();
@@ -127,7 +132,7 @@ export class Game {
     });
     this.input.onLockChange((locked) => this.hud.setPaused(!locked));
 
-    buildLevel(this.world, this.renderer.capabilities.getMaxAnisotropy());
+    this.sun = buildLevel(this.world, this.renderer.capabilities.getMaxAnisotropy());
     void loadSky(this.scene, [this.viewModel.scene]);
     this.scene.add(this.muzzleLight);
     this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
@@ -192,6 +197,13 @@ export class Game {
   private frame(time: number): void {
     const frameTime = Math.min(time - this.lastTime, MAX_FRAME_TIME);
     this.lastTime = time;
+    // Images par seconde, moyennées sur une demi-seconde.
+    this.fpsFrames++;
+    this.fpsTime += frameTime;
+    if (this.fpsTime >= 0.5) {
+      this.hud.setFps(Math.round(this.fpsFrames / this.fpsTime));
+      this.fpsFrames = this.fpsTime = 0;
+    }
 
     // La souris est lue à chaque image (et pas à chaque tick) pour une visée sans latence.
     const mouse = this.input.consumeMouse();
@@ -650,12 +662,31 @@ export class Game {
     this.audio.setVolume(settings.volume / 100);
     this.hud.setCrosshair(settings.crosshairColor, settings.crosshairSize);
     this.hud.setSpeedVisible(settings.showSpeed);
+    this.applyGraphics(settings);
 
     this.bots.setDifficulty(settings.difficulty);
     this.bots.setCount(settings.botCount);
     this.bots.setAggressive(settings.botsAggressive);
     this.bots.setEnabled(settings.botsEnabled);
     if (settings.mode !== this.mode) this.startMode(settings.mode);
+  }
+
+  /** Ombres et résolution de rendu (onglet Graphismes). */
+  private applyGraphics(settings: Settings): void {
+    const shadowSize = SHADOW_MAP_SIZES[settings.shadows];
+    this.sun.castShadow = shadowSize > 0;
+    if (shadowSize > 0 && this.sun.shadow.mapSize.x !== shadowSize) {
+      // Changer la taille de la carte d'ombre oblige à la recréer.
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+      this.sun.shadow.mapSize.set(shadowSize, shadowSize);
+    }
+    const pixelRatio = Math.min(window.devicePixelRatio, 2) * (settings.renderScale / 100);
+    if (this.renderer.getPixelRatio() !== pixelRatio) {
+      this.renderer.setPixelRatio(pixelRatio);
+      this.resize();
+    }
+    this.hud.setFpsVisible(settings.showFps);
   }
 
   private startMode(mode: GameMode): void {

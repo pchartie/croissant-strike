@@ -4,6 +4,7 @@ export type GameMode = 'deathmatch' | 'rounds';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type CrosshairColor = 'green' | 'white' | 'red' | 'cyan' | 'yellow';
 export type CrosshairSize = 'small' | 'medium' | 'large';
+export type ShadowQuality = 'off' | 'low' | 'high';
 
 export interface Settings {
   // Jeu
@@ -25,6 +26,11 @@ export interface Settings {
   crosshairColor: CrosshairColor;
   crosshairSize: CrosshairSize;
   showSpeed: boolean;
+  // Graphismes
+  shadows: ShadowQuality;
+  /** Résolution de rendu, en % de celle de l'écran (moins = plus fluide). */
+  renderScale: number;
+  showFps: boolean;
   /** Touches de chaque action (onglet « Touches »). */
   bindings: Bindings;
 }
@@ -42,6 +48,9 @@ export const DEFAULT_SETTINGS: Settings = {
   crosshairColor: 'green',
   crosshairSize: 'medium',
   showSpeed: true,
+  shadows: 'high',
+  renderScale: 100,
+  showFps: false,
   bindings: DEFAULT_BINDINGS,
 };
 
@@ -122,6 +131,23 @@ export const SETTINGS_TABS: SettingsTab[] = [
         ],
       },
       { key: 'showSpeed', label: 'Compteur de vitesse', type: 'toggle', on: 'Affiché', off: 'Caché' },
+    ],
+  },
+  {
+    title: 'Graphismes',
+    fields: [
+      {
+        key: 'shadows',
+        label: 'Ombres',
+        type: 'choice',
+        options: [
+          { value: 'off', label: 'Désactivées' },
+          { value: 'low', label: 'Basses' },
+          { value: 'high', label: 'Hautes' },
+        ],
+      },
+      { key: 'renderScale', label: 'Résolution de rendu', type: 'range', min: 50, max: 100, step: 5, unit: ' %' },
+      { key: 'showFps', label: 'Images par seconde', type: 'toggle', on: 'Affichées', off: 'Cachées' },
     ],
   },
 ];

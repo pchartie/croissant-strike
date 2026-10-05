@@ -38,6 +38,7 @@ export class Hud {
   private readonly crosshair = document.getElementById('crosshair')!;
   private readonly money = document.getElementById('money')!;
   private readonly scoreboard = document.getElementById('scoreboard')!;
+  private readonly fps = document.getElementById('fps')!;
   private lastScoreboard = '';
   private readonly armor = document.getElementById('armor')!;
   private lastMoney = '';
@@ -227,6 +228,14 @@ export class Hud {
     if (text === this.lastArmor) return;
     this.lastArmor = text;
     this.armor.textContent = text;
+  }
+
+  setFps(fps: number): void {
+    this.fps.textContent = `${fps} FPS`;
+  }
+
+  setFpsVisible(visible: boolean): void {
+    this.fps.style.display = visible ? '' : 'none';
   }
 
   setSpeedVisible(visible: boolean): void {

@@ -38,8 +38,9 @@ export const LEVEL_BOUNDS = new THREE.Box3(new THREE.Vector3(-HALF, 0, -HALF), n
 /** Apparition du joueur : au sud, face au nord. */
 export const PLAYER_SPAWN = { position: new THREE.Vector3(0, 0, 31), yaw: 0 };
 
-export function buildLevel(world: World, anisotropy: number): void {
-  setupLighting(world.scene);
+/** Construit la carte ; renvoie le soleil (pour régler la qualité des ombres). */
+export function buildLevel(world: World, anisotropy: number): THREE.DirectionalLight {
+  const sun = setupLighting(world.scene);
 
   // Textures Poly Haven (CC0) à leur taille réelle ; celles dessinées par le code en secours.
   const sand = textures.pbrMaterial('ground', textures.sand(anisotropy), anisotropy);
@@ -251,9 +252,10 @@ export function buildLevel(world: World, anisotropy: number): void {
     [barrelRust, 'metal'],
   ]);
   for (const mesh of world.meshes) mesh.userData.surface = surfaces.get(mesh.material as THREE.Material) ?? 'stone';
+  return sun;
 }
 
-function setupLighting(scene: THREE.Scene): void {
+function setupLighting(scene: THREE.Scene): THREE.DirectionalLight {
   const sky = new THREE.Color(0xa9cbe8);
   scene.background = sky;
   scene.fog = new THREE.Fog(sky, 60, 180);
@@ -271,4 +273,5 @@ function setupLighting(scene: THREE.Scene): void {
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
   scene.add(sun);
+  return sun;
 }
