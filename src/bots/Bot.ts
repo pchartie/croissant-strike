@@ -15,6 +15,8 @@ const WAYPOINT_REACHED = 0.35;
 const LOSE_SIGHT_DELAY = 0.6;
 const SEARCH_LOOK_TIME = 2;
 const FALL_DURATION = 0.35;
+/** Temps passé à s'écarter tout droit d'un feu. */
+const ESCAPE_TIME = 0.6;
 /** Hauteur visée sur le joueur selon sa taille (debout ou accroupi). */
 const chestHeight = (height: number) => height * 0.68;
 const headHeight = (height: number) => height - 0.15;
@@ -65,6 +67,12 @@ export class Bot {
   private spottedTime = 0;
   private reactionTimer = 0;
   private aimAtHead = false;
+  /** Temps d'aveuglement restant après une flash. */
+  private blindTimer = 0;
+  /** Évite de recalculer un chemin de fuite à chaque tick passé dans le feu. */
+  private fleeCooldown = 0;
+  private escapeTimer = 0;
+  private readonly escapeDir = new THREE.Vector3();
   private readonly aimError = { yaw: 0, pitch: 0, timer: 0 };
 
   private ammo = RIFLE.magazine;
@@ -91,7 +99,7 @@ export class Bot {
     return this.state !== 'dead';
   }
 
-  spawn(position: THREE.Vector3): void {
+  spawn(position: THREE.Vector3, yaw = Math.random() * Math.PI * 2): void {
     this.body.teleport(position);
     this.health = BOTS.health;
     this.deadTime = 0;
@@ -101,7 +109,8 @@ export class Bot {
     this.reloadTimer = 0;
     this.burstLeft = 0;
     this.seesPlayer = false;
-    this.yaw = Math.random() * Math.PI * 2;
+    this.yaw = yaw;
+    this.blindTimer = 0;
     this.pitch = 0;
     this.model.root.rotation.set(0, this.yaw, 0);
     this.model.root.visible = true;
@@ -156,6 +165,8 @@ export class Bot {
       return;
     }
 
+    this.blindTimer = Math.max(0, this.blindTimer - dt);
+    this.fleeCooldown = Math.max(0, this.fleeCooldown - dt);
     this.thinkTimer -= dt;
     if (this.thinkTimer <= 0) {
       this.thinkTimer += THINK_INTERVAL;
@@ -165,6 +176,11 @@ export class Bot {
     this.desired.set(0, 0, 0);
     if (this.state === 'combat') this.fight(dt, ctx);
     else this.followPath();
+
+    if (this.escapeTimer > 0) {
+      this.escapeTimer -= dt;
+      this.desired.copy(this.escapeDir).multiplyScalar(WALK_SPEED);
+    }
 
     // Accélération simple vers la vitesse voulue, puis gravité et collisions.
     const blend = Math.min(1, dt * 10);
@@ -181,6 +197,32 @@ export class Bot {
   /** Position affichée entre deux ticks, pour un mouvement fluide. */
   render(alpha: number): void {
     if (this.alive) this.model.root.position.lerpVectors(this.body.previousPosition, this.body.position, alpha);
+  }
+
+  /** Aveuglé par une flash : il ne voit plus et ne tire plus pendant ce temps. */
+  blind(seconds: number): void {
+    this.blindTimer = Math.max(this.blindTimer, seconds);
+  }
+
+  /** Direction du regard. */
+  forward(target: THREE.Vector3): THREE.Vector3 {
+    this.euler.set(this.pitch, this.yaw, 0);
+    return target.set(0, 0, -1).applyEuler(this.euler);
+  }
+
+  /**
+   * Dans le feu : il s'en écarte tout droit, même en plein combat, puis (hors
+   * combat) part patrouiller ailleurs.
+   */
+  escapeFire(center: THREE.Vector3, ctx: BotContext): void {
+    this.escapeDir.set(this.body.position.x - center.x, 0, this.body.position.z - center.z);
+    if (this.escapeDir.lengthSq() < 1e-4) this.escapeDir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+    this.escapeDir.normalize();
+    this.escapeTimer = ESCAPE_TIME;
+    if (this.fleeCooldown > 0 || this.state === 'combat' || !this.alive) return;
+    this.fleeCooldown = 1;
+    this.state = 'patrol';
+    this.setPath(ctx, ctx.nav.randomWalkablePoint());
   }
 
   eyePosition(target: THREE.Vector3): THREE.Vector3 {
@@ -237,7 +279,7 @@ export class Bot {
 
   private canSee(ctx: BotContext): boolean {
     const { player } = ctx;
-    if (!player.alive) return false;
+    if (!player.alive || this.blindTimer > 0) return false;
     this.eyePosition(this.eye);
     const dx = player.position.x - this.body.position.x;
     const dz = player.position.z - this.body.position.z;
@@ -319,7 +361,7 @@ export class Bot {
       this.aimError.timer = 0.15 + Math.random() * 0.15;
     }
 
-    const canShoot = this.seesPlayer && this.reactionTimer <= 0 && this.reloadTimer <= 0;
+    const canShoot = this.seesPlayer && this.blindTimer === 0 && this.reactionTimer <= 0 && this.reloadTimer <= 0;
     if (canShoot && this.burstLeft > 0) {
       // S'arrête pour tirer, comme un vrai joueur : on est précis à l'arrêt.
       if (this.fireCooldown <= 0 && this.body.horizontalSpeed < MOVE.maxSpeed * 0.35) this.fire(ctx);

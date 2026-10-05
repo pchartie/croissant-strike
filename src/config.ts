@@ -52,6 +52,18 @@ export const BOTS = {
   hearingRange: 25,
 };
 
+export const ROUNDS = {
+  /** Gel au début de chaque manche (on peut regarder autour, pas bouger). */
+  freezeTime: 3,
+  /** Durée d'une manche : 1:55, comme dans CS:GO. */
+  roundTime: 115,
+  /** Pause après une manche, puis après le match. */
+  roundOverTime: 5,
+  matchOverTime: 8,
+  /** Manches à gagner pour remporter le match. */
+  toWin: 5,
+};
+
 export const CAMERA = {
   fov: 75,
   // 0,022 × sensibilité 2, comme dans CS : degrés par point de souris.

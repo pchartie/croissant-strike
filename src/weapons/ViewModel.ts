@@ -3,6 +3,8 @@ import type { WeaponDef, WeaponId } from './definitions';
 import { flashSprite } from './flash';
 import { MODEL_BUILDERS, type WeaponModel } from './models';
 import type { AnimatedWeapon } from './RetroWeapons';
+import { GRENADE_ORDER, type GrenadeType } from '../grenades/definitions';
+import { buildGrenadeModel } from '../grenades/models';
 
 const FLASH_DURATION = 0.05;
 
@@ -14,6 +16,8 @@ export interface ViewModelState {
   mouseDY: number;
   reload: number | null;
   draw: number;
+  /** Grenade en main (sortie, dégoupillée, en train d'être lancée), ou null. */
+  grenade: { draw: number; pulled: boolean; throwing: number | null } | null;
 }
 
 /**
@@ -30,6 +34,9 @@ export class ViewModel {
   private readonly blocks = {} as Record<WeaponId, WeaponModel>;
   private animated: Record<WeaponId, AnimatedWeapon> | null = null;
   private currentId: WeaponId = 'rifle';
+  private readonly grenades = {} as Record<GrenadeType, THREE.Group>;
+  /** Grenade en main, ou null si on tient une arme à feu. */
+  private grenadeType: GrenadeType | null = null;
   private readonly flash = flashSprite();
   private flashTimer = 0;
   private readonly muzzlePosition = new THREE.Vector3();
@@ -54,6 +61,13 @@ export class ViewModel {
       this.blocks[id] = model;
     }
     this.scene.add(this.flash);
+
+    for (const type of GRENADE_ORDER) {
+      const model = buildGrenadeModel(type);
+      model.visible = false;
+      this.scene.add(model);
+      this.grenades[type] = model;
+    }
   }
 
   /** Remplace les armes en blocs par les armes animées (une fois chargées). */
@@ -65,6 +79,7 @@ export class ViewModel {
   }
 
   show(def: WeaponDef): void {
+    this.hideGrenade();
     if (this.animated) {
       this.animated[this.currentId].stop();
       this.animated[this.currentId].root.visible = false;
@@ -80,6 +95,41 @@ export class ViewModel {
       weapon.play('draw', def.drawTime);
     } else {
       this.blocks[def.id].root.visible = true;
+    }
+  }
+
+  /** Sort une grenade : l'arme à feu disparaît. */
+  showGrenade(type: GrenadeType): void {
+    this.hideGrenade();
+    if (this.animated) this.animated[this.currentId].root.visible = false;
+    else this.blocks[this.currentId].root.visible = false;
+    this.grenadeType = type;
+    this.grenades[type].visible = true;
+  }
+
+  private hideGrenade(): void {
+    if (this.grenadeType) this.grenades[this.grenadeType].visible = false;
+    this.grenadeType = null;
+  }
+
+  /** Grenade en main : remonte à la sortie, recule une fois dégoupillée, part vers l'avant au lancer. */
+  private poseGrenade(pose: { draw: number; pulled: boolean; throwing: number | null }): void {
+    const model = this.grenades[this.grenadeType!];
+    model.position.set(0.14, -0.16, -0.32);
+    model.rotation.set(0.2, -0.3, 0.15);
+    const draw = pose.draw * pose.draw;
+    model.position.y -= 0.25 * draw;
+    if (pose.pulled) {
+      model.position.add(new THREE.Vector3(0.03, 0.06, 0.08));
+      model.rotation.x -= 0.5;
+    }
+    if (pose.throwing !== null) {
+      const t = pose.throwing;
+      model.position.z -= 0.6 * t;
+      model.position.y += 0.1 * Math.sin(Math.PI * t);
+      model.visible = t < 0.35;
+    } else {
+      model.visible = true;
     }
   }
 
@@ -100,6 +150,11 @@ export class ViewModel {
   }
 
   update(dt: number, state: ViewModelState): void {
+    if (this.grenadeType && state.grenade) {
+      this.poseGrenade(state.grenade);
+      this.flash.visible = false;
+      return;
+    }
     // L'arme traîne un peu derrière les mouvements de la souris.
     const follow = Math.min(1, dt * 10);
     this.swayX += (THREE.MathUtils.clamp(-state.mouseDX * 0.0004, -0.03, 0.03) - this.swayX) * follow;

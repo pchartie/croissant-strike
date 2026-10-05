@@ -38,6 +38,8 @@ export class WeaponSystem {
   private drawTimer = 0;
   private shotsFired = 0;
   private sinceShot = Infinity;
+  /** Arme rangée : on tient une grenade. */
+  holstered = false;
 
   private readonly raycaster = new THREE.Raycaster();
   private readonly origin = new THREE.Vector3();
@@ -90,8 +92,12 @@ export class WeaponSystem {
     this.sinceShot += dt;
 
     this.weapons.forEach((weapon, i) => {
-      if (input.consumePress(`Digit${weapon.def.slot}`) && i !== this.index) this.equip(i);
+      if (input.consumePress(`Digit${weapon.def.slot}`) && (i !== this.index || this.holstered)) this.equip(i);
     });
+    if (this.holstered) {
+      this.recoverPunch(dt);
+      return;
+    }
 
     if (this.reloadTimer > 0) {
       this.reloadTimer -= dt;
@@ -113,13 +119,25 @@ export class WeaponSystem {
     // La rafale reprend du début si on relâche la gâchette assez longtemps.
     if (!held && this.sinceShot > this.current.def.fireInterval * 1.5) this.shotsFired = 0;
 
-    // Le viseur revient en place quand on ne tire plus.
-    const { def } = this.current;
-    if (this.sinceShot > def.fireInterval) {
-      const decay = Math.exp(-def.recoil.recovery * dt);
-      this.punch.pitch *= decay;
-      this.punch.yaw *= decay;
-    }
+    if (this.sinceShot > this.current.def.fireInterval) this.recoverPunch(dt);
+  }
+
+  /** Range l'arme pour sortir une grenade. */
+  holster(): void {
+    this.holstered = true;
+    this.reloadTimer = 0;
+  }
+
+  /** Ressort l'arme en cours (après avoir lancé sa dernière grenade). */
+  unholster(): void {
+    this.equip(this.index);
+  }
+
+  /** Le viseur revient en place quand on ne tire plus. */
+  private recoverPunch(dt: number): void {
+    const decay = Math.exp(-this.current.def.recoil.recovery * dt);
+    this.punch.pitch *= decay;
+    this.punch.yaw *= decay;
   }
 
   private fire(): void {
@@ -184,6 +202,7 @@ export class WeaponSystem {
 
   private equip(index: number): void {
     this.index = index;
+    this.holstered = false;
     this.reloadTimer = 0;
     this.drawTimer = this.current.def.drawTime;
     this.shotsFired = 0;

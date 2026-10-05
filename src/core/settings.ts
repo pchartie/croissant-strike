@@ -1,10 +1,14 @@
+export type GameMode = 'deathmatch' | 'rounds';
+
 export interface Settings {
   botsEnabled: boolean;
   botsAggressive: boolean;
+  /** Deathmatch : réapparition en continu. Manches : une vie par manche, comme dans CS. */
+  mode: GameMode;
 }
 
 const KEY = 'fps1.settings';
-const DEFAULTS: Settings = { botsEnabled: true, botsAggressive: true };
+const DEFAULTS: Settings = { botsEnabled: true, botsAggressive: true, mode: 'deathmatch' };
 
 /** Réglages mémorisés dans le navigateur d'une partie à l'autre. */
 export function loadSettings(): Settings {

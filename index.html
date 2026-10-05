@@ -7,6 +7,8 @@
   </head>
   <body>
     <div id="damage"></div>
+    <div id="smoke-overlay"></div>
+    <div id="flash-overlay"></div>
     <div id="hud">
       <div id="crosshair">
         <span class="top"></span><span class="bottom"></span>
@@ -14,9 +16,12 @@
       </div>
       <div id="hitmarker"></div>
       <div id="score"></div>
+      <div id="round"><span id="round-score"></span><span id="round-timer"></span><span id="round-alive"></span></div>
+      <div id="banner" class="hidden"><div id="banner-title"></div><div id="banner-text"></div></div>
       <div id="killfeed"></div>
       <div id="health"><span class="cross">+</span> <span id="health-value">100</span></div>
       <div id="speed">0</div>
+      <div id="grenades"></div>
       <div id="ammo">
         <div id="weapon-name"></div>
         <div><span id="ammo-count">0</span> <span class="sep">/</span> <span id="ammo-reserve">0</span></div>
@@ -32,6 +37,7 @@
         <div class="settings">
           <button id="setting-bots" class="toggle" type="button"></button>
           <button id="setting-aggressive" class="toggle" type="button"></button>
+          <button id="setting-mode" class="toggle" type="button"></button>
         </div>
         <ul class="controls">
           <li><span><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> se déplacer</li>
@@ -39,6 +45,8 @@
           <li><span><kbd>Clic gauche</kbd></span> tirer</li>
           <li><span><kbd>R</kbd></span> recharger</li>
           <li><span><kbd>1</kbd><kbd>2</kbd></span> fusil / pistolet</li>
+          <li><span><kbd>4</kbd></span> grenades (appuyer à nouveau pour changer)</li>
+          <li><span><kbd>Clic G</kbd> / <kbd>Clic D</kbd></span> lancer loin / en cloche</li>
           <li><span><kbd>Espace</kbd> / <kbd>Molette</kbd></span> sauter</li>
           <li><span><kbd>Ctrl</kbd> / <kbd>C</kbd></span> s'accroupir</li>
           <li><span><kbd>Maj</kbd></span> marcher lentement</li>

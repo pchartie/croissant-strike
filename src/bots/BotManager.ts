@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { BOTS, PLAYER } from '../config';
+import { flashDuration } from '../grenades/flashbang';
 import type { Player } from '../player/Player';
 import { RIFLE } from '../weapons/definitions';
 import type { NavGrid } from '../world/NavGrid';
@@ -11,6 +12,8 @@ import { DAMAGE_MULTIPLIER, type HitPart } from './BotModel';
 const NAMES = ['Gaston', 'Marcel', 'Lucien', 'Raymond', 'Didier', 'Hubert', 'Roger', 'Firmin'];
 /** Distance minimale entre le joueur et un bot qui réapparaît. */
 const MIN_SPAWN_DISTANCE = 25;
+/** Zone d'apparition des bots en mode manches : le nord de la carte. */
+const ROUND_SPAWN_Z = -26;
 
 export interface BotShot {
   bot: Bot;
@@ -33,6 +36,12 @@ export class BotManager {
   readonly bots: Bot[] = [];
   private readonly context: BotContext;
   private enabled = true;
+  /** Faux en mode manches : un bot mort attend la manche suivante. */
+  respawnEnabled = true;
+  /** Ce qui bloque la vue en plus des murs (les fumigènes). */
+  private visionBlocker: (from: THREE.Vector3, to: THREE.Vector3) => boolean = () => false;
+  private readonly flashEye = new THREE.Vector3();
+  private readonly flashForward = new THREE.Vector3();
 
   private readonly raycaster = new THREE.Raycaster();
   private readonly ray = new THREE.Ray();
@@ -50,7 +59,7 @@ export class BotManager {
       nav,
       player,
       colliders: (bot) => this.collidersFor(bot),
-      lineOfSight: (from, to) => this.lineOfSight(from, to),
+      lineOfSight: (from, to) => this.lineOfSight(from, to) && !this.visionBlocker(from, to),
       shoot: (bot, origin, direction) => this.shoot(bot, origin, direction),
     };
 
@@ -96,7 +105,7 @@ export class BotManager {
     if (!this.enabled) return;
     for (const bot of this.bots) {
       bot.update(dt, this.context);
-      if (!bot.alive && bot.deadTime > BOTS.respawnDelay) bot.spawn(this.spawnPoint());
+      if (this.respawnEnabled && !bot.alive && bot.deadTime > BOTS.respawnDelay) bot.spawn(this.spawnPoint());
     }
   }
 
@@ -108,6 +117,61 @@ export class BotManager {
   playerFired(position: THREE.Vector3): void {
     for (const bot of this.bots) {
       if (bot.body.position.distanceTo(position) < BOTS.hearingRange) bot.investigate(position);
+    }
+  }
+
+  get aliveCount(): number {
+    return this.bots.filter((bot) => bot.alive).length;
+  }
+
+  setVisionBlocker(blocker: (from: THREE.Vector3, to: THREE.Vector3) => boolean): void {
+    this.visionBlocker = blocker;
+  }
+
+  /** Début de manche : tous les bots réapparaissent dans la zone nord, face au sud. */
+  resetForRound(): void {
+    const taken: THREE.Vector3[] = [];
+    for (const bot of this.bots) {
+      if (!this.enabled) {
+        bot.disable();
+        continue;
+      }
+      let point = this.nav.randomWalkablePoint();
+      for (let i = 0; i < 200; i++) {
+        const candidate = this.nav.randomWalkablePoint();
+        if (candidate.z < ROUND_SPAWN_Z && taken.every((other) => other.distanceTo(candidate) > 2)) {
+          point = candidate;
+          break;
+        }
+      }
+      taken.push(point);
+      bot.spawn(point, Math.PI);
+    }
+  }
+
+  /** Dégâts directs (grenade, feu) ; renvoie vrai si le bot en meurt. */
+  damageBot(bot: Bot, amount: number): boolean {
+    return bot.damage(amount, this.player.position);
+  }
+
+  /** Flash : chaque bot qui la voit est aveuglé selon l'angle et la distance. */
+  flash(position: THREE.Vector3): void {
+    for (const bot of this.bots) {
+      if (!bot.alive) continue;
+      bot.eyePosition(this.flashEye);
+      const visible = this.context.lineOfSight(position, this.flashEye);
+      bot.blind(flashDuration(position, this.flashEye, bot.forward(this.flashForward), visible));
+    }
+  }
+
+  /** Feux de molotov : brûle les bots dedans et les fait partir. */
+  burn(fireAt: (feet: THREE.Vector3) => THREE.Vector3 | null, onDamage: (bot: Bot) => void): void {
+    for (const bot of this.bots) {
+      if (!bot.alive) continue;
+      const fire = fireAt(bot.body.position);
+      if (!fire) continue;
+      onDamage(bot);
+      bot.escapeFire(fire, this.context);
     }
   }
 

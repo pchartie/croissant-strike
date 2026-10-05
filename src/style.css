@@ -221,6 +221,115 @@ canvas {
   }
 }
 
+#flash-overlay,
+#smoke-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+#flash-overlay {
+  background: #fff;
+}
+
+#smoke-overlay {
+  background: #9a9a96;
+}
+
+#round {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  gap: 18px;
+  padding: 6px 16px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px #000;
+}
+
+#round.active {
+  display: flex;
+}
+
+#round-timer {
+  font-weight: 700;
+}
+
+#round-timer.urgent {
+  color: #ff5a4d;
+}
+
+#round-alive {
+  opacity: 0.8;
+}
+
+#banner {
+  position: absolute;
+  top: 26%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 32px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 1px 3px #000;
+}
+
+#banner.hidden {
+  display: none;
+}
+
+#banner-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+#banner-title.win {
+  color: #6dff6d;
+}
+
+#banner-title.loss {
+  color: #ff6a5a;
+}
+
+#banner-text {
+  margin-top: 4px;
+  font-size: 16px;
+  opacity: 0.85;
+}
+
+#grenades {
+  position: absolute;
+  right: 32px;
+  bottom: 92px;
+  display: flex;
+  gap: 6px;
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 2px #000;
+}
+
+#grenades span {
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  opacity: 0.7;
+}
+
+#grenades span.current {
+  border-color: #4dff4d;
+  color: #4dff4d;
+  opacity: 1;
+}
+
 #death {
   position: fixed;
   inset: 0;

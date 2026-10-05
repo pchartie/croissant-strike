@@ -32,6 +32,8 @@ Le script extrait du zip (500 Mo) uniquement ce qui sert et compresse les animat
 | Clic gauche | Tirer |
 | R | Recharger |
 | 1 / 2 | Fusil (M4A1) / pistolet (M1911) |
+| 4 | Grenades (appuyer à nouveau pour passer à la suivante) |
+| Clic gauche / droit / les deux | Avec une grenade : lancer loin / en cloche / à mi-distance |
 | Espace / molette | Sauter |
 | Ctrl ou C | S'accroupir (plus lent, plus précis ; sauter accroupi permet de monter sur les grosses caisses) |
 | Maj | Marcher lentement |
@@ -49,11 +51,23 @@ src/
 ├── world/         carte, collisions (avec marches), grille de navigation des bots, textures
 ├── player/        déplacements façon CS: Source et caméra
 ├── weapons/       caractéristiques des armes, tir et recul, arme en main, impacts
+├── grenades/      les 5 grenades : lancer, rebonds, explosion, flash, fumée, feu, leurre
 ├── bots/          ennemis : modèle, IA (patrouille, combat, recherche), apparitions
 └── ui/            HUD, fil des éliminations, écrans de pause et de mort
 ```
 
 Le réticule est fixe, mais les balles se dispersent quand on court, saute ou tire en rafale : comme dans CS, il faut s'arrêter pour être précis.
+
+## Modes de jeu
+
+À choisir dans le menu de pause (Échap) :
+
+- **Deathmatch** : on réapparaît 3 s après chaque mort, les bots aussi.
+- **Manches** : comme dans CS, une vie par manche. Tu pars du sud, les bots du nord. 3 s de gel au départ, 1:55 de chrono ; on gagne la manche en éliminant l'autre camp, et les bots la gagnent si le temps s'écoule. Le premier à 5 manches remporte le match. Réglages dans `src/config.ts`, section `ROUNDS`.
+
+## Grenades
+
+Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebonds) : **HE** (jusqu'à 98 de dégâts, arrêtée par les murs), **flash** (aveugle selon l'angle et la distance, toi comme les bots), **fumigène** (18 s, cache la vue des bots et éteint les molotovs), **molotov** (feu de 7 s, 40 dégâts par seconde) et **leurre** (imite des tirs de fusil pendant 15 s et attire les bots). On en reçoit une de chaque, plus une deuxième flash, à chaque manche ou réapparition. Les bots n'en lancent pas encore.
 
 ## Carte
 

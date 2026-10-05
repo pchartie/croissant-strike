@@ -94,6 +94,75 @@ export class Audio {
     this.click(0, 600, 0.5);
   }
 
+  // --- Grenades (sons synthétisés) ---
+
+  /** Dégoupillage : deux petits clics métalliques. */
+  pin(): void {
+    this.click(0, 2800, 0.4);
+    this.click(0.06, 1800, 0.3);
+  }
+
+  throwWhoosh(): void {
+    this.noiseBurst('bandpass', 700, 1, 0.3, 0.22);
+  }
+
+  bounce(loudness: number, pan: number): void {
+    this.click(0, 1600 + Math.random() * 800, 0.35 * loudness, pan);
+  }
+
+  /** Explosion de HE : claquement, grondement grave et long. */
+  explosion(loudness: number, pan: number): void {
+    this.noiseBurst('bandpass', 1800, 0.8, 0.9 * loudness, 0.25, 0, pan);
+    this.noiseBurst('lowpass', 450, 0.7, 1.4 * loudness, 1.5, 0, pan, 0.6);
+    this.sweep(90, 28, 0.6, 1.1 * loudness, pan);
+  }
+
+  /** Détonation sèche de la flash. */
+  flashbang(loudness: number, pan: number): void {
+    this.noiseBurst('highpass', 1400, 0.7, 1.2 * loudness, 0.35, 0, pan);
+    this.noiseBurst('lowpass', 600, 0.7, 0.6 * loudness, 0.5, 0, pan);
+  }
+
+  /** Sifflement d'oreilles quand on est aveuglé. */
+  ring(duration: number): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.frequency.value = 3300;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.18, t + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    osc.connect(gain).connect(this.master);
+    osc.start(t);
+    osc.stop(t + duration + 0.05);
+  }
+
+  /** Fumigène : long sifflement de gaz. */
+  smoke(loudness: number, pan: number): void {
+    this.noiseBurst('bandpass', 3800, 0.6, 0.45 * loudness, 2.5, 0, pan);
+  }
+
+  /** Molotov : verre qui éclate, embrasement puis crépitement (ou extinction dans une fumée). */
+  molotov(loudness: number, pan: number, fizzled: boolean, burnTime: number): void {
+    this.noiseBurst('highpass', 3200, 0.8, 0.8 * loudness, 0.25, 0, pan);
+    for (let i = 0; i < 5; i++) this.click(Math.random() * 0.15, 3000 + Math.random() * 3000, 0.4 * loudness, pan);
+    if (fizzled) {
+      this.noiseBurst('highpass', 2500, 0.7, 0.4 * loudness, 0.8, 0.1, pan);
+      return;
+    }
+    this.noiseBurst('lowpass', 900, 0.7, 0.8 * loudness, 1.2, 0.05, pan);
+    for (let i = 0; i < burnTime * 6; i++) {
+      this.click(0.3 + Math.random() * burnTime, 900 + Math.random() * 2200, 0.18 * loudness, pan);
+    }
+  }
+
+  /** Petit éclatement du leurre à la fin. */
+  decoyPop(loudness: number, pan: number): void {
+    this.noiseBurst('lowpass', 1200, 0.7, 0.7 * loudness, 0.3, 0, pan);
+  }
+
   private async loadSamples(ctx: AudioContext): Promise<void> {
     const names = new Set(Object.values(SAMPLES).flat());
     await Promise.all(
@@ -166,18 +235,54 @@ export class Audio {
     osc.stop(t + 0.15);
   }
 
-  private click(delay: number, frequency: number, volume = 0.5): void {
+  private click(delay: number, frequency: number, volume = 0.5, pan = 0): void {
+    this.noiseBurst('bandpass', frequency, 3, volume, 0.04, delay, pan);
+  }
+
+  /** Bruit filtré qui s'éteint en `decay` secondes, placé à gauche ou à droite. */
+  private noiseBurst(
+    type: BiquadFilterType,
+    frequency: number,
+    q: number,
+    volume: number,
+    decay: number,
+    delay = 0,
+    pan = 0,
+    rate = 1,
+  ): void {
     const ctx = this.ctx;
-    if (!ctx) return;
+    if (!ctx || volume <= 0) return;
     const t = ctx.currentTime + delay;
     const source = ctx.createBufferSource();
     source.buffer = this.noise;
+    source.loop = true;
+    source.playbackRate.value = rate;
     const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
+    filter.type = type;
     filter.frequency.value = frequency;
-    filter.Q.value = 3;
-    source.connect(filter).connect(this.envelope(t, volume, 0.04)).connect(this.master);
-    source.start(t, Math.random() * 0.5, 0.06);
+    filter.Q.value = q;
+    source.connect(filter).connect(this.envelope(t, Math.min(volume, 2), decay)).connect(this.panner(pan)).connect(this.master);
+    source.start(t, Math.random() * 0.5);
+    source.stop(t + decay + 0.05);
+  }
+
+  /** Son grave qui descend (le « boum » des explosions). */
+  private sweep(from: number, to: number, decay: number, volume: number, pan: number): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.frequency.setValueAtTime(from, t);
+    osc.frequency.exponentialRampToValueAtTime(to, t + decay);
+    osc.connect(this.envelope(t, volume, decay)).connect(this.panner(pan)).connect(this.master);
+    osc.start(t);
+    osc.stop(t + decay + 0.05);
+  }
+
+  private panner(pan: number): StereoPannerNode {
+    const node = this.ctx!.createStereoPanner();
+    node.pan.value = Math.max(-1, Math.min(1, pan));
+    return node;
   }
 
   private tone(frequency: number, decay: number, volume: number, type: OscillatorType): void {
