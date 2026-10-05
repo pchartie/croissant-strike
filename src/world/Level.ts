@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as textures from './textures';
 import { SUN_DIRECTION } from './sky';
+import type { Surface } from './surfaces';
 import type { World } from './World';
 
 // « Dunes » : petite carte façon de_dust, vue de dessus (nord = -z) :
@@ -238,6 +239,18 @@ export function buildLevel(world: World, anisotropy: number): void {
   pallet(-3.5, 27);
   pallet(20.5, -22);
   pallet(-14, -26);
+
+  // Matière de chaque bloc, pour le bruit des pas et l'impact des balles.
+  const surfaces = new Map<THREE.Material, Surface>([
+    [sand, 'sand'],
+    [plaster, 'plaster'],
+    [stone, 'stone'],
+    [wood, 'wood'],
+    [crateMaterial, 'wood'],
+    [barrelBlue, 'metal'],
+    [barrelRust, 'metal'],
+  ]);
+  for (const mesh of world.meshes) mesh.userData.surface = surfaces.get(mesh.material as THREE.Material) ?? 'stone';
 }
 
 function setupLighting(scene: THREE.Scene): void {

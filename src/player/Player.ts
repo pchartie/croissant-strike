@@ -11,6 +11,9 @@ const KILL_Y = -20;
 const MAX_HEALTH = 100;
 /** Vitesse à laquelle la caméra rattrape une marche montée (par seconde). */
 const STEP_SMOOTHING = 12;
+/** Vitesse juste après avoir été touché, et vitesse de retour à la normale (par seconde). */
+const TAG_SPEED = 0.45;
+const TAG_RECOVERY = 1.6;
 
 /**
  * Joueur avec les déplacements de Counter-Strike: Source : frottement au sol,
@@ -20,6 +23,8 @@ export class Player extends Body {
   yaw = 0;
   pitch = 0;
   health = MAX_HEALTH;
+  /** Ralentissement quand on est touché (1 = normal), comme le « tagging » de CS:GO. */
+  private tagSpeed = 1;
   /** Gilet pare-balles (0 à 100) et casque. */
   armor = 0;
   helmet = false;
@@ -35,6 +40,13 @@ export class Player extends Body {
 
   constructor() {
     super(PLAYER.radius, PLAYER.height);
+  }
+
+  /** Touché par une balle : on ralentit un instant. */
+  tag(): void {
+    this.tagSpeed = TAG_SPEED;
+    this.velocity.x *= TAG_SPEED;
+    this.velocity.z *= TAG_SPEED;
   }
 
   get alive(): boolean {
@@ -79,7 +91,8 @@ export class Player extends Body {
     const cos = Math.cos(this.yaw);
     // Avant = -z quand yaw vaut 0 ; droite = +x.
     this.wishDir.set(-sin * forward + cos * side, 0, -cos * forward - sin * side);
-    const speedScale = this.crouched ? MOVE.duckSpeedScale : walking ? MOVE.walkSpeedScale : 1;
+    const speedScale = (this.crouched ? MOVE.duckSpeedScale : walking ? MOVE.walkSpeedScale : 1) * this.tagSpeed;
+    this.tagSpeed = Math.min(1, this.tagSpeed + TAG_RECOVERY * dt);
     const wishSpeed = this.wishDir.lengthSq() > 0 ? MOVE.maxSpeed * speedScale : 0;
     this.wishDir.normalize();
 

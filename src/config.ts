@@ -50,6 +50,8 @@ export const BOTS = {
   visionAngle: 150,
   /** Distance à laquelle un bot entend tirer le joueur. */
   hearingRange: 25,
+  /** Distance à laquelle un bot entend les pas du joueur qui court. */
+  footstepRange: 15,
 };
 
 /**

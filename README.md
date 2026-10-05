@@ -114,6 +114,8 @@ Ciel HDR de [Poly Haven](https://polyhaven.com) en CC0 (`public/sky/`) : il sert
 
 ## Sons
 
+**Pas** : on entend ses pas et ceux des bots (situés à gauche ou à droite), avec un bruit différent sur le sable, la pierre, le bois ou le métal ; silence en marchant (Maj) ou accroupi, comme dans CS. Les bots entendent les pas du joueur qui court à moins de 15 m et viennent voir. Les balles font aussi un bruit et des éclats selon la matière touchée (étincelles sur le métal, éclats de bois, gerbe de sable). Touché, on est ralenti un instant et la visée sursaute, comme dans CS:GO.
+
 Vrais enregistrements d'armes (AR-15 et 1911) et de rechargements, en CC0 : voir `public/sounds/CREDITS.md`. Les tirs des bots utilisent une prise de son lointaine et viennent de gauche ou de droite selon leur position, pour les repérer à l'oreille. Si les fichiers manquent, le jeu revient aux sons synthétisés.
 
 ## Bots

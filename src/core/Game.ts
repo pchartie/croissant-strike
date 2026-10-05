@@ -18,6 +18,7 @@ import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem
 import { buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { loadSky } from '../world/sky';
+import { surfaceOf, type Surface } from '../world/surfaces';
 import { World } from '../world/World';
 import { absorbDamage, BLAST_ARMOR_RATIO, type DamageZone } from './armor';
 import { Audio } from './Audio';
@@ -42,6 +43,15 @@ const RANGE_UNIT = 500 * UNIT;
 const GRENADE_KILL_REWARD = 300;
 /** Durée d'affichage d'un gain d'argent (« +300 $ Élimination »). */
 const GAIN_DISPLAY_MS = 2500;
+/** Pas : bruit au-dessus de cette vitesse (on court ; en marchant ou accroupi, silence comme dans CS), tous les `STRIDE` mètres. */
+const STEP_SPEED = 140 * UNIT;
+const STRIDE = 2;
+/** Distance au-delà de laquelle on n'entend plus les pas des bots, ni les impacts de balles. */
+const FOOTSTEP_HEARING = 25;
+const IMPACT_HEARING = 30;
+/** Vitesse de chute au-delà de laquelle la réception fait du bruit. */
+const LANDING_SPEED = 4;
+const DOWN = new THREE.Vector3(0, -1, 0);
 /** Coup dans le dos si le bot regarde à moins de ~65° de la direction opposée au joueur. */
 const BACKSTAB_DOT = 0.4;
 
@@ -83,6 +93,10 @@ export class Game {
   /** Aveuglement restant après une flash, en secondes. */
   private flashTime = 0;
   private hurtCooldown = 0;
+  private playerStride = 0;
+  private readonly botStrides = new Map<Bot, number>();
+  private wasOnGround = true;
+  private fallSpeed = 0;
 
   private accumulator = 0;
   private lastTime = 0;
@@ -223,6 +237,7 @@ export class Game {
     if (!frozen) this.bots.update(TICK);
     this.grenades.update(TICK);
     this.applyFire();
+    this.updateFootsteps();
     if (this.mode === 'rounds') this.rounds.update(TICK, this.player.alive, this.bots.aliveCount);
 
     this.flashTime = Math.max(0, this.flashTime - TICK);
@@ -236,7 +251,15 @@ export class Game {
   /** Dégâts au joueur (`amount` brut : son gilet en arrête une partie selon la zone et l'arme). */
   private damagePlayer(amount: number, zone: DamageZone, armorRatio: number, attacker: string, weapon: string, headshot = false): void {
     if (!this.player.alive) return;
+    const armored = this.player.armor > 0;
     this.player.health -= absorbDamage(this.player, amount, zone, armorRatio);
+    if (zone !== 'fire') {
+      // Comme dans CS:GO : la visée sursaute (moins avec un gilet) et on ralentit un instant.
+      const punch = (armored ? 0.5 : 1) * Math.min(amount / 30, 1.5);
+      this.weapons.punch.pitch += (0.025 + Math.random() * 0.02) * punch;
+      this.weapons.punch.yaw += (Math.random() - 0.5) * 0.03 * punch;
+      this.player.tag();
+    }
     if (this.hurtCooldown === 0) {
       this.hud.showDamage();
       this.audio.hurt();
@@ -394,10 +417,12 @@ export class Game {
 
     let touched = false;
     let headshotHit = false;
+    let wallHits = 0;
     for (const { hit, direction } of shots) {
       if (!hit) continue;
       if (!hit.object.userData.bot) {
-        this.impacts.add(hit);
+        // Un seul bruit d'impact par tir (les plombs d'un fusil à pompe frappent ensemble).
+        this.impactSound(this.impacts.add(hit), hit.point, wallHits++ === 0);
         continue;
       }
       const falloff = Math.pow(def.rangeModifier ?? 1, hit.distance / RANGE_UNIT);
@@ -421,7 +446,7 @@ export class Game {
   private onKnifeStrike(def: WeaponDef, kind: MeleeKind, hit: THREE.Intersection | null, direction: THREE.Vector3, combo: boolean): void {
     if (!hit) return;
     if (!hit.object.userData.bot) {
-      this.impacts.add(hit);
+      this.impactSound(this.impacts.add(hit), hit.point, true);
       this.audio.knifeWall();
       return;
     }
@@ -447,7 +472,7 @@ export class Game {
     const { loudness, pan, distance } = this.hearing(shot.origin);
     this.audio.shot(RIFLE, { distant: distance > CLOSE_SHOT_DISTANCE, loudness: Math.min(loudness, 0.8), pan });
     this.tracers.add(shot.origin, shot.end);
-    if (shot.worldHit) this.impacts.add(shot.worldHit);
+    if (shot.worldHit) this.impactSound(this.impacts.add(shot.worldHit), shot.worldHit.point, true);
     if (shot.playerDamage > 0) this.damagePlayer(shot.playerDamage, shot.part ?? 'body', RIFLE.armorRatio, shot.bot.name, RIFLE.name, shot.headshot);
   }
 
@@ -511,6 +536,54 @@ export class Game {
         this.applyAreaDamage(position, DECOY.radius, DECOY.damage, GRENADES.decoy.name);
       },
     });
+  }
+
+  /** Bruit d'une balle qui frappe une surface (si `audible`), atténué avec la distance. */
+  private impactSound(surface: Surface, point: THREE.Vector3, audible: boolean): void {
+    if (!audible) return;
+    const { loudness, pan, distance } = this.hearing(point);
+    if (distance < IMPACT_HEARING) this.audio.impact(surface, loudness * 0.6, pan);
+  }
+
+  /** Pas du joueur et des bots : un bruit tous les `STRIDE` mètres en courant (silence en marchant ou accroupi). */
+  private updateFootsteps(): void {
+    const player = this.player;
+    if (player.alive) {
+      // Réception d'un saut ou d'une chute.
+      if (player.onGround && !this.wasOnGround && this.fallSpeed > LANDING_SPEED) {
+        this.audio.footstep(this.surfaceUnder(player.position), 0.8, 0, true);
+        this.bots.heardStep(player.position);
+      }
+      if (!player.onGround) this.fallSpeed = Math.max(0, -player.velocity.y);
+      this.wasOnGround = player.onGround;
+
+      if (player.onGround && player.horizontalSpeed > STEP_SPEED) {
+        this.playerStride += player.horizontalSpeed * TICK;
+        if (this.playerStride > STRIDE) {
+          this.playerStride = 0;
+          this.audio.footstep(this.surfaceUnder(player.position), 0.45, 0);
+          this.bots.heardStep(player.position);
+        }
+      }
+    }
+    for (const bot of this.bots.bots) {
+      if (!bot.alive || !bot.body.onGround || bot.body.horizontalSpeed < STEP_SPEED) continue;
+      const stride = (this.botStrides.get(bot) ?? Math.random() * STRIDE) + bot.body.horizontalSpeed * TICK;
+      if (stride < STRIDE) {
+        this.botStrides.set(bot, stride);
+        continue;
+      }
+      this.botStrides.set(bot, 0);
+      const { loudness, pan, distance } = this.hearing(bot.body.position);
+      if (distance < FOOTSTEP_HEARING) this.audio.footstep(this.surfaceUnder(bot.body.position), loudness * (1 - distance / FOOTSTEP_HEARING), pan);
+    }
+  }
+
+  /** Matière du sol sous des pieds (pour le bruit des pas). */
+  private surfaceUnder(feet: THREE.Vector3): Surface {
+    this.raycaster.set(feet.clone().setY(feet.y + 0.2), DOWN);
+    this.raycaster.far = 0.6;
+    return surfaceOf(this.raycaster.intersectObjects(this.world.meshes, false)[0]?.object);
   }
 
   /** Volume et position gauche/droite d'un son, selon où il se trouve par rapport au joueur. */

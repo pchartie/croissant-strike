@@ -137,6 +137,13 @@ export class BotManager {
     for (const bot of this.bots) bot.render(alpha);
   }
 
+  /** Les bots proches entendent les pas du joueur (quand il court) et viennent voir. */
+  heardStep(position: THREE.Vector3): void {
+    for (const bot of this.bots) {
+      if (bot.body.position.distanceTo(position) < BOTS.footstepRange) bot.investigate(position);
+    }
+  }
+
   /** Les bots proches entendent le joueur tirer. */
   playerFired(position: THREE.Vector3): void {
     for (const bot of this.bots) {

@@ -1,5 +1,6 @@
 import type { WeaponDef, WeaponId } from '../weapons/definitions';
 import type { ReloadPhase } from '../weapons/WeaponSystem';
+import type { Surface } from '../world/surfaces';
 
 /** Gain général à 100 % de volume (70 % donne le niveau d'origine du jeu). */
 const MAX_GAIN = 0.57;
@@ -138,6 +139,51 @@ export class Audio {
   hurt(): void {
     this.tone(90, 0.12, 0.6, 'sine');
     this.click(0, 600, 0.5);
+  }
+
+  // --- Pas et impacts (sons synthétisés, selon la surface) ---
+
+  /** Un pas (ou une réception de saut, plus forte et plus grave). */
+  footstep(surface: Surface, loudness: number, pan: number, landing = false): void {
+    const v = loudness * (landing ? 1.6 : 1) * (0.85 + Math.random() * 0.3);
+    const r = 0.9 + Math.random() * 0.2;
+    switch (surface) {
+      case 'sand':
+        this.noiseBurst('lowpass', 650 * r, 0.7, 0.55 * v, 0.1, 0, pan);
+        this.noiseBurst('highpass', 3200 * r, 0.7, 0.12 * v, 0.06, 0.01, pan);
+        break;
+      case 'wood':
+        this.noiseBurst('bandpass', 480 * r, 2, 0.8 * v, 0.13, 0, pan);
+        this.click(0, 1300 * r, 0.25 * v, pan);
+        break;
+      case 'metal':
+        this.noiseBurst('bandpass', 2600 * r, 5, 0.5 * v, 0.18, 0, pan);
+        this.noiseBurst('lowpass', 500, 0.7, 0.3 * v, 0.06, 0, pan);
+        break;
+      default:
+        // Grès et crépi : pas net et sec.
+        this.noiseBurst('bandpass', 1700 * r, 1.1, 0.45 * v, 0.06, 0, pan);
+        this.noiseBurst('lowpass', 380 * r, 0.7, 0.4 * v, 0.07, 0, pan);
+    }
+  }
+
+  /** Une balle frappe une surface : tintement sur le métal, coup sourd sur le bois, craquement sur la pierre. */
+  impact(surface: Surface, loudness: number, pan: number): void {
+    const v = loudness * (0.8 + Math.random() * 0.4);
+    switch (surface) {
+      case 'metal':
+        this.tone(1800 + Math.random() * 1500, 0.25, 0.18 * v, 'triangle', pan);
+        this.click(0, 4200, 0.4 * v, pan);
+        break;
+      case 'wood':
+        this.noiseBurst('bandpass', 700, 1.5, 0.6 * v, 0.1, 0, pan);
+        break;
+      case 'sand':
+        this.noiseBurst('lowpass', 900, 0.7, 0.45 * v, 0.12, 0, pan);
+        break;
+      default:
+        this.noiseBurst('bandpass', 2400, 1, 0.5 * v, 0.07, 0, pan);
+    }
   }
 
   // --- Couteau (sons synthétisés) ---
@@ -350,14 +396,14 @@ export class Audio {
     return node;
   }
 
-  private tone(frequency: number, decay: number, volume: number, type: OscillatorType): void {
+  private tone(frequency: number, decay: number, volume: number, type: OscillatorType, pan = 0): void {
     const ctx = this.ctx;
     if (!ctx) return;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     osc.type = type;
     osc.frequency.value = frequency;
-    osc.connect(this.envelope(t, volume, decay)).connect(this.master);
+    osc.connect(this.envelope(t, volume, decay)).connect(this.panner(pan)).connect(this.master);
     osc.start(t);
     osc.stop(t + decay + 0.02);
   }
