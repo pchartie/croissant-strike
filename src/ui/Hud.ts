@@ -1,3 +1,5 @@
+import type { Settings } from '../core/settings';
+
 const KILLFEED_DURATION = 5000;
 const KILLFEED_MAX = 5;
 
@@ -88,6 +90,29 @@ export class Hud {
     }
   }
 
+  /** Boutons de réglage des bots dans le menu de pause. */
+  bindSettings(settings: Settings, onChange: (settings: Settings) => void): void {
+    const bots = document.getElementById('setting-bots') as HTMLButtonElement;
+    const aggressive = document.getElementById('setting-aggressive') as HTMLButtonElement;
+
+    const render = () => {
+      setToggle(bots, 'Bots', settings.botsEnabled ? 'activés' : 'désactivés', settings.botsEnabled);
+      setToggle(aggressive, 'Comportement', settings.botsAggressive ? 'agressifs' : 'passifs', settings.botsAggressive);
+      aggressive.disabled = !settings.botsEnabled;
+    };
+    const toggle = (key: keyof Settings) => (event: MouseEvent) => {
+      // Sinon le clic traverse jusqu'au menu et lance la partie.
+      event.stopPropagation();
+      settings[key] = !settings[key];
+      render();
+      onChange(settings);
+    };
+
+    bots.addEventListener('click', toggle('botsEnabled'));
+    aggressive.addEventListener('click', toggle('botsAggressive'));
+    render();
+  }
+
   setPaused(paused: boolean): void {
     this.overlay.classList.toggle('hidden', !paused);
     this.status.textContent = 'Pause : cliquer pour reprendre';
@@ -98,4 +123,13 @@ export class Hud {
     void element.offsetWidth;
     element.className = classes;
   }
+}
+
+function setToggle(button: HTMLButtonElement, label: string, value: string, on: boolean): void {
+  const name = document.createElement('span');
+  name.textContent = label;
+  const state = document.createElement('span');
+  state.className = `value ${on ? 'on' : 'off'}`;
+  state.textContent = value;
+  button.replaceChildren(name, state);
 }

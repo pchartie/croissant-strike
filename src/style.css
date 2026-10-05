@@ -276,6 +276,47 @@ canvas {
   color: #4dff4d;
 }
 
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.toggle {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 8px 14px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #2a2d33;
+  color: #eee;
+  font: inherit;
+  cursor: pointer;
+}
+
+.toggle:hover:not(:disabled) {
+  border-color: #4dff4d;
+}
+
+.toggle:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.toggle .value {
+  font-weight: 700;
+}
+
+.toggle .value.on {
+  color: #4dff4d;
+}
+
+.toggle .value.off {
+  color: #ff8a7a;
+}
+
 .controls {
   list-style: none;
   text-align: left;

@@ -57,4 +57,6 @@ Le réticule est fixe, mais les balles se dispersent quand on court, saute ou ti
 
 Les bots patrouillent dans l'arène, t'attaquent dès qu'ils te voient et vont voir quand ils t'entendent tirer. Ils tirent en rafales en s'arrêtant, puis se décalent sur le côté entre deux rafales. Une balle dans la tête fait ×4 de dégâts, dans les jambes ×0,75, pour eux comme pour toi.
 
+Dans le menu de pause (Échap), deux boutons permettent de **désactiver les bots** et de les rendre **passifs** : ils se promènent sans attaquer ni réagir aux tirs, pratique pour s'entraîner à viser. Ces réglages sont mémorisés d'une partie à l'autre.
+
 Le nombre de bots et leur difficulté (temps de réaction, précision, chance de viser la tête…) se règlent dans `src/config.ts`, section `BOTS`.

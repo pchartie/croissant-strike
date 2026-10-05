@@ -40,6 +40,8 @@ export class Bot {
   readonly body = new Body(PLAYER.radius, PLAYER.height);
   readonly model = new BotModel();
   health: number = BOTS.health;
+  /** En mode passif, le bot patrouille sans jamais attaquer ni chercher le joueur. */
+  private aggressive = true;
   /** Temps écoulé depuis la mort. */
   deadTime = 0;
 
@@ -103,6 +105,23 @@ export class Bot {
     this.stuckCheck.copy(position);
   }
 
+  /** En passant en passif, le bot arrête tout de suite de combattre ou de chercher le joueur. */
+  setAggressive(aggressive: boolean): void {
+    this.aggressive = aggressive;
+    if (aggressive || !this.alive) return;
+    this.state = 'patrol';
+    this.seesPlayer = false;
+    this.burstLeft = 0;
+    this.path = [];
+  }
+
+  /** Retire le bot du jeu (invisible, intouchable) jusqu'au prochain `spawn`. */
+  disable(): void {
+    this.state = 'dead';
+    this.deadTime = 0;
+    this.model.root.visible = false;
+  }
+
   /** Inflige des dégâts ; renvoie vrai si le bot en meurt. */
   damage(amount: number, attackerPosition: THREE.Vector3): boolean {
     if (!this.alive) return false;
@@ -119,7 +138,7 @@ export class Bot {
 
   /** Le bot a entendu ou senti quelque chose à cet endroit. */
   investigate(position: THREE.Vector3): void {
-    if (!this.alive || this.state === 'combat') return;
+    if (!this.alive || !this.aggressive || this.state === 'combat') return;
     this.lastKnown.copy(position);
     this.state = 'search';
     this.searchTimer = 0;
@@ -168,7 +187,7 @@ export class Bot {
   // --- Perception et décisions (10 fois par seconde) ---
 
   private think(ctx: BotContext): void {
-    const sees = this.canSee(ctx);
+    const sees = this.aggressive && this.canSee(ctx);
     if (sees) {
       if (this.state !== 'combat') this.engage();
       this.lastKnown.copy(ctx.player.position);
@@ -176,7 +195,7 @@ export class Bot {
     } else if (this.state === 'combat') {
       this.lostTimer += THINK_INTERVAL;
       if (this.lostTimer > LOSE_SIGHT_DELAY) {
-        this.state = ctx.player.alive ? 'search' : 'patrol';
+        this.state = ctx.player.alive && this.aggressive ? 'search' : 'patrol';
         this.searchTimer = 0;
         this.path = [];
       }

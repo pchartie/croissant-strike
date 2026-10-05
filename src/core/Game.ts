@@ -14,6 +14,7 @@ import { NavGrid } from '../world/NavGrid';
 import { World } from '../world/World';
 import { Audio } from './Audio';
 import { Input } from './Input';
+import { loadSettings, saveSettings, type Settings } from './settings';
 
 const MAX_FRAME_TIME = 0.1;
 const MUZZLE_LIGHT_DURATION = 0.04;
@@ -89,6 +90,12 @@ export class Game {
     });
 
     this.hud.setScore(0, 0);
+    const settings = loadSettings();
+    this.applySettings(settings);
+    this.hud.bindSettings(settings, (changed) => {
+      this.applySettings(changed);
+      saveSettings(changed);
+    });
     void loadRetroWeapons().then((weapons) => {
       if (!weapons) return;
       this.viewModel.useAnimated(weapons.viewModels, this.weapons.current.def);
@@ -191,6 +198,11 @@ export class Game {
       this.hud.addKill(shot.bot.name, 'Toi', RIFLE.name, shot.headshot);
       this.hud.setScore(this.kills, this.deaths);
     }
+  }
+
+  private applySettings(settings: Settings): void {
+    this.bots.setAggressive(settings.botsAggressive);
+    this.bots.setEnabled(settings.botsEnabled);
   }
 
   private respawn(): void {

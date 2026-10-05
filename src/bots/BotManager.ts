@@ -32,6 +32,7 @@ export interface BotEvents {
 export class BotManager {
   readonly bots: Bot[] = [];
   private readonly context: BotContext;
+  private enabled = true;
 
   private readonly raycaster = new THREE.Raycaster();
   private readonly ray = new THREE.Ray();
@@ -76,7 +77,23 @@ export class BotManager {
     return this.bots.filter((bot) => bot.alive).map((bot) => bot.body.box);
   }
 
+  /** Fait apparaître les bots (loin du joueur) ou les retire tous du jeu. */
+  setEnabled(enabled: boolean): void {
+    if (enabled === this.enabled) return;
+    this.enabled = enabled;
+    for (const bot of this.bots) {
+      if (enabled) bot.spawn(this.spawnPoint());
+      else bot.disable();
+    }
+  }
+
+  /** Agressifs : ils attaquent le joueur. Passifs : ils se promènent et servent de cibles. */
+  setAggressive(aggressive: boolean): void {
+    for (const bot of this.bots) bot.setAggressive(aggressive);
+  }
+
   update(dt: number): void {
+    if (!this.enabled) return;
     for (const bot of this.bots) {
       bot.update(dt, this.context);
       if (!bot.alive && bot.deadTime > BOTS.respawnDelay) bot.spawn(this.spawnPoint());
