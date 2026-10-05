@@ -16,6 +16,7 @@ import { ViewModel } from '../weapons/ViewModel';
 import { WeaponSystem } from '../weapons/WeaponSystem';
 import { buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
+import { loadSky } from '../world/sky';
 import { World } from '../world/World';
 import { Audio } from './Audio';
 import { Input } from './Input';
@@ -88,6 +89,7 @@ export class Game {
     this.input.onLockChange((locked) => this.hud.setPaused(!locked));
 
     buildLevel(this.world, this.renderer.capabilities.getMaxAnisotropy());
+    void loadSky(this.scene, [this.viewModel.scene]);
     this.scene.add(this.muzzleLight);
     this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
 

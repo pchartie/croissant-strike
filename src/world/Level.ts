@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as textures from './textures';
+import { SUN_DIRECTION } from './sky';
 import type { World } from './World';
 
 // « Dunes » : petite carte façon de_dust, vue de dessus (nord = -z) :
@@ -164,10 +165,12 @@ function setupLighting(scene: THREE.Scene): void {
   scene.background = sky;
   scene.fog = new THREE.Fog(sky, 60, 180);
 
-  scene.add(new THREE.HemisphereLight(0xd6e6ff, 0x9a8460, 1.4));
+  // Lumière d'ambiance un peu plus faible qu'avant : le ciel HDR (sky.ts) en ajoute.
+  scene.add(new THREE.HemisphereLight(0xd6e6ff, 0x9a8460, 1.0));
 
   const sun = new THREE.DirectionalLight(0xfff0d0, 2.8);
-  sun.position.set(25, 45, 18);
+  // Placé dans la direction du soleil visible dans le ciel.
+  sun.position.copy(SUN_DIRECTION).multiplyScalar(55);
   sun.castShadow = true;
   sun.shadow.mapSize.set(4096, 4096);
   const extent = HALF + 4;
