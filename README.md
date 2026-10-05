@@ -31,7 +31,8 @@ Le script extrait du zip (500 Mo) uniquement ce qui sert et compresse les animat
 | Souris | Viser (axe vertical inversé par défaut, réglable) |
 | Clic gauche | Tirer |
 | R | Recharger |
-| 1 / 2 | Fusil (M4A1) / pistolet (M1911) |
+| 1 / 2 / 3 | Fusil (M4A1) / pistolet (M1911) / couteau |
+| Clic gauche / droit | Avec le couteau : coup rapide / coup puissant |
 | 4 | Grenades (appuyer à nouveau pour passer à la suivante) |
 | Clic gauche / droit / les deux | Avec une grenade : lancer loin / en cloche / à mi-distance |
 | Espace / molette | Sauter |
@@ -68,6 +69,10 @@ Le menu de pause (Échap) contient tous les réglages, mémorisés dans le navig
 - **Touches** : récapitulatif des commandes.
 
 Les réglages sont décrits dans `src/core/settings.ts` : le panneau est construit à partir de cette liste, donc ajouter un réglage se fait en quelques lignes. Les préréglages de difficulté sont dans `src/config.ts` (`DIFFICULTY`).
+
+## Couteau
+
+Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90 dans le dos, portée 1,2 m), clic droit puissant (65, 180 dans le dos, portée au contact). On le tient de la main droite, avec les mêmes bras que pour les armes à feu ; les coups sont animés par le code (balayage, coup de pointe).
 
 ## Modes de jeu
 

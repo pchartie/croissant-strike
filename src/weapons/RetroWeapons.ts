@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { WeaponId } from './definitions';
+import { buildKnife } from './models';
 
 // Armes et bras animés du Retro Weapon Pack, préparés par
 // `npm run import-weapons` dans public/assets/weapons/.
@@ -25,10 +26,20 @@ interface GunSpec {
   muzzle: [number, number, number];
 }
 
-const GUNS: Record<WeaponId, GunSpec> = {
+type GunId = Exclude<WeaponId, 'knife'>;
+
+const GUNS: Record<GunId, GunSpec> = {
   rifle: { file: 'rifle', magazine: 'Rifle_01_Magazine_2+Bullets', magazineBone: 'Magazine', muzzle: [60, 16.5, 0] },
   pistol: { file: 'pistol', magazine: 'Pistol_01_Magazine_Full_Mesh', magazineBone: 'Main', muzzle: [19.2, 12, 0] },
 };
+
+/**
+ * Couteau dans la main droite (repère de l'os hand_item_r, en cm) : le manche suit
+ * l'axe de la poignée du pistolet, incliné de 20° vers l'avant.
+ */
+const KNIFE_GRIP = { position: new THREE.Vector3(0.8, 4.5, 0), tilt: -0.35 };
+/** Bras inclinés pour que la lame pointe vers l'avant, comme dans CS:GO (rotation et décalage en mètres). */
+const KNIFE_POSE = { pitch: -0.4, offset: new THREE.Vector3(0.05, 0.18, -0.06) };
 
 type OneShot = 'fire' | 'reload' | 'draw';
 
@@ -53,6 +64,8 @@ export class AnimatedWeapon {
     armsClips: THREE.AnimationClip[],
     gunClips: THREE.AnimationClip[],
     muzzle: [number, number, number],
+    /** Os réduits à rien après chaque image (le bras gauche quand on tient le couteau). */
+    private readonly hiddenBones: THREE.Object3D[] = [],
   ) {
     this.armsMixer = new THREE.AnimationMixer(armsRig);
     this.gunMixer = new THREE.AnimationMixer(gunRig);
@@ -124,6 +137,7 @@ export class AnimatedWeapon {
 
     this.armsMixer.update(dt);
     this.gunMixer.update(dt);
+    for (const bone of this.hiddenBones) bone.scale.setScalar(1e-3);
   }
 }
 
@@ -151,7 +165,8 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
 
     const viewModels = {} as Record<WeaponId, AnimatedWeapon>;
     let botRifle: THREE.Object3D | null = null;
-    for (const id of Object.keys(GUNS) as WeaponId[]) {
+    let pistolClips: THREE.AnimationClip[] = [];
+    for (const id of Object.keys(GUNS) as GunId[]) {
       const spec = GUNS[id];
       const [gun, extra, gunTexture, armsClips, gunClips] = await Promise.all([
         fbx.loadAsync(`${BASE}${spec.file}.fbx`),
@@ -165,6 +180,7 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
       attachMagazine(gun, extra, spec);
       applyMaterials(gun, materials);
       if (id === 'rifle') botRifle = cloneSkinned(gun);
+      if (id === 'pistol') pistolClips = armsClips;
 
       const arms = cloneSkinned(armsSource);
       applyMaterials(arms, materials);
@@ -180,6 +196,7 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
 
       viewModels[id] = new AnimatedWeapon(root, arms, gun, armsClips, gunClips, spec.muzzle);
     }
+    viewModels.knife = buildKnifeArms(armsSource, pistolClips, { arms: armsTexture, gun: armsTexture, projectiles: projectilesTexture });
     return { viewModels, botRifle: botRifle! };
   } catch (error) {
     console.info('Armes animées absentes, modèles simples utilisés. Lancer `npm run import-weapons`.', error);
@@ -237,3 +254,34 @@ function applyMaterials(
 
 const EMPTY_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+/** Couteau : mêmes bras en pose « pistolet », couteau dans la main droite, bras gauche masqué. */
+function buildKnifeArms(
+  armsSource: THREE.Object3D,
+  pistolClips: THREE.AnimationClip[],
+  textures: { arms: THREE.Texture; gun: THREE.Texture; projectiles: THREE.Texture },
+): AnimatedWeapon {
+  const arms = cloneSkinned(armsSource);
+  applyMaterials(arms, textures);
+
+  const mount = new THREE.Group();
+  mount.position.copy(KNIFE_GRIP.position);
+  mount.rotation.z = KNIFE_GRIP.tilt;
+  const knife = buildKnife();
+  knife.scale.setScalar(1 / CM);
+  mount.add(knife);
+  arms.getObjectByName('hand_item_r')!.add(mount);
+
+  arms.rotation.y = Math.PI / 2;
+  arms.scale.setScalar(CM);
+  arms.position.copy(VIEW_OFFSET);
+  const pose = new THREE.Group();
+  pose.rotation.x = KNIFE_POSE.pitch;
+  pose.position.copy(KNIFE_POSE.offset);
+  pose.add(arms);
+  const root = new THREE.Group();
+  root.add(pose);
+  root.visible = false;
+
+  return new AnimatedWeapon(root, arms, mount, pistolClips, [], [0, 0, 0], [arms.getObjectByName('upperArm_l')!]);
+}

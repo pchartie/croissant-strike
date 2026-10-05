@@ -13,7 +13,7 @@ import { Impacts } from '../weapons/Impacts';
 import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
-import { WeaponSystem } from '../weapons/WeaponSystem';
+import { WeaponSystem, type MeleeKind } from '../weapons/WeaponSystem';
 import { buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { loadSky } from '../world/sky';
@@ -32,6 +32,8 @@ const HEARING_DISTANCE = 60;
 const CLOSE_SHOT_DISTANCE = 10;
 /** On n'entend pas « aïe » à chaque tick passé dans le feu. */
 const HURT_SOUND_INTERVAL = 0.35;
+/** Coup dans le dos si le bot regarde à moins de ~65° de la direction opposée au joueur. */
+const BACKSTAB_DOT = 0.4;
 
 export class Game {
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -110,6 +112,11 @@ export class Game {
         this.audio.draw();
       },
       dryFired: () => this.audio.dryFire(),
+      swung: (_def, kind) => {
+        this.viewModel.swing(kind);
+        this.audio.knifeSwing(kind === 'heavy');
+      },
+      struck: (def, kind, hit, direction, combo) => this.onKnifeStrike(def, kind, hit, direction, combo),
     });
 
     this.grenades = this.createGrenades();
@@ -288,6 +295,34 @@ export class Game {
       this.hud.addKill('Toi', bot.name, def.name, headshot);
       this.hud.setScore(this.kills, this.deaths);
     }
+  }
+
+  /**
+   * Coup de couteau qui arrive : dégâts de CS:GO (40 puis 25 en enchaînant au
+   * clic gauche, 65 au clic droit), bien plus dans le dos.
+   */
+  private onKnifeStrike(def: WeaponDef, kind: MeleeKind, hit: THREE.Intersection | null, direction: THREE.Vector3, combo: boolean): void {
+    if (!hit) return;
+    if (!hit.object.userData.bot) {
+      this.impacts.add(hit);
+      this.audio.knifeWall();
+      return;
+    }
+    const bot = hit.object.userData.bot as Bot;
+    const melee = def.melee!;
+    const backstab = this.isBehind(bot);
+    const damage = backstab ? melee[kind].backstab : kind === 'light' && combo ? melee.light.followUp : melee[kind].damage;
+    this.impacts.addBlood(hit.point, direction, backstab ? 20 : 12);
+    this.hud.showHitmarker(backstab);
+    this.audio.knifeHit();
+    this.damageBot(bot, damage, backstab ? `${def.name} · dans le dos` : def.name);
+  }
+
+  /** Vrai si le joueur est derrière le bot (le bot lui tourne le dos). */
+  private isBehind(bot: Bot): boolean {
+    const facing = bot.forward(this.forward).setY(0).normalize();
+    const toBot = this.toSound.subVectors(bot.body.position, this.player.position).setY(0).normalize();
+    return facing.dot(toBot) > BACKSTAB_DOT;
   }
 
   private onBotShot(shot: BotShot): void {
@@ -472,6 +507,7 @@ export class Game {
 
     const grenade = this.grenades.def;
     if (grenade) this.hud.setAmmo(grenade.name, this.grenades.counts[grenade.type], null);
+    else if (this.weapons.current.def.melee) this.hud.setAmmo(this.weapons.current.def.name, null, null);
     else {
       const { def, ammo, reserve } = this.weapons.current;
       this.hud.setAmmo(def.name, ammo, reserve);

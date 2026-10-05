@@ -4,8 +4,6 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 // Ciel « Kloofendal 48d Partly Cloudy (Pure Sky) » de Poly Haven (CC0), en
 // HDR : il sert de fond et d'éclairage ambiant (reflets, lumière du ciel).
 
-const URL = `${import.meta.env.BASE_URL}sky/sky.hdr`;
-
 /**
  * Direction du soleil dans l'image (pixel le plus lumineux : 48° de hauteur),
  * pour que la lumière du jeu et les ombres viennent du soleil visible.
@@ -24,7 +22,7 @@ const ENVIRONMENT_INTENSITY = 0.35;
  */
 export async function loadSky(world: THREE.Scene, others: THREE.Scene[] = []): Promise<void> {
   try {
-    const texture = await new HDRLoader().loadAsync(URL);
+    const texture = await new HDRLoader().loadAsync(`${import.meta.env.BASE_URL}sky/sky.hdr`);
     texture.mapping = THREE.EquirectangularReflectionMapping;
     world.background = texture;
     if (world.fog instanceof THREE.Fog) world.fog.color.copy(HORIZON);

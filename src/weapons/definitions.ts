@@ -1,4 +1,17 @@
-export type WeaponId = 'rifle' | 'pistol';
+export type WeaponId = 'rifle' | 'pistol' | 'knife';
+
+/** Une attaque au couteau. */
+export interface MeleeAttack {
+  damage: number;
+  /** Dégâts dans le dos. */
+  backstab: number;
+  /** Portée, en mètres. */
+  range: number;
+  /** Temps avant de pouvoir frapper à nouveau. */
+  interval: number;
+  /** Délai entre le clic et le moment où la lame touche (animation). */
+  delay: number;
+}
 
 export interface WeaponDef {
   id: WeaponId;
@@ -35,6 +48,11 @@ export interface WeaponDef {
   /** Recul visuel de l'arme en main. */
   viewKick: { back: number; pitch: number };
   sound: { cutoff: number; thump: number; decay: number; volume: number };
+  /** Arme de corps à corps : clic gauche rapide, clic droit puissant (pas de munitions). */
+  melee?: {
+    light: MeleeAttack & { /** Dégâts des coups enchaînés après une touche. */ followUp: number };
+    heavy: MeleeAttack;
+  };
 }
 
 function repeat(times: number, kick: [number, number]): [number, number][] {
@@ -92,4 +110,29 @@ export const PISTOL: WeaponDef = {
   sound: { cutoff: 4200, thump: 160, decay: 0.2, volume: 0.7 },
 };
 
-export const LOADOUT: WeaponDef[] = [RIFLE, PISTOL];
+/** Couteau de CS:GO : valeurs reprises du jeu (unités converties en mètres). */
+export const KNIFE: WeaponDef = {
+  id: 'knife',
+  name: 'Couteau',
+  slot: 3,
+  automatic: true,
+  damage: 40,
+  fireInterval: 0.4,
+  magazine: 0,
+  reserve: 0,
+  reloadTime: 0,
+  drawTime: 0.75,
+  range: 1.25,
+  spread: { base: 0, moving: 0, air: 0, perShot: 0, maxShots: 0 },
+  recoil: { pattern: [[0, 0]], random: 0, recovery: 10 },
+  viewKick: { back: 0, pitch: 0 },
+  sound: { cutoff: 0, thump: 0, decay: 0, volume: 0 },
+  melee: {
+    // Clic gauche : 40, puis 25 en enchaînant, 90 dans le dos ; portée 48 unités.
+    light: { damage: 40, followUp: 25, backstab: 90, range: 48 * 0.0254, interval: 0.4, delay: 0.1 },
+    // Clic droit : 65, 180 dans le dos (mortel) ; portée 32 unités.
+    heavy: { damage: 65, backstab: 180, range: 32 * 0.0254 + 0.1, interval: 1.0, delay: 0.35 },
+  },
+};
+
+export const LOADOUT: WeaponDef[] = [RIFLE, PISTOL, KNIFE];

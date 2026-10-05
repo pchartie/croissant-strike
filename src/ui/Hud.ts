@@ -60,13 +60,16 @@ export class Hud {
     this.speed.textContent = String(rounded);
   }
 
-  /** Munitions de l'arme en main ; `reserve` null pour une grenade (juste le nombre). */
-  setAmmo(name: string, ammo: number, reserve: number | null): void {
+  /**
+   * Munitions de l'arme en main. `reserve` null pour une grenade (juste le
+   * nombre) ; `ammo` null aussi pour le couteau (juste le nom).
+   */
+  setAmmo(name: string, ammo: number | null, reserve: number | null): void {
     const key = `${name}|${ammo}|${reserve}`;
     if (key === this.lastAmmo) return;
     this.lastAmmo = key;
     this.weaponName.textContent = name;
-    this.ammo.textContent = String(ammo);
+    this.ammo.textContent = ammo === null ? '' : String(ammo);
     this.ammo.classList.toggle('low', ammo === 0);
     this.reserve.textContent = reserve === null ? '' : String(reserve);
     this.separator.style.display = reserve === null ? 'none' : '';

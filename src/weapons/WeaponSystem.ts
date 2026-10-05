@@ -7,6 +7,10 @@ import { LOADOUT, type WeaponDef } from './definitions';
 const DEG = Math.PI / 180;
 /** Multiplicateur de la dispersion de base accroupi (environ celui de CS). */
 const CROUCH_ACCURACY = 0.75;
+/** Rayons du coup de couteau (écarts en radians, gauche/droite et haut/bas) : un éventail étroit. */
+const MELEE_FAN: [number, number][] = [[0, 0], [0.1, 0], [-0.1, 0], [0, 0.08], [0, -0.08]];
+/** Un coup rapide qui suit une touche de moins de ce temps fait moins mal (CS:GO). */
+const COMBO_WINDOW = 0.8;
 
 interface WeaponState {
   def: WeaponDef;
@@ -20,7 +24,13 @@ export interface WeaponEffects {
   reloadStarted(def: WeaponDef): void;
   drawn(def: WeaponDef): void;
   dryFired(def: WeaponDef): void;
+  /** Coup de couteau donné (animation, bruit de lame). */
+  swung(def: WeaponDef, kind: MeleeKind): void;
+  /** La lame arrive : touche un bot, un mur, ou rien. `combo` : coup enchaîné après une touche. */
+  struck(def: WeaponDef, kind: MeleeKind, hit: THREE.Intersection | null, direction: THREE.Vector3, combo: boolean): void;
 }
+
+export type MeleeKind = 'light' | 'heavy';
 
 /** Inventaire, tir, rechargement et recul. Tourne au rythme des ticks de physique. */
 export class WeaponSystem {
@@ -40,6 +50,8 @@ export class WeaponSystem {
   private sinceShot = Infinity;
   /** Arme rangée : on tient une grenade. */
   holstered = false;
+  private pendingStrike: { kind: MeleeKind; timer: number } | null = null;
+  private sinceMeleeHit = Infinity;
 
   private readonly raycaster = new THREE.Raycaster();
   private readonly origin = new THREE.Vector3();
@@ -95,6 +107,11 @@ export class WeaponSystem {
       if (input.consumePress(`Digit${weapon.def.slot}`) && (i !== this.index || this.holstered)) this.equip(i);
     });
     if (this.holstered) {
+      this.recoverPunch(dt);
+      return;
+    }
+    if (this.current.def.melee) {
+      this.updateMelee(dt, input);
       this.recoverPunch(dt);
       return;
     }
@@ -174,6 +191,53 @@ export class WeaponSystem {
     this.shotsFired++;
   }
 
+  /** Couteau : clic gauche (rapide) ou droit (puissant), la lame touche après un court délai. */
+  private updateMelee(dt: number, input: Input): void {
+    const melee = this.current.def.melee!;
+    this.sinceMeleeHit += dt;
+    const light = input.consumePress('Mouse0') || input.isDown('Mouse0');
+    const heavy = input.consumePress('Mouse2') || input.isDown('Mouse2');
+
+    if (this.pendingStrike) {
+      this.pendingStrike.timer -= dt;
+      if (this.pendingStrike.timer <= 0) {
+        this.strike(this.pendingStrike.kind);
+        this.pendingStrike = null;
+      }
+    }
+    if (this.cooldown > 0 || this.drawTimer > 0 || this.pendingStrike) return;
+
+    const kind: MeleeKind | null = heavy ? 'heavy' : light ? 'light' : null;
+    if (!kind) return;
+    const attack = melee[kind];
+    this.cooldown = attack.interval;
+    this.pendingStrike = { kind, timer: attack.delay };
+    this.effects.swung(this.current.def, kind);
+  }
+
+  /** Quelques rayons en éventail devant soi : la lame touche ce qui est le plus proche. */
+  private strike(kind: MeleeKind): void {
+    const def = this.current.def;
+    const attack = def.melee![kind];
+    this.player.eyePosition(this.origin);
+    this.euler.set(this.player.pitch + this.punch.pitch, this.player.yaw + this.punch.yaw, 0);
+    this.aim.setFromEuler(this.euler);
+
+    let best: THREE.Intersection | null = null;
+    for (const [yaw, pitch] of MELEE_FAN) {
+      this.direction.set(Math.tan(yaw), Math.tan(pitch), -1).normalize().applyQuaternion(this.aim);
+      this.raycaster.set(this.origin, this.direction);
+      this.raycaster.far = attack.range;
+      const hit = this.raycaster.intersectObjects(this.shootables(), false)[0];
+      // On préfère un bot à un mur à distance égale : la lame ne rate pas pour un rayon.
+      if (hit && (!best || (hit.object.userData.bot && !best.object.userData.bot) || hit.distance < best.distance)) best = hit;
+    }
+    this.direction.set(0, 0, -1).applyQuaternion(this.aim);
+    const combo = kind === 'light' && this.sinceMeleeHit < COMBO_WINDOW;
+    if (best?.object.userData.bot) this.sinceMeleeHit = 0;
+    this.effects.struck(def, kind, best, this.direction, combo);
+  }
+
   private startReload(): void {
     const weapon = this.current;
     if (this.reloadTimer > 0 || this.drawTimer > 0) return;
@@ -203,6 +267,7 @@ export class WeaponSystem {
   private equip(index: number): void {
     this.index = index;
     this.holstered = false;
+    this.pendingStrike = null;
     this.reloadTimer = 0;
     this.drawTimer = this.current.def.drawTime;
     this.shotsFired = 0;

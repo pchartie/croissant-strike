@@ -102,6 +102,25 @@ export class Audio {
     this.click(0, 600, 0.5);
   }
 
+  // --- Couteau (sons synthétisés) ---
+
+  /** Lame qui fend l'air : plus long et plus grave pour le coup puissant. */
+  knifeSwing(heavy: boolean): void {
+    this.noiseBurst('bandpass', heavy ? 900 : 1500, 1.2, 0.45, heavy ? 0.3 : 0.18, heavy ? 0.25 : 0.03);
+  }
+
+  /** Lame qui touche un corps : impact sourd. */
+  knifeHit(): void {
+    this.noiseBurst('lowpass', 500, 0.8, 0.9, 0.16);
+    this.sweep(160, 60, 0.12, 0.6, 0);
+  }
+
+  /** Lame contre un mur : tintement métallique. */
+  knifeWall(): void {
+    this.click(0, 3800, 0.6);
+    this.tone(5200, 0.15, 0.12, 'triangle');
+  }
+
   // --- Grenades (sons synthétisés) ---
 
   /** Dégoupillage : deux petits clics métalliques. */

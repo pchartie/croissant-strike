@@ -77,4 +77,44 @@ function pistol(): WeaponModel {
   return { root, muzzle, rest: new THREE.Vector3(0.13, -0.15, -0.34) };
 }
 
-export const MODEL_BUILDERS: Record<WeaponId, () => WeaponModel> = { rifle, pistol };
+export const MODEL_BUILDERS: Record<WeaponId, () => WeaponModel> = { rifle, pistol, knife };
+
+/**
+ * Couteau (en mètres), centré sur le manche, axe du manche et de la lame vers +y,
+ * tranchant vers +x. Utilisé en blocs et dans la main des bras animés.
+ */
+export function buildKnife(): THREE.Group {
+  const root = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, metalness: 0.9, roughness: 0.25 });
+  const grip = new THREE.MeshStandardMaterial({ color: 0x1b1c1e, roughness: 0.85 });
+
+  part(root, grip, [0.026, 0.11, 0.02], [0, 0, 0]); // manche
+  part(root, darkMetal, [0.05, 0.012, 0.024], [0.004, 0.06, 0]); // garde
+  part(root, darkMetal, [0.03, 0.012, 0.022], [0, -0.058, 0]); // pommeau
+
+  // Lame : large au talon, effilée vers la pointe (biseau côté tranchant).
+  const blade = new THREE.Shape();
+  blade.moveTo(-0.012, 0);
+  blade.lineTo(0.016, 0);
+  blade.lineTo(0.012, 0.12);
+  blade.lineTo(-0.004, 0.175);
+  blade.lineTo(-0.012, 0.13);
+  blade.closePath();
+  const geometry = new THREE.ExtrudeGeometry(blade, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.002, bevelSegments: 1 });
+  geometry.translate(0, 0, -0.002);
+  const mesh = new THREE.Mesh(geometry, steel);
+  mesh.position.y = 0.066;
+  root.add(mesh);
+  return root;
+}
+
+function knife(): WeaponModel {
+  const root = new THREE.Group();
+  const model = buildKnife();
+  // Tenu lame vers l'avant et vers le haut, comme dans CS:GO.
+  model.rotation.set(-1.0, 0.25, -0.35);
+  root.add(model);
+  const muzzle = new THREE.Object3D();
+  root.add(muzzle);
+  return { root, muzzle, rest: new THREE.Vector3(0.16, -0.2, -0.32) };
+}
