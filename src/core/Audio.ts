@@ -25,10 +25,11 @@ export class Audio {
   }
 
   /** Coup de feu : bruit filtré pour la détonation, plus une basse pour l'impact. */
-  shot(def: WeaponDef): void {
+  shot(def: WeaponDef, loudness = 1): void {
     const ctx = this.ctx;
     if (!ctx) return;
-    const { cutoff, thump, decay, volume } = def.sound;
+    const { cutoff, thump, decay } = def.sound;
+    const volume = def.sound.volume * loudness;
     const t = ctx.currentTime;
 
     const source = ctx.createBufferSource();
@@ -64,6 +65,30 @@ export class Audio {
 
   dryFire(): void {
     this.click(0, 3200, 0.3);
+  }
+
+  /** Confirmation de touche : un « tic », ou un « ting » métallique pour la tête. */
+  hit(headshot: boolean): void {
+    if (headshot) this.tone(1900, 0.18, 0.35, 'triangle');
+    else this.click(0, 4500, 0.35);
+  }
+
+  /** Le joueur est touché. */
+  hurt(): void {
+    this.tone(90, 0.12, 0.6, 'sine');
+    this.click(0, 600, 0.5);
+  }
+
+  private tone(frequency: number, decay: number, volume: number, type: OscillatorType): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = frequency;
+    osc.connect(this.envelope(t, volume, decay)).connect(this.master);
+    osc.start(t);
+    osc.stop(t + decay + 0.02);
   }
 
   private click(delay: number, frequency: number, volume = 0.5): void {

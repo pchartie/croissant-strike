@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { MOVE } from '../config';
 import type { Input } from '../core/Input';
 import type { Player } from '../player/Player';
-import type { World } from '../world/World';
 import { LOADOUT, type WeaponDef } from './definitions';
 
 const DEG = Math.PI / 180;
@@ -15,7 +14,7 @@ interface WeaponState {
 
 /** Ce que le reste du jeu affiche ou joue quand il se passe quelque chose avec l'arme. */
 export interface WeaponEffects {
-  fired(def: WeaponDef, hit: THREE.Intersection | null): void;
+  fired(def: WeaponDef, hit: THREE.Intersection | null, direction: THREE.Vector3): void;
   reloadStarted(def: WeaponDef): void;
   drawn(def: WeaponDef): void;
   dryFired(def: WeaponDef): void;
@@ -48,7 +47,8 @@ export class WeaponSystem {
 
   constructor(
     private readonly player: Player,
-    private readonly world: World,
+    /** Tout ce que les balles peuvent toucher (murs, bots…). */
+    private readonly shootables: () => THREE.Object3D[],
     private readonly effects: WeaponEffects,
   ) {
     this.equip(0);
@@ -141,8 +141,8 @@ export class WeaponSystem {
 
     this.raycaster.set(this.player.eyePosition(this.origin), this.direction);
     this.raycaster.far = def.range;
-    const hit = this.raycaster.intersectObjects(this.world.meshes, false)[0] ?? null;
-    this.effects.fired(def, hit);
+    const hit = this.raycaster.intersectObjects(this.shootables(), false)[0] ?? null;
+    this.effects.fired(def, hit, this.direction);
 
     // Le recul s'applique après le tir : la première balle part toujours au centre.
     const { pattern, random } = def.recoil;
@@ -166,6 +166,16 @@ export class WeaponSystem {
     weapon.ammo += taken;
     weapon.reserve -= taken;
     this.reloadTimer = 0;
+  }
+
+  /** Recharge toutes les armes et ressort la première (à la réapparition). */
+  reset(): void {
+    for (const weapon of this.weapons) {
+      weapon.ammo = weapon.def.magazine;
+      weapon.reserve = weapon.def.reserve;
+    }
+    this.punch.pitch = this.punch.yaw = 0;
+    this.equip(0);
   }
 
   private equip(index: number): void {

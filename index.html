@@ -6,17 +6,24 @@
     <title>FPS1</title>
   </head>
   <body>
+    <div id="damage"></div>
     <div id="hud">
       <div id="crosshair">
         <span class="top"></span><span class="bottom"></span>
         <span class="left"></span><span class="right"></span>
       </div>
+      <div id="hitmarker"></div>
+      <div id="score"></div>
+      <div id="killfeed"></div>
+      <div id="health"><span class="cross">+</span> <span id="health-value">100</span></div>
       <div id="speed">0</div>
       <div id="ammo">
         <div id="weapon-name"></div>
         <div><span id="ammo-count">0</span> <span class="sep">/</span> <span id="ammo-reserve">0</span></div>
       </div>
     </div>
+
+    <div id="death" class="hidden"><p id="death-text"></p></div>
 
     <div id="overlay">
       <div class="panel">

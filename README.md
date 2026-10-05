@@ -33,14 +33,19 @@ Le nombre en bas de l'écran est la vitesse en unités Source (250 = vitesse de 
 ```
 src/
 ├── main.ts        point d'entrée
-├── config.ts      constantes de jeu (vitesses, gravité, sensibilité…)
+├── config.ts      constantes de jeu (vitesses, gravité, sensibilité, difficulté des bots…)
 ├── core/          boucle de jeu (physique à 128 ticks/s), clavier et souris, sons
-├── world/         arène, collisions, textures
+├── world/         arène, collisions, grille de navigation des bots, textures
 ├── player/        déplacements façon CS: Source et caméra
 ├── weapons/       caractéristiques des armes, tir et recul, arme en main, impacts
-└── ui/            HUD et écran de pause
+├── bots/          ennemis : modèle, IA (patrouille, combat, recherche), apparitions
+└── ui/            HUD, fil des éliminations, écrans de pause et de mort
 ```
 
 Le réticule est fixe, mais les balles se dispersent quand on court, saute ou tire en rafale : comme dans CS, il faut s'arrêter pour être précis.
 
-À venir : `bots/` (ennemis).
+## Bots
+
+Les bots patrouillent dans l'arène, t'attaquent dès qu'ils te voient et vont voir quand ils t'entendent tirer. Ils tirent en rafales en s'arrêtant, puis se décalent sur le côté entre deux rafales. Une balle dans la tête fait ×4 de dégâts, dans les jambes ×0,75, pour eux comme pour toi.
+
+Le nombre de bots et leur difficulté (temps de réaction, précision, chance de viser la tête…) se règlent dans `src/config.ts`, section `BOTS`.

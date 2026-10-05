@@ -1,13 +1,10 @@
 import * as THREE from 'three';
 
 const MAX_DECALS = 120;
-const MAX_PARTICLES = 400;
-const PARTICLES_PER_HIT = 8;
-const PARTICLE_LIFE = 0.45;
 const GRAVITY = 9.8;
 const HIDDEN_Y = -1000;
 
-/** Impacts de balles : trous dans les surfaces et petits éclats de poussière. */
+/** Impacts de balles : trous dans les surfaces, poussière et sang. */
 export class Impacts {
   private readonly decals: THREE.Mesh[] = [];
   private nextDecal = 0;
@@ -21,31 +18,32 @@ export class Impacts {
     roughness: 1,
   });
 
-  private readonly positions = new Float32Array(MAX_PARTICLES * 3).fill(HIDDEN_Y);
-  private readonly velocities = new Float32Array(MAX_PARTICLES * 3);
-  private readonly lives = new Float32Array(MAX_PARTICLES);
-  private nextParticle = 0;
-  private readonly points: THREE.Points;
-
+  private readonly dust: Particles;
+  private readonly blood: Particles;
   private readonly normal = new THREE.Vector3();
   private static readonly FORWARD = new THREE.Vector3(0, 0, 1);
 
   constructor(private readonly scene: THREE.Scene) {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-    this.points = new THREE.Points(
-      geometry,
-      new THREE.PointsMaterial({ color: 0xbcae92, size: 0.035, transparent: true, opacity: 0.9 }),
-    );
-    this.points.frustumCulled = false;
-    scene.add(this.points);
+    this.dust = new Particles(scene, 400, 0xbcae92, 0.035);
+    this.blood = new Particles(scene, 300, 0x8a0f0a, 0.05);
   }
 
+  /** Balle dans un mur ou un objet. */
   add(hit: THREE.Intersection): void {
     if (!hit.face) return;
     this.normal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
     this.addDecal(hit.point, this.normal);
-    this.addDust(hit.point, this.normal);
+    this.dust.burst(hit.point, this.normal, 8, 1, 2.5, 0.45);
+  }
+
+  /** Balle dans un bot : giclée de sang dans le sens du tir. */
+  addBlood(point: THREE.Vector3, direction: THREE.Vector3, amount = 10): void {
+    this.blood.burst(point, direction, amount, 0.5, 2, 0.5);
+  }
+
+  update(dt: number): void {
+    this.dust.update(dt);
+    this.blood.update(dt);
   }
 
   private addDecal(point: THREE.Vector3, normal: THREE.Vector3): void {
@@ -63,27 +61,47 @@ export class Impacts {
     decal.rotateZ(Math.random() * Math.PI * 2);
     decal.scale.setScalar(0.8 + Math.random() * 0.4);
   }
+}
 
-  private addDust(point: THREE.Vector3, normal: THREE.Vector3): void {
-    for (let n = 0; n < PARTICLES_PER_HIT; n++) {
-      const i = this.nextParticle;
-      this.nextParticle = (this.nextParticle + 1) % MAX_PARTICLES;
-      const speed = 1 + Math.random() * 2.5;
+/** Petites particules qui jaillissent puis retombent. */
+class Particles {
+  private readonly positions: Float32Array;
+  private readonly velocities: Float32Array;
+  private readonly lives: Float32Array;
+  private next = 0;
+  private readonly points: THREE.Points;
+
+  constructor(scene: THREE.Scene, private readonly max: number, color: number, size: number) {
+    this.positions = new Float32Array(max * 3).fill(HIDDEN_Y);
+    this.velocities = new Float32Array(max * 3);
+    this.lives = new Float32Array(max);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+    this.points = new THREE.Points(geometry, new THREE.PointsMaterial({ color, size, transparent: true, opacity: 0.9 }));
+    this.points.frustumCulled = false;
+    scene.add(this.points);
+  }
+
+  burst(point: THREE.Vector3, direction: THREE.Vector3, count: number, minSpeed: number, maxSpeed: number, life: number): void {
+    for (let n = 0; n < count; n++) {
+      const i = this.next;
+      this.next = (this.next + 1) % this.max;
+      const speed = minSpeed + Math.random() * (maxSpeed - minSpeed);
       this.positions.set([point.x, point.y, point.z], i * 3);
       this.velocities.set(
         [
-          (normal.x + (Math.random() - 0.5) * 1.2) * speed,
-          (normal.y + (Math.random() - 0.5) * 1.2) * speed + 1,
-          (normal.z + (Math.random() - 0.5) * 1.2) * speed,
+          (direction.x + (Math.random() - 0.5) * 1.2) * speed,
+          (direction.y + (Math.random() - 0.5) * 1.2) * speed + 1,
+          (direction.z + (Math.random() - 0.5) * 1.2) * speed,
         ],
         i * 3,
       );
-      this.lives[i] = PARTICLE_LIFE * (0.6 + Math.random() * 0.4);
+      this.lives[i] = life * (0.6 + Math.random() * 0.4);
     }
   }
 
   update(dt: number): void {
-    for (let i = 0; i < MAX_PARTICLES; i++) {
+    for (let i = 0; i < this.max; i++) {
       if (this.lives[i] <= 0) continue;
       this.lives[i] -= dt;
       const p = i * 3;

@@ -8,6 +8,11 @@ const BIG_CRATE = 1.6;
 const SMALL_CRATE = 0.9;
 
 export const SPAWN = { position: new THREE.Vector3(0, 0, 18), yaw: 0 };
+/** Intérieur de l'arène, entre les murs. */
+export const ARENA_BOUNDS = new THREE.Box3(
+  new THREE.Vector3(-SIZE / 2, 0, -SIZE / 2),
+  new THREE.Vector3(SIZE / 2, WALL_HEIGHT, SIZE / 2),
+);
 
 /** Petite arène de test : sol, murs, piliers, caisses et une plateforme. */
 export function buildArena(world: World, anisotropy: number): void {

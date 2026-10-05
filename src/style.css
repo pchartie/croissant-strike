@@ -113,6 +113,136 @@ canvas {
   opacity: 0.75;
 }
 
+#health {
+  position: absolute;
+  left: 32px;
+  bottom: 24px;
+  color: #fff;
+  font-size: 40px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px #000;
+}
+
+#health .cross {
+  opacity: 0.75;
+}
+
+#health-value.low {
+  color: #ff5a4d;
+}
+
+#score {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 15px;
+  white-space: pre;
+  text-shadow: 0 1px 2px #000;
+  opacity: 0.85;
+}
+
+#killfeed {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.kill {
+  display: flex;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #e8c27a;
+  font-size: 14px;
+}
+
+.kill.mine {
+  outline: 1px solid #d33;
+}
+
+.kill.me {
+  color: #9fc8ff;
+}
+
+.kill .weapon {
+  color: #ddd;
+  opacity: 0.8;
+}
+
+/* Croix de touche : 4 traits en diagonale autour du réticule. */
+#hitmarker {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  background:
+    linear-gradient(45deg, transparent 46%, #fff 46%, #fff 54%, transparent 54%) center / 100% 100%,
+    linear-gradient(-45deg, transparent 46%, #fff 46%, #fff 54%, transparent 54%) center / 100% 100%;
+  mask: radial-gradient(circle, transparent 7px, #000 7.5px);
+}
+
+#hitmarker.show {
+  animation: fade 0.25s ease-out;
+}
+
+#hitmarker.head {
+  filter: drop-shadow(0 0 2px #f33) sepia(1) saturate(8) hue-rotate(-50deg);
+}
+
+#damage {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 160px 40px rgba(200, 0, 0, 0.7);
+}
+
+#damage.show {
+  animation: fade 0.5s ease-out;
+}
+
+@keyframes fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#death {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(90, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+#death.hidden {
+  display: none;
+}
+
+#death-text {
+  padding: 12px 24px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 22px;
+}
+
 #overlay {
   position: fixed;
   inset: 0;

@@ -22,6 +22,27 @@ export const MOVE = {
   jumpSpeed: 301.99 * UNIT, // saut de 57 unités de haut
 };
 
+export const BOTS = {
+  count: 3,
+  health: 100,
+  respawnDelay: 5,
+  /** Temps avant de tirer après avoir repéré le joueur, en secondes. */
+  reactionTime: 0.6,
+  /** Erreur de visée au moment où le bot repère le joueur, puis une fois stabilisé, en degrés. */
+  aimErrorStart: 7,
+  aimErrorSettled: 2.2,
+  /** Temps pour passer de l'erreur de départ à l'erreur stabilisée, en secondes. */
+  aimSettleTime: 1.2,
+  /** Vitesse de rotation maximale, en degrés par seconde. */
+  turnSpeed: 300,
+  headshotChance: 0.1,
+  visionRange: 60,
+  /** Champ de vision total, en degrés. */
+  visionAngle: 150,
+  /** Distance à laquelle un bot entend tirer le joueur. */
+  hearingRange: 25,
+};
+
 export const CAMERA = {
   fov: 75,
   // 0,022 × sensibilité 2, comme dans CS : degrés par point de souris.

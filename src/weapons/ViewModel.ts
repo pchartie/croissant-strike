@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { WeaponDef, WeaponId } from './definitions';
+import { flashSprite } from './flash';
 import { MODEL_BUILDERS, type WeaponModel } from './models';
 
 const FLASH_DURATION = 0.05;
@@ -47,15 +48,7 @@ export class ViewModel {
       this.models[id] = model;
     }
 
-    this.flash = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: flashTexture(),
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        transparent: true,
-      }),
-    );
-    this.flash.visible = false;
+    this.flash = flashSprite();
     this.current = this.models.rifle;
   }
 
@@ -117,35 +110,4 @@ export class ViewModel {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
   }
-}
-
-function flashTexture(): THREE.CanvasTexture {
-  const size = 128;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const c = size / 2;
-
-  ctx.translate(c, c);
-  ctx.fillStyle = 'rgba(255, 190, 90, 0.9)';
-  for (let i = 0; i < 6; i++) {
-    ctx.rotate(Math.PI / 3);
-    ctx.beginPath();
-    ctx.moveTo(-6, 0);
-    ctx.lineTo(0, -c * (0.6 + Math.random() * 0.4));
-    ctx.lineTo(6, 0);
-    ctx.fill();
-  }
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-  const glow = ctx.createRadialGradient(c, c, 0, c, c, c * 0.6);
-  glow.addColorStop(0, 'rgba(255, 255, 230, 1)');
-  glow.addColorStop(0.4, 'rgba(255, 200, 100, 0.8)');
-  glow.addColorStop(1, 'rgba(255, 120, 30, 0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, size, size);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
 }

@@ -1,45 +1,44 @@
 import * as THREE from 'three';
-import { CAMERA, MOVE, PLAYER } from '../config';
+import { CAMERA, MOVE, PLAYER, UNIT } from '../config';
 import type { Input } from '../core/Input';
-import type { World } from '../world/World';
+import { Body } from '../world/Body';
 
 const MAX_PITCH = THREE.MathUtils.degToRad(89);
-const AXES = ['x', 'z', 'y'] as const;
-/**
- * Petit écart laissé entre le joueur et un mur après une collision. Sans lui,
- * les arrondis de calcul laissent le joueur « dans » le mur d'un cheveu, et la
- * collision suivante sur un autre axe le téléporte dessus ou dessous.
- */
-const SKIN = 1e-4;
 /** sv_maxvelocity de CS: Source. */
-const MAX_VELOCITY = 3500 * 0.0254;
+const MAX_VELOCITY = 3500 * UNIT;
 /** En dessous de cette hauteur, le joueur est tombé hors de la carte. */
 const KILL_Y = -20;
+const MAX_HEALTH = 100;
 
 /**
  * Joueur avec les déplacements de Counter-Strike: Source : frottement au sol,
  * accélération limitée, contrôle en l'air (air strafe) et saut à l'appui.
  */
-export class Player {
-  /** Position des pieds, au centre de la boîte de collision. */
-  readonly position = new THREE.Vector3();
-  readonly previousPosition = new THREE.Vector3();
-  readonly velocity = new THREE.Vector3();
+export class Player extends Body {
   yaw = 0;
   pitch = 0;
-  onGround = false;
+  health = MAX_HEALTH;
 
   private readonly wishDir = new THREE.Vector3();
-  private readonly box = new THREE.Box3();
 
-  constructor(private readonly world: World) {}
+  constructor() {
+    super(PLAYER.radius, PLAYER.height);
+  }
+
+  get alive(): boolean {
+    return this.health > 0;
+  }
+
+  /** Vrai si le joueur est tombé hors de la carte (filet de sécurité). */
+  get outOfMap(): boolean {
+    return this.position.y < KILL_Y;
+  }
 
   spawn(position: THREE.Vector3, yaw: number): void {
-    this.position.copy(position);
-    this.previousPosition.copy(position);
-    this.velocity.set(0, 0, 0);
+    this.teleport(position);
     this.yaw = yaw;
     this.pitch = 0;
+    this.health = MAX_HEALTH;
   }
 
   look(dx: number, dy: number): void {
@@ -48,13 +47,7 @@ export class Player {
     this.pitch = THREE.MathUtils.clamp(this.pitch + dy * CAMERA.sensitivity, -MAX_PITCH, MAX_PITCH);
   }
 
-  get horizontalSpeed(): number {
-    return Math.hypot(this.velocity.x, this.velocity.z);
-  }
-
-  update(dt: number, input: Input): void {
-    this.previousPosition.copy(this.position);
-
+  update(dt: number, input: Input, colliders: readonly THREE.Box3[]): void {
     const forward = (input.isDown('KeyW') ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0);
     const side = (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
     const sin = Math.sin(this.yaw);
@@ -79,12 +72,7 @@ export class Player {
 
     this.velocity.y -= MOVE.gravity * dt;
     this.velocity.clampLength(0, MAX_VELOCITY);
-    this.moveAndCollide(dt);
-  }
-
-  /** Vrai si le joueur est tombé hors de la carte (filet de sécurité). */
-  get outOfMap(): boolean {
-    return this.position.y < KILL_Y;
+    this.move(dt, colliders);
   }
 
   private applyFriction(dt: number): void {
@@ -108,37 +96,6 @@ export class Player {
     this.velocity.z += gain * this.wishDir.z;
   }
 
-  /** Déplace axe par axe et repousse le joueur hors des blocs qu'il touche. */
-  private moveAndCollide(dt: number): void {
-    this.onGround = false;
-    for (const axis of AXES) {
-      const delta = this.velocity[axis] * dt;
-      if (delta === 0) continue;
-      this.position[axis] += delta;
-      this.updateBox();
-
-      for (const collider of this.world.colliders) {
-        if (!overlaps(this.box, collider)) continue;
-        const below = axis === 'y' ? PLAYER.height : PLAYER.radius;
-        const above = axis === 'y' ? 0 : PLAYER.radius;
-        if (delta > 0) {
-          this.position[axis] = collider.min[axis] - below - SKIN;
-        } else {
-          this.position[axis] = collider.max[axis] + above + SKIN;
-          if (axis === 'y') this.onGround = true;
-        }
-        this.velocity[axis] = 0;
-        this.updateBox();
-      }
-    }
-  }
-
-  private updateBox(): void {
-    const { x, y, z } = this.position;
-    this.box.min.set(x - PLAYER.radius, y, z - PLAYER.radius);
-    this.box.max.set(x + PLAYER.radius, y + PLAYER.height, z + PLAYER.radius);
-  }
-
   eyePosition(target: THREE.Vector3): THREE.Vector3 {
     return target.copy(this.position).setY(this.position.y + PLAYER.eyeHeight);
   }
@@ -152,13 +109,4 @@ export class Player {
     camera.position.y += PLAYER.eyeHeight;
     camera.rotation.set(this.pitch + punch.pitch, this.yaw + punch.yaw, 0, 'YXZ');
   }
-}
-
-/** Chevauchement strict : se toucher sans s'enfoncer ne compte pas. */
-function overlaps(a: THREE.Box3, b: THREE.Box3): boolean {
-  return (
-    a.min.x < b.max.x && a.max.x > b.min.x &&
-    a.min.y < b.max.y && a.max.y > b.min.y &&
-    a.min.z < b.max.z && a.max.z > b.min.z
-  );
 }
