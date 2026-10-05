@@ -20,6 +20,10 @@ export class Player extends Body {
   yaw = 0;
   pitch = 0;
   health = MAX_HEALTH;
+  /** Boîte de collision en position accroupie. */
+  crouched = false;
+  /** Avancement de l'accroupissement pour la caméra : 0 debout, 1 accroupi. */
+  private duckAmount = 0;
 
   private readonly wishDir = new THREE.Vector3();
 
@@ -41,6 +45,14 @@ export class Player extends Body {
     this.yaw = yaw;
     this.pitch = 0;
     this.health = MAX_HEALTH;
+    this.crouched = false;
+    this.duckAmount = 0;
+    this.height = PLAYER.height;
+  }
+
+  /** Hauteur des yeux au-dessus des pieds, qui descend quand on s'accroupit. */
+  get eyeHeight(): number {
+    return THREE.MathUtils.lerp(PLAYER.eyeHeight, PLAYER.duckEyeHeight, this.duckAmount);
   }
 
   look(dx: number, dy: number): void {
@@ -50,13 +62,18 @@ export class Player extends Body {
   }
 
   update(dt: number, input: Input, colliders: readonly THREE.Box3[]): void {
+    // Ctrl ou C pour s'accroupir (Ctrl+W ferme l'onglet en QWERTY), Maj pour marcher.
+    this.updateDuck(dt, input.isDown('ControlLeft') || input.isDown('KeyC'), colliders);
+    const walking = input.isDown('ShiftLeft');
+
     const forward = (input.isDown('KeyW') ? 1 : 0) - (input.isDown('KeyS') ? 1 : 0);
     const side = (input.isDown('KeyD') ? 1 : 0) - (input.isDown('KeyA') ? 1 : 0);
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
     // Avant = -z quand yaw vaut 0 ; droite = +x.
     this.wishDir.set(-sin * forward + cos * side, 0, -cos * forward - sin * side);
-    const wishSpeed = this.wishDir.lengthSq() > 0 ? MOVE.maxSpeed : 0;
+    const speedScale = this.crouched ? MOVE.duckSpeedScale : walking ? MOVE.walkSpeedScale : 1;
+    const wishSpeed = this.wishDir.lengthSq() > 0 ? MOVE.maxSpeed * speedScale : 0;
     this.wishDir.normalize();
 
     const jump = input.consumePress('Space');
@@ -77,6 +94,51 @@ export class Player extends Body {
     this.move(dt, colliders);
     // La caméra rattrape en douceur la hauteur gagnée sur les marches.
     this.stepOffset *= Math.exp(-STEP_SMOOTHING * dt);
+  }
+
+  /**
+   * Au sol, on s'accroupit en `duckTime` : la caméra descend, puis la boîte
+   * rapetisse par le haut. En l'air, c'est immédiat et ce sont les jambes qui
+   * remontent : le saut accroupi permet d'atteindre plus haut, comme dans CS.
+   */
+  private updateDuck(dt: number, wantDuck: boolean, colliders: readonly THREE.Box3[]): void {
+    if (wantDuck) {
+      this.duckAmount = Math.min(1, this.duckAmount + dt / MOVE.duckTime);
+      if (!this.crouched && (this.duckAmount >= 1 || !this.onGround)) this.finishDuck();
+      return;
+    }
+    if (this.crouched) this.tryStand(colliders);
+    if (!this.crouched) this.duckAmount = Math.max(0, this.duckAmount - dt / MOVE.duckTime);
+  }
+
+  private finishDuck(): void {
+    if (!this.onGround) this.shiftFeet(PLAYER.height - PLAYER.duckHeight);
+    this.height = PLAYER.duckHeight;
+    this.crouched = true;
+    this.duckAmount = 1;
+    this.updateBox();
+  }
+
+  /** Se relève s'il y a la place au-dessus (sinon on reste accroupi sous l'obstacle). */
+  private tryStand(colliders: readonly THREE.Box3[]): void {
+    const legs = PLAYER.height - PLAYER.duckHeight;
+    if (this.onGround) {
+      if (!this.fits(this.position.y, PLAYER.height, colliders)) return;
+    } else if (this.fits(this.position.y - legs, PLAYER.height, colliders)) {
+      // En l'air, on redéplie les jambes vers le bas : les yeux restent à la même hauteur.
+      this.shiftFeet(-legs);
+      this.duckAmount = 0;
+    } else if (!this.fits(this.position.y, PLAYER.height, colliders)) {
+      return;
+    }
+    this.height = PLAYER.height;
+    this.crouched = false;
+    this.updateBox();
+  }
+
+  private shiftFeet(dy: number): void {
+    this.position.y += dy;
+    this.previousPosition.y += dy;
   }
 
   private applyFriction(dt: number): void {
@@ -101,7 +163,7 @@ export class Player extends Body {
   }
 
   eyePosition(target: THREE.Vector3): THREE.Vector3 {
-    return target.copy(this.position).setY(this.position.y + PLAYER.eyeHeight);
+    return target.copy(this.position).setY(this.position.y + this.eyeHeight);
   }
 
   /**
@@ -110,7 +172,7 @@ export class Player extends Body {
    */
   applyToCamera(camera: THREE.PerspectiveCamera, alpha: number, punch: { pitch: number; yaw: number }): void {
     camera.position.lerpVectors(this.previousPosition, this.position, alpha);
-    camera.position.y += PLAYER.eyeHeight + this.stepOffset;
+    camera.position.y += this.eyeHeight + this.stepOffset;
     camera.rotation.set(this.pitch + punch.pitch, this.yaw + punch.yaw, 0, 'YXZ');
   }
 }

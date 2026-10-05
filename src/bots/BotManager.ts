@@ -147,7 +147,9 @@ export class BotManager {
     const hitPlayer = this.player.alive && this.ray.intersectBox(this.player.box, this.playerHit);
     if (hitPlayer && (!worldHit || origin.distanceTo(this.playerHit) < worldHit.distance)) {
       const height = this.playerHit.y - this.player.position.y;
-      const part: HitPart = height > PLAYER.eyeHeight - 0.12 ? 'head' : height < 0.8 ? 'legs' : 'body';
+      // Tête : les 32 cm du haut, debout comme accroupi. Jambes : sous 80 cm (debout seulement).
+      const top = this.player.height;
+      const part: HitPart = height > top - 0.32 ? 'head' : height < 0.8 && !this.player.crouched ? 'legs' : 'body';
       this.events.shot({
         bot,
         origin: muzzle,

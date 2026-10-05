@@ -9,6 +9,9 @@ export const PLAYER = {
   radius: 16 * UNIT,
   height: 72 * UNIT,
   eyeHeight: 64 * UNIT,
+  /** Accroupi : boîte plus basse et yeux plus bas. */
+  duckHeight: 54 * UNIT,
+  duckEyeHeight: 46 * UNIT,
 };
 
 export const MOVE = {
@@ -21,6 +24,11 @@ export const MOVE = {
   gravity: 800 * UNIT, // sv_gravity
   jumpSpeed: 301.99 * UNIT, // saut de 57 unités de haut
   stepSize: 18 * UNIT, // sv_stepsize : hauteur de marche franchie sans sauter
+  /** Vitesse en marchant (Maj) et accroupi, par rapport à la course. */
+  walkSpeedScale: 0.52,
+  duckSpeedScale: 0.34,
+  /** Temps pour s'accroupir ou se relever, en secondes. */
+  duckTime: 0.2,
 };
 
 export const BOTS = {

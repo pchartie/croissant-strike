@@ -5,6 +5,8 @@ import type { Player } from '../player/Player';
 import { LOADOUT, type WeaponDef } from './definitions';
 
 const DEG = Math.PI / 180;
+/** Multiplicateur de la dispersion de base accroupi (environ celui de CS). */
+const CROUCH_ACCURACY = 0.75;
 
 interface WeaponState {
   def: WeaponDef;
@@ -72,8 +74,10 @@ export class WeaponSystem {
   get spread(): number {
     const { spread } = this.current.def;
     const speed = Math.min(this.player.horizontalSpeed / MOVE.maxSpeed, 1);
+    // Accroupi et au sol, on est plus précis.
+    const stance = this.player.crouched && this.player.onGround ? CROUCH_ACCURACY : 1;
     return (
-      spread.base +
+      spread.base * stance +
       spread.moving * speed +
       (this.player.onGround ? 0 : spread.air) +
       spread.perShot * Math.min(this.shotsFired, spread.maxShots)

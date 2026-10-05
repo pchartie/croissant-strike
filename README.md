@@ -33,6 +33,8 @@ Le script extrait du zip (500 Mo) uniquement ce qui sert et compresse les animat
 | R | Recharger |
 | 1 / 2 | Fusil (M4A1) / pistolet (M1911) |
 | Espace / molette | Sauter |
+| Ctrl ou C | S'accroupir (plus lent, plus précis ; sauter accroupi permet de monter sur les grosses caisses) |
+| Maj | Marcher lentement |
 | Échap | Pause |
 
 Le nombre en bas de l'écran est la vitesse en unités Source (250 = vitesse de course avec un couteau dans CS).

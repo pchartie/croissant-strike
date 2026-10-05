@@ -15,8 +15,9 @@ const WAYPOINT_REACHED = 0.35;
 const LOSE_SIGHT_DELAY = 0.6;
 const SEARCH_LOOK_TIME = 2;
 const FALL_DURATION = 0.35;
-const CHEST_HEIGHT = 1.25;
-const HEAD_HEIGHT = 1.68;
+/** Hauteur visée sur le joueur selon sa taille (debout ou accroupi). */
+const chestHeight = (height: number) => height * 0.68;
+const headHeight = (height: number) => height - 0.15;
 
 type State = 'patrol' | 'combat' | 'search' | 'dead';
 
@@ -59,6 +60,8 @@ export class Bot {
   private seesPlayer = false;
   private lostTimer = 0;
   private readonly lastKnown = new THREE.Vector3();
+  /** Taille du joueur quand il a été vu (plus petit accroupi). */
+  private targetHeight = PLAYER.height;
   private spottedTime = 0;
   private reactionTimer = 0;
   private aimAtHead = false;
@@ -191,6 +194,7 @@ export class Bot {
     if (sees) {
       if (this.state !== 'combat') this.engage();
       this.lastKnown.copy(ctx.player.position);
+      this.targetHeight = ctx.player.height;
       this.lostTimer = 0;
     } else if (this.state === 'combat') {
       this.lostTimer += THINK_INTERVAL;
@@ -248,7 +252,7 @@ export class Bot {
       if (cos < Math.cos((BOTS.visionAngle / 2) * DEG)) return false;
     }
 
-    for (const height of [HEAD_HEIGHT, CHEST_HEIGHT]) {
+    for (const height of [headHeight(player.height), chestHeight(player.height)]) {
       this.target.copy(player.position).setY(player.position.y + height);
       if (ctx.lineOfSight(this.eye, this.target)) return true;
     }
@@ -376,7 +380,7 @@ export class Bot {
     let targetPitch = 0;
 
     if (this.state === 'combat') {
-      const height = this.aimAtHead ? HEAD_HEIGHT : CHEST_HEIGHT;
+      const height = this.aimAtHead ? headHeight(this.targetHeight) : chestHeight(this.targetHeight);
       const dx = this.lastKnown.x - this.body.position.x;
       const dz = this.lastKnown.z - this.body.position.z;
       const dy = this.lastKnown.y + height - (this.body.position.y + PLAYER.eyeHeight);

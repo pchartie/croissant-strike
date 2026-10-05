@@ -130,7 +130,7 @@ export class Game {
     this.player.applyToCamera(this.camera, alpha, this.weapons.punch);
     if (!this.player.alive) {
       // Mort : la caméra tombe au sol et penche.
-      this.camera.position.y -= PLAYER.eyeHeight - 0.3;
+      this.camera.position.y -= this.player.eyeHeight - 0.3;
       this.camera.rotation.z = 0.4;
     }
     this.bots.render(alpha);

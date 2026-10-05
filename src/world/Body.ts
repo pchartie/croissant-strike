@@ -27,7 +27,8 @@ export class Body {
 
   constructor(
     readonly radius: number,
-    readonly height: number,
+    /** Change quand le corps s'accroupit. */
+    public height: number,
   ) {}
 
   get horizontalSpeed(): number {
@@ -92,7 +93,16 @@ export class Body {
     return true;
   }
 
-  private updateBox(): void {
+  /** Vrai si un corps de cette hauteur, pieds à `y`, ne toucherait aucun obstacle. */
+  fits(y: number, height: number, colliders: readonly THREE.Box3[]): boolean {
+    const test = new THREE.Box3(
+      new THREE.Vector3(this.position.x - this.radius, y, this.position.z - this.radius),
+      new THREE.Vector3(this.position.x + this.radius, y + height, this.position.z + this.radius),
+    );
+    return colliders.every((other) => other === this.box || !overlaps(test, other));
+  }
+
+  protected updateBox(): void {
     const { x, y, z } = this.position;
     this.box.min.set(x - this.radius, y, z - this.radius);
     this.box.max.set(x + this.radius, y + this.height, z + this.radius);
