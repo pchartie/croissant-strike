@@ -23,6 +23,18 @@ Le jeu utilise les armes et les bras animés du [Retro Weapon Pack](https://kupt
 
 Le script extrait du zip (500 Mo) uniquement ce qui sert et compresse les animations : il reste ~2 Mo dans `public/assets/weapons/`.
 
+## Faire tester à distance (tunnel Cloudflare)
+
+Sans compte ni nom de domaine, avec [cloudflared](https://github.com/cloudflare/cloudflared/releases) (ici dans `D:Tools`) :
+
+```sh
+npm run build                 # version compilée, plus rapide à travers le tunnel
+npx vite preview --port 4173  # sert le dossier dist/
+cloudflared tunnel --url http://localhost:4173
+```
+
+`cloudflared` affiche une adresse `https://….trycloudflare.com` à envoyer. Elle change à chaque lancement et ne marche que tant que les deux commandes tournent. `vite.config.ts` autorise ces adresses.
+
 ## Commandes
 
 | Touche | Action |
