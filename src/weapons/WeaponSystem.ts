@@ -3,28 +3,41 @@ import { MOVE } from '../config';
 import type { Action } from '../core/bindings';
 import type { Input } from '../core/Input';
 import type { Player } from '../player/Player';
-import { LOADOUT, type WeaponDef } from './definitions';
+import { KNIFE, PISTOL, RIFLE, type WeaponDef } from './definitions';
 
 const DEG = Math.PI / 180;
 /** Multiplicateur de la dispersion de base accroupi (environ celui de CS). */
 const CROUCH_ACCURACY = 0.75;
 /** Action qui sort l'arme de chaque emplacement (touches 1, 2, 3 par défaut). */
-const SLOT_ACTIONS: Record<number, Action> = { 1: 'weapon1', 2: 'weapon2', 3: 'weapon3' };
+const SLOT_ACTIONS: Action[] = ['weapon1', 'weapon2', 'weapon3'];
 /** Rayons du coup de couteau (écarts en radians, gauche/droite et haut/bas) : un éventail étroit. */
 const MELEE_FAN: [number, number][] = [[0, 0], [0.1, 0], [-0.1, 0], [0, 0.08], [0, -0.08]];
 /** Un coup rapide qui suit une touche de moins de ce temps fait moins mal (CS:GO). */
 const COMBO_WINDOW = 0.8;
 
-interface WeaponState {
+export interface WeaponState {
   def: WeaponDef;
   ammo: number;
   reserve: number;
 }
 
+/** Une balle (ou un plomb) tirée : ce qu'elle touche, et sa direction. */
+export interface Shot {
+  hit: THREE.Intersection | null;
+  direction: THREE.Vector3;
+}
+
+/**
+ * Étape de rechargement : `full` pour un chargeur entier ; `start`, `step` (une
+ * cartouche) et `end` pour un rechargement cartouche par cartouche.
+ */
+export type ReloadPhase = 'full' | 'start' | 'step' | 'end';
+
 /** Ce que le reste du jeu affiche ou joue quand il se passe quelque chose avec l'arme. */
 export interface WeaponEffects {
-  fired(def: WeaponDef, hit: THREE.Intersection | null, direction: THREE.Vector3): void;
-  reloadStarted(def: WeaponDef): void;
+  /** Un tir : une balle, ou plusieurs plombs pour un fusil à pompe. */
+  fired(def: WeaponDef, shots: Shot[]): void;
+  reloadStarted(def: WeaponDef, phase: ReloadPhase, duration: number): void;
   drawn(def: WeaponDef): void;
   dryFired(def: WeaponDef): void;
   /** Coup de couteau donné (animation, bruit de lame). */
@@ -35,30 +48,31 @@ export interface WeaponEffects {
 
 export type MeleeKind = 'light' | 'heavy';
 
-/** Inventaire, tir, rechargement et recul. Tourne au rythme des ticks de physique. */
+const fresh = (def: WeaponDef): WeaponState => ({ def, ammo: def.magazine, reserve: def.reserve });
+
+/**
+ * Inventaire (comme dans CS : une arme principale, un pistolet, le couteau),
+ * tir, rechargement et recul. Tourne au rythme des ticks de physique.
+ */
 export class WeaponSystem {
   /** Recul en cours, en radians, ajouté au regard du joueur (positif = haut / gauche). */
   readonly punch = { pitch: 0, yaw: 0 };
+  /** Arme rangée : on tient une grenade. */
+  holstered = false;
 
-  private readonly weapons: WeaponState[] = LOADOUT.map((def) => ({
-    def,
-    ammo: def.magazine,
-    reserve: def.reserve,
-  }));
+  /** Emplacements 1 (arme principale, peut être vide), 2 (pistolet) et 3 (couteau). */
+  private readonly slots: (WeaponState | null)[] = [fresh(RIFLE), fresh(PISTOL), fresh(KNIFE)];
   private index = 0;
   private cooldown = 0;
-  private reloadTimer = 0;
+  private reload: { phase: ReloadPhase; timer: number; duration: number } | null = null;
   private drawTimer = 0;
   private shotsFired = 0;
   private sinceShot = Infinity;
-  /** Arme rangée : on tient une grenade. */
-  holstered = false;
   private pendingStrike: { kind: MeleeKind; timer: number } | null = null;
   private sinceMeleeHit = Infinity;
 
   private readonly raycaster = new THREE.Raycaster();
   private readonly origin = new THREE.Vector3();
-  private readonly direction = new THREE.Vector3();
   private readonly right = new THREE.Vector3();
   private readonly up = new THREE.Vector3();
   private readonly aim = new THREE.Quaternion();
@@ -74,12 +88,17 @@ export class WeaponSystem {
   }
 
   get current(): WeaponState {
-    return this.weapons[this.index];
+    return this.slots[this.index]!;
   }
 
-  /** Avancement du rechargement de 0 à 1, ou null s'il n'y en a pas. */
+  /** Arme principale (emplacement 1), ou null si on n'en a pas. */
+  get primary(): WeaponState | null {
+    return this.slots[0];
+  }
+
+  /** Avancement de l'étape de rechargement en cours, de 0 à 1, ou null. */
   get reloadProgress(): number | null {
-    return this.reloadTimer > 0 ? 1 - this.reloadTimer / this.current.def.reloadTime : null;
+    return this.reload ? 1 - this.reload.timer / this.reload.duration : null;
   }
 
   /** 1 quand l'arme vient d'être sortie, 0 quand elle est prête. */
@@ -106,8 +125,8 @@ export class WeaponSystem {
     this.drawTimer = Math.max(0, this.drawTimer - dt);
     this.sinceShot += dt;
 
-    this.weapons.forEach((weapon, i) => {
-      if (input.consumePress(SLOT_ACTIONS[weapon.def.slot]) && (i !== this.index || this.holstered)) this.equip(i);
+    SLOT_ACTIONS.forEach((action, i) => {
+      if (input.consumePress(action) && this.slots[i] && (i !== this.index || this.holstered)) this.equip(i);
     });
     if (this.holstered) {
       this.recoverPunch(dt);
@@ -119,33 +138,58 @@ export class WeaponSystem {
       return;
     }
 
-    if (this.reloadTimer > 0) {
-      this.reloadTimer -= dt;
-      if (this.reloadTimer <= 0) this.finishReload();
-    }
+    this.updateReload(dt);
     if (input.consumePress('reload')) this.startReload();
 
+    const weapon = this.current;
     const pressed = input.consumePress('attack');
     const held = input.isDown('attack');
-    const trigger = this.current.def.automatic ? held || pressed : pressed;
-    const ready = this.cooldown === 0 && this.reloadTimer <= 0 && this.drawTimer === 0;
+    const trigger = weapon.def.automatic ? held || pressed : pressed;
 
+    // Fusil à pompe : le tir interrompt le rechargement et part aussitôt, s'il y a une cartouche.
+    if (trigger && this.reload && this.reload.phase !== 'full' && this.reload.phase !== 'end' && weapon.ammo > 0) {
+      this.reload = null;
+    }
+
+    const ready = this.cooldown === 0 && !this.reload && this.drawTimer === 0;
     if (trigger && ready) {
-      if (this.current.ammo > 0) this.fire();
-      else if (this.current.reserve > 0) this.startReload();
-      else if (pressed) this.effects.dryFired(this.current.def);
+      if (weapon.ammo > 0) this.fire();
+      else if (weapon.reserve > 0) this.startReload();
+      else if (pressed) this.effects.dryFired(weapon.def);
     }
 
     // La rafale reprend du début si on relâche la gâchette assez longtemps.
-    if (!held && this.sinceShot > this.current.def.fireInterval * 1.5) this.shotsFired = 0;
+    if (!held && this.sinceShot > weapon.def.fireInterval * 1.5) this.shotsFired = 0;
+    if (this.sinceShot > weapon.def.fireInterval) this.recoverPunch(dt);
+  }
 
-    if (this.sinceShot > this.current.def.fireInterval) this.recoverPunch(dt);
+  /** Remplace l'arme principale (achat) ; null pour la retirer. La sort aussitôt si demandé. */
+  setPrimary(def: WeaponDef | null, equipNow = true): void {
+    this.slots[0] = def ? fresh(def) : null;
+    if (def && equipNow) this.equip(0);
+    else if (!def && this.index === 0) this.equip(1);
+  }
+
+  /** Remplit chargeurs et réserves de toutes les armes portées. */
+  refill(): void {
+    for (const slot of this.slots) {
+      if (!slot) continue;
+      slot.ammo = slot.def.magazine;
+      slot.reserve = slot.def.reserve;
+    }
+  }
+
+  /** À la réapparition : munitions pleines, et on sort la meilleure arme. */
+  reset(): void {
+    this.refill();
+    this.punch.pitch = this.punch.yaw = 0;
+    this.equip(this.slots[0] ? 0 : 1);
   }
 
   /** Range l'arme pour sortir une grenade. */
   holster(): void {
     this.holstered = true;
-    this.reloadTimer = 0;
+    this.reload = null;
   }
 
   /** Ressort l'arme en cours (après avoir lancé sa dernière grenade). */
@@ -167,24 +211,29 @@ export class WeaponSystem {
     this.cooldown = def.fireInterval;
     this.sinceShot = 0;
 
-    // La balle part là où pointe le réticule (regard + recul), avec une dispersion aléatoire.
+    // Les balles partent là où pointe le réticule (regard + recul), avec une dispersion aléatoire.
     this.euler.set(this.player.pitch + this.punch.pitch, this.player.yaw + this.punch.yaw, 0);
     this.aim.setFromEuler(this.euler);
-    this.direction.set(0, 0, -1).applyQuaternion(this.aim);
     this.right.set(1, 0, 0).applyQuaternion(this.aim);
     this.up.set(0, 1, 0).applyQuaternion(this.aim);
+    this.player.eyePosition(this.origin);
+    const targets = this.shootables();
+    const spread = this.spread;
 
-    const radius = Math.tan(this.spread * Math.random());
-    const angle = Math.random() * Math.PI * 2;
-    this.direction
-      .addScaledVector(this.right, Math.cos(angle) * radius)
-      .addScaledVector(this.up, Math.sin(angle) * radius)
-      .normalize();
-
-    this.raycaster.set(this.player.eyePosition(this.origin), this.direction);
-    this.raycaster.far = def.range;
-    const hit = this.raycaster.intersectObjects(this.shootables(), false)[0] ?? null;
-    this.effects.fired(def, hit, this.direction);
+    const shots: Shot[] = [];
+    for (let i = 0; i < (def.pellets ?? 1); i++) {
+      const radius = Math.tan(spread * Math.random());
+      const angle = Math.random() * Math.PI * 2;
+      const direction = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(this.aim)
+        .addScaledVector(this.right, Math.cos(angle) * radius)
+        .addScaledVector(this.up, Math.sin(angle) * radius)
+        .normalize();
+      this.raycaster.set(this.origin, direction);
+      this.raycaster.far = def.range;
+      shots.push({ hit: this.raycaster.intersectObjects(targets, false)[0] ?? null, direction });
+    }
+    this.effects.fired(def, shots);
 
     // Le recul s'applique après le tir : la première balle part toujours au centre.
     const { pattern, random } = def.recoil;
@@ -227,51 +276,68 @@ export class WeaponSystem {
     this.aim.setFromEuler(this.euler);
 
     let best: THREE.Intersection | null = null;
+    const direction = new THREE.Vector3();
     for (const [yaw, pitch] of MELEE_FAN) {
-      this.direction.set(Math.tan(yaw), Math.tan(pitch), -1).normalize().applyQuaternion(this.aim);
-      this.raycaster.set(this.origin, this.direction);
+      direction.set(Math.tan(yaw), Math.tan(pitch), -1).normalize().applyQuaternion(this.aim);
+      this.raycaster.set(this.origin, direction);
       this.raycaster.far = attack.range;
       const hit = this.raycaster.intersectObjects(this.shootables(), false)[0];
       // On préfère un bot à un mur à distance égale : la lame ne rate pas pour un rayon.
       if (hit && (!best || (hit.object.userData.bot && !best.object.userData.bot) || hit.distance < best.distance)) best = hit;
     }
-    this.direction.set(0, 0, -1).applyQuaternion(this.aim);
+    direction.set(0, 0, -1).applyQuaternion(this.aim);
     const combo = kind === 'light' && this.sinceMeleeHit < COMBO_WINDOW;
     if (best?.object.userData.bot) this.sinceMeleeHit = 0;
-    this.effects.struck(def, kind, best, this.direction, combo);
+    this.effects.struck(def, kind, best, direction, combo);
   }
 
   private startReload(): void {
     const weapon = this.current;
-    if (this.reloadTimer > 0 || this.drawTimer > 0) return;
+    if (this.reload || this.drawTimer > 0) return;
     if (weapon.ammo === weapon.def.magazine || weapon.reserve === 0) return;
-    this.reloadTimer = weapon.def.reloadTime;
-    this.effects.reloadStarted(weapon.def);
+    const shells = weapon.def.shellReload;
+    this.beginPhase(shells ? 'start' : 'full', shells ? shells.start : weapon.def.reloadTime);
   }
 
-  private finishReload(): void {
+  private beginPhase(phase: ReloadPhase, duration: number): void {
+    this.reload = { phase, timer: duration, duration };
+    this.effects.reloadStarted(this.current.def, phase, duration);
+  }
+
+  private updateReload(dt: number): void {
+    if (!this.reload) return;
+    this.reload.timer -= dt;
+    if (this.reload.timer > 0) return;
+
     const weapon = this.current;
-    const taken = Math.min(weapon.def.magazine - weapon.ammo, weapon.reserve);
-    weapon.ammo += taken;
-    weapon.reserve -= taken;
-    this.reloadTimer = 0;
-  }
-
-  /** Recharge toutes les armes et ressort la première (à la réapparition). */
-  reset(): void {
-    for (const weapon of this.weapons) {
-      weapon.ammo = weapon.def.magazine;
-      weapon.reserve = weapon.def.reserve;
+    const shells = weapon.def.shellReload;
+    switch (this.reload.phase) {
+      case 'full': {
+        const taken = Math.min(weapon.def.magazine - weapon.ammo, weapon.reserve);
+        weapon.ammo += taken;
+        weapon.reserve -= taken;
+        this.reload = null;
+        break;
+      }
+      case 'step':
+        weapon.ammo++;
+        weapon.reserve--;
+      // fallthrough : après le début ou une cartouche, on en remet une autre ou on termine.
+      case 'start':
+        if (weapon.ammo < weapon.def.magazine && weapon.reserve > 0) this.beginPhase('step', shells!.step);
+        else this.beginPhase('end', shells!.end);
+        break;
+      case 'end':
+        this.reload = null;
+        break;
     }
-    this.punch.pitch = this.punch.yaw = 0;
-    this.equip(0);
   }
 
   private equip(index: number): void {
     this.index = index;
     this.holstered = false;
     this.pendingStrike = null;
-    this.reloadTimer = 0;
+    this.reload = null;
     this.drawTimer = this.current.def.drawTime;
     this.shotsFired = 0;
     this.effects.drawn(this.current.def);

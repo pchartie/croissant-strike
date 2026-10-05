@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { WeaponDef, WeaponId } from './definitions';
-import type { MeleeKind } from './WeaponSystem';
+import type { MeleeKind, ReloadPhase } from './WeaponSystem';
 import { flashSprite } from './flash';
 import { MODEL_BUILDERS, type WeaponModel } from './models';
 import type { AnimatedWeapon } from './RetroWeapons';
@@ -156,8 +156,10 @@ export class ViewModel {
     this.flash.scale.setScalar((this.animated ? 0.16 : 0.12) + Math.random() * 0.08);
   }
 
-  reload(def: WeaponDef): void {
-    this.animated?.[def.id].play('reload', def.reloadTime);
+  /** Étape de rechargement : chargeur entier, ou début / cartouche / fin pour le fusil à pompe. */
+  reload(def: WeaponDef, phase: ReloadPhase, duration: number): void {
+    const clip = phase === 'full' ? 'reload' : `reload${phase[0].toUpperCase()}${phase.slice(1)}`;
+    this.animated?.[def.id].play(clip, duration);
   }
 
   update(dt: number, state: ViewModelState): void {

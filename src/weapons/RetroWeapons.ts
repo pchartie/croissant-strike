@@ -18,10 +18,8 @@ const VIEW_OFFSET = new THREE.Vector3(0.02, -0.015, 0);
 interface GunSpec {
   /** Nom des fichiers (fusil : rifle.fbx, rifle-extra.fbx, arms-rifle.json…). */
   file: string;
-  /** Pièce de `<file>-extra.fbx` qui sert de chargeur. */
-  magazine: string;
-  /** Os où fixer le chargeur (Main = l'arme elle-même). */
-  magazineBone: string;
+  /** Pièce de `<file>-extra.fbx` qui sert de chargeur, et l'os où la fixer (aucune pour le fusil à pompe). */
+  magazine?: { mesh: string; bone: string };
   /** Bout du canon, dans le repère de l'arme, en cm. */
   muzzle: [number, number, number];
 }
@@ -29,8 +27,11 @@ interface GunSpec {
 type GunId = Exclude<WeaponId, 'knife'>;
 
 const GUNS: Record<GunId, GunSpec> = {
-  rifle: { file: 'rifle', magazine: 'Rifle_01_Magazine_2+Bullets', magazineBone: 'Magazine', muzzle: [60, 16.5, 0] },
-  pistol: { file: 'pistol', magazine: 'Pistol_01_Magazine_Full_Mesh', magazineBone: 'Main', muzzle: [19.2, 12, 0] },
+  rifle: { file: 'rifle', magazine: { mesh: 'Rifle_01_Magazine_2+Bullets', bone: 'Magazine' }, muzzle: [60, 16.5, 0] },
+  smg: { file: 'smg', magazine: { mesh: 'SMG_01_Magazine2+Bullets_Mesh', bone: 'Magazine' }, muzzle: [36.4, 16.6, 0] },
+  // Le fusil à pompe est modélisé à l'envers : son canon est du côté +x, crosse vers -x.
+  shotgun: { file: 'shotgun', muzzle: [29.5, 0, 0] },
+  pistol: { file: 'pistol', magazine: { mesh: 'Pistol_01_Magazine_Full_Mesh', bone: 'Main' }, muzzle: [19.2, 12, 0] },
 };
 
 /**
@@ -42,7 +43,8 @@ const KNIFE_GRIP = { position: new THREE.Vector3(0.8, 4.5, 0), blade: new THREE.
 /** Décalage des bras (mètres) pour que la main reste bien visible en bas à droite. */
 const KNIFE_POSE = { pitch: 0, offset: new THREE.Vector3(0.06, 0.07, 0) };
 
-type OneShot = 'fire' | 'reload' | 'draw';
+/** Animations jouées une fois : fire, reload, draw, et reloadStart/Step/End pour le fusil à pompe. */
+type OneShot = string;
 
 /** Bras + arme animés, pour une arme. */
 export class AnimatedWeapon {
@@ -74,9 +76,10 @@ export class AnimatedWeapon {
     for (const clip of gunClips) this.gun[clip.name] = this.gunMixer.clipAction(clip);
 
     for (const name of ['idle', 'walk']) this.arms[name].play();
-    for (const name of ['fire', 'reload', 'draw']) {
-      this.arms[name].setLoop(THREE.LoopOnce, 1);
-      this.arms[name].clampWhenFinished = true;
+    for (const [name, action] of Object.entries(this.arms)) {
+      if (name === 'idle' || name === 'walk' || name === 'run') continue;
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
     }
     for (const action of Object.values(this.gun)) {
       action.setLoop(THREE.LoopOnce, 1);
@@ -89,16 +92,18 @@ export class AnimatedWeapon {
 
   /** Joue une animation ponctuelle ; `duration` l'accélère ou la ralentit pour tenir ce temps. */
   play(name: OneShot, duration?: number): void {
-    // Le tir n'interrompt pas un rechargement ou une sortie d'arme.
-    if (name === 'fire' && (this.oneShot === 'reload' || this.oneShot === 'draw') && this.arms[this.oneShot].isRunning()) return;
-    if (this.oneShot && this.oneShot !== name) this.arms[this.oneShot].stop();
-
-    this.oneShot = name;
+    // Le tir n'interrompt pas un rechargement complet ou une sortie d'arme (mais bien
+    // un rechargement cartouche par cartouche).
+    if (name === 'fire' && (this.oneShot === 'reload' || this.oneShot === 'draw') && this.arms[this.oneShot]?.isRunning()) return;
     const action = this.arms[name];
-    action.reset();
-    action.timeScale = duration ? action.getClip().duration / duration : 1;
-    action.play();
-    if (name === 'draw') this.override = 1;
+    if (action) {
+      if (this.oneShot && this.oneShot !== name) this.arms[this.oneShot]?.stop();
+      this.oneShot = name;
+      action.reset();
+      action.timeScale = duration ? action.getClip().duration / duration : 1;
+      action.play();
+      if (name === 'draw') this.override = 1;
+    }
 
     const gunAction = this.gun[name];
     if (gunAction) {
@@ -171,14 +176,14 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
       const spec = GUNS[id];
       const [gun, extra, gunTexture, armsClips, gunClips] = await Promise.all([
         fbx.loadAsync(`${BASE}${spec.file}.fbx`),
-        fbx.loadAsync(`${BASE}${spec.file}-extra.fbx`),
+        spec.magazine ? fbx.loadAsync(`${BASE}${spec.file}-extra.fbx`) : Promise.resolve(null),
         textures.loadAsync(`${BASE}${spec.file}.png`),
         loadClips(`${BASE}arms-${spec.file}.json`),
         loadClips(`${BASE}${spec.file}-anims.json`),
       ]);
 
       const materials = { arms: armsTexture, gun: gunTexture, projectiles: projectilesTexture };
-      attachMagazine(gun, extra, spec);
+      if (extra && spec.magazine) attachMagazine(gun, extra, spec.magazine);
       applyMaterials(gun, materials);
       if (id === 'rifle') botRifle = cloneSkinned(gun);
       if (id === 'pistol') pistolClips = armsClips;
@@ -213,9 +218,9 @@ async function loadClips(url: string): Promise<THREE.AnimationClip[]> {
 }
 
 /** Fixe le chargeur sur son os, orienté comme l'arme au repos. */
-function attachMagazine(gun: THREE.Object3D, extra: THREE.Object3D, spec: GunSpec): void {
-  const magazine = extra.getObjectByName(spec.magazine);
-  const bone = gun.getObjectByName(spec.magazineBone);
+function attachMagazine(gun: THREE.Object3D, extra: THREE.Object3D, spec: { mesh: string; bone: string }): void {
+  const magazine = extra.getObjectByName(spec.mesh);
+  const bone = gun.getObjectByName(spec.bone);
   if (!magazine || !bone) return;
   gun.updateMatrixWorld(true);
   const gunRotation = gun.getWorldQuaternion(new THREE.Quaternion());

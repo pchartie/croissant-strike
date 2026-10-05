@@ -77,7 +77,34 @@ function pistol(): WeaponModel {
   return { root, muzzle, rest: new THREE.Vector3(0.13, -0.15, -0.34) };
 }
 
-export const MODEL_BUILDERS: Record<WeaponId, () => WeaponModel> = { rifle, pistol, knife };
+function smg(): WeaponModel {
+  const root = new THREE.Group();
+  part(root, metal, [0.055, 0.065, 0.26], [0, 0, 0]); // boîtier
+  cylinder(root, darkMetal, 0.022, 0.2, [0, 0.01, -0.23]); // silencieux
+  part(root, darkMetal, [0.035, 0.16, 0.05], [0, -0.1, -0.06], 0.12); // chargeur
+  part(root, polymer, [0.034, 0.1, 0.045], [0, -0.07, 0.06], -0.3); // poignée
+  part(root, darkMetal, [0.03, 0.05, 0.2], [0, -0.005, 0.22]); // crosse
+  const muzzle = new THREE.Object3D();
+  muzzle.position.set(0, 0.01, -0.34);
+  root.add(muzzle);
+  return { root, muzzle, rest: new THREE.Vector3(0.15, -0.18, -0.38) };
+}
+
+function shotgun(): WeaponModel {
+  const root = new THREE.Group();
+  part(root, metal, [0.055, 0.07, 0.26], [0, 0, 0]); // boîtier
+  cylinder(root, darkMetal, 0.013, 0.5, [0, 0.02, -0.38]); // canon
+  cylinder(root, darkMetal, 0.011, 0.42, [0, -0.012, -0.34]); // magasin tubulaire
+  part(root, wood, [0.05, 0.05, 0.16], [0, -0.012, -0.36]); // pompe
+  part(root, wood, [0.036, 0.11, 0.05], [0, -0.075, 0.1], -0.35); // poignée
+  part(root, wood, [0.046, 0.08, 0.3], [0, -0.03, 0.3], 0.1); // crosse
+  const muzzle = new THREE.Object3D();
+  muzzle.position.set(0, 0.02, -0.64);
+  root.add(muzzle);
+  return { root, muzzle, rest: new THREE.Vector3(0.16, -0.2, -0.4) };
+}
+
+export const MODEL_BUILDERS: Record<WeaponId, () => WeaponModel> = { rifle, smg, shotgun, pistol, knife };
 
 /**
  * Couteau (en mètres), centré sur le manche, axe du manche et de la lame vers +y,

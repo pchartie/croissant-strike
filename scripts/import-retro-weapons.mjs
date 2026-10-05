@@ -35,19 +35,26 @@ const COPIES = [
   ['Guns/Pistol_01/FbxFiles/Pistol_01.fbx', 'pistol.fbx'],
   ['Guns/Pistol_01/FbxFiles/Pistol_01_AdditionalMeshes.fbx', 'pistol-extra.fbx'],
   ['Guns/Pistol_01/Textures/Pistol_01_Albedo.png', 'pistol.png'],
+  ['Guns/SMG_01/Fbx_Files/SMG_01.fbx', 'smg.fbx'],
+  ['Guns/SMG_01/Fbx_Files/SMG_01_AdditionalMeshes.fbx', 'smg-extra.fbx'],
+  ['Guns/SMG_01/Textures/SMG_01_Albedo.png', 'smg.png'],
+  ['Guns/Shotgun_01/FbxFiles/Shotgun_01.fbx', 'shotgun.fbx'],
+  ['Guns/Shotgun_01/Textures/Shotgun_01_Albedo.png', 'shotgun.png'],
   ['Guns/AdditionalMeshes/Projectiles/Texture/Projectiles_Albedo.png', 'projectiles.png'],
   ['FX/Textures/MuzzleFlash.png', 'muzzleflash.png'],
 ];
 
 /** Animations regroupées par fichier de sortie : nom du clip → chemin dans le pack. */
-function armsClips(gun) {
+function armsClips(gun, extra = {}) {
   const dir = `FP_Arms/FBX_Files/Animations/${gun}_Animations/`;
+  const one = (name) => `${dir}OneTimeAnimations/FP_Arms_${gun}_${name}.fbx`;
   return {
+    ...Object.fromEntries(Object.entries(extra).map(([clip, name]) => [clip, one(name)])),
     idle: `${dir}Cycles/FP_Arms_${gun}_Breathing.fbx`,
     walk: `${dir}Cycles/FP_Arms_${gun}_Walk.fbx`,
     run: `${dir}Cycles/FP_Arms_${gun}_Run.fbx`,
     fire: `${dir}OneTimeAnimations/FP_Arms_${gun}_Fire.fbx`,
-    reload: `${dir}OneTimeAnimations/FP_Arms_${gun}_Reload.fbx`,
+    ...(extra.reloadStart ? {} : { reload: one('Reload') }),
     draw: `${dir}TransitionAnimations/FP_Arms_${gun}_Draw.fbx`,
   };
 }
@@ -55,6 +62,9 @@ function armsClips(gun) {
 const ANIMATIONS = {
   'arms-rifle.json': armsClips('Rifle_01'),
   'arms-pistol.json': armsClips('Pistol_01'),
+  'arms-smg.json': armsClips('SMG_01'),
+  // Fusil à pompe : rechargement cartouche par cartouche (début, une cartouche, fin).
+  'arms-shotgun.json': armsClips('Shotgun_01', { reloadStart: 'ReloadStart', reloadStep: 'ReloadStep', reloadEnd: 'ReloadEnd' }),
   'rifle-anims.json': {
     fire: 'Guns/Rifle_01/Fbx_Files/Animations/Rifle_01_Fire.fbx',
     reload: 'Guns/Rifle_01/Fbx_Files/Animations/Rifle_01_Reload.fbx',
@@ -63,6 +73,15 @@ const ANIMATIONS = {
     fire: 'Guns/Pistol_01/FbxFiles/Animations/Pistol_01_Fire.fbx',
     reload: 'Guns/Pistol_01/FbxFiles/Animations/Pistol_01_Reload.fbx',
     empty: 'Guns/Pistol_01/FbxFiles/Animations/Pistol_01_EmptyMagazine.fbx',
+  },
+  'smg-anims.json': {
+    fire: 'Guns/SMG_01/Fbx_Files/Animations/SMG_01_Fire.fbx',
+    reload: 'Guns/SMG_01/Fbx_Files/Animations/SMG_01_Reload.fbx',
+  },
+  'shotgun-anims.json': {
+    fire: 'Guns/Shotgun_01/FbxFiles/Animations/Shotgun_01_Fire.fbx',
+    reloadStep: 'Guns/Shotgun_01/FbxFiles/Animations/Shotgun_01_ReloadStep.fbx',
+    reloadEnd: 'Guns/Shotgun_01/FbxFiles/Animations/Shotgun_01_ReloadEnd.fbx',
   },
 };
 

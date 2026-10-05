@@ -1,4 +1,5 @@
-import type { WeaponDef } from '../weapons/definitions';
+import type { WeaponDef, WeaponId } from '../weapons/definitions';
+import type { ReloadPhase } from '../weapons/WeaponSystem';
 
 /** Gain général à 100 % de volume (70 % donne le niveau d'origine du jeu). */
 const MAX_GAIN = 0.57;
@@ -12,6 +13,19 @@ const SAMPLES: Record<string, string[]> = {
   'pistol-far': ['pistol-far'],
   'reload-rifle': ['reload-rifle'],
   'reload-pistol': ['reload-pistol'],
+};
+
+/**
+ * Sons de chaque arme. Le SMG et le fusil à pompe n'ont pas d'enregistrement à eux :
+ * ils reprennent ceux de l'AR-15 et du 1911, accélérés ou ralentis.
+ */
+const SHOT_STYLES: Partial<Record<WeaponId, { samples: string; rate: number; volume: number; reload: string }>> = {
+  rifle: { samples: 'rifle', rate: 1, volume: 1, reload: 'rifle' },
+  // MP5-SD silencieux : plus aigu et plus discret.
+  smg: { samples: 'rifle', rate: 1.35, volume: 0.42, reload: 'rifle' },
+  // Nova : détonation plus grave et plus forte.
+  shotgun: { samples: 'pistol', rate: 0.62, volume: 1.25, reload: 'pistol' },
+  pistol: { samples: 'pistol', rate: 1, volume: 1, reload: 'pistol' },
 };
 
 export interface ShotOptions {
@@ -60,23 +74,47 @@ export class Audio {
   }
 
   shot(def: WeaponDef, { distant = false, loudness = 1, pan = 0 }: ShotOptions = {}): void {
-    const buffer = this.pick(distant ? `${def.id}-far` : def.id);
-    if (buffer) this.play(buffer, { volume: (distant ? 1.2 : 0.8) * loudness, pan, rate: 0.96 + Math.random() * 0.08 });
-    else this.synthShot(def, loudness);
+    const style = SHOT_STYLES[def.id];
+    const buffer = style && this.pick(distant ? `${style.samples}-far` : style.samples);
+    if (buffer) {
+      const rate = style.rate * (0.96 + Math.random() * 0.08);
+      this.play(buffer, { volume: (distant ? 1.2 : 0.8) * style.volume * loudness, pan, rate });
+    } else {
+      this.synthShot(def, loudness);
+    }
   }
 
-  /** Rechargement calé pour finir juste avant la fin de l'animation (chargeur enclenché, culasse). */
-  reload(def: WeaponDef): void {
+  /**
+   * Rechargement. Chargeur entier : enregistrement calé pour finir juste avant
+   * la fin de l'animation. Fusil à pompe : un clic par cartouche et le coup de pompe final.
+   */
+  reload(def: WeaponDef, phase: ReloadPhase, duration: number): void {
+    if (phase === 'start') {
+      this.click(0.05, 2400, 0.3);
+      return;
+    }
+    if (phase === 'step') {
+      this.click(duration * 0.4, 1500, 0.5);
+      this.click(duration * 0.48, 2900, 0.3);
+      return;
+    }
+    if (phase === 'end') {
+      this.noiseBurst('bandpass', 900, 1.2, 0.5, 0.12, duration * 0.2);
+      this.click(duration * 0.2, 1700, 0.5);
+      this.noiseBurst('bandpass', 1100, 1.2, 0.5, 0.12, duration * 0.45);
+      this.click(duration * 0.45, 2100, 0.5);
+      return;
+    }
     this.stopReload();
-    const buffer = this.pick(`reload-${def.id}`);
+    const buffer = this.pick(`reload-${SHOT_STYLES[def.id]?.reload ?? def.id}`);
     if (!buffer) {
-      const T = def.reloadTime;
+      const T = duration;
       this.click(T * 0.2, 2200);
       this.click(T * 0.6, 1800);
       this.click(T * 0.85, 2600);
       return;
     }
-    const delay = Math.max(0, def.reloadTime - buffer.duration - 0.2);
+    const delay = Math.max(0, duration - buffer.duration - 0.2);
     this.reloadSource = this.play(buffer, { volume: 0.9, delay });
   }
 

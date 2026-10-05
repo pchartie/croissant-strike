@@ -13,7 +13,7 @@ import { Impacts } from '../weapons/Impacts';
 import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
-import { WeaponSystem, type MeleeKind } from '../weapons/WeaponSystem';
+import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem';
 import { buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { loadSky } from '../world/sky';
@@ -32,6 +32,8 @@ const HEARING_DISTANCE = 60;
 const CLOSE_SHOT_DISTANCE = 10;
 /** On n'entend pas « aïe » à chaque tick passé dans le feu. */
 const HURT_SOUND_INTERVAL = 0.35;
+/** 500 unités Source : distance de référence du « range modifier » des armes. */
+const RANGE_UNIT = 500 * UNIT;
 /** Coup dans le dos si le bot regarde à moins de ~65° de la direction opposée au joueur. */
 const BACKSTAB_DOT = 0.4;
 
@@ -101,10 +103,10 @@ export class Game {
     });
 
     this.weapons = new WeaponSystem(this.player, () => [...this.world.meshes, ...this.bots.hitboxes], {
-      fired: (def, hit, direction) => this.onPlayerShot(def, hit, direction),
-      reloadStarted: (def) => {
-        this.viewModel.reload(def);
-        this.audio.reload(def);
+      fired: (def, shots) => this.onPlayerShot(def, shots),
+      reloadStarted: (def, phase, duration) => {
+        this.viewModel.reload(def, phase, duration);
+        this.audio.reload(def, phase, duration);
       },
       drawn: (def) => {
         this.grenades?.unequip();
@@ -274,26 +276,36 @@ export class Game {
 
   // --- Tirs ---
 
-  private onPlayerShot(def: WeaponDef, hit: THREE.Intersection | null, direction: THREE.Vector3): void {
+  /** Un tir du joueur : une balle, ou les plombs d'un fusil à pompe (dégâts qui baissent avec la distance). */
+  private onPlayerShot(def: WeaponDef, shots: Shot[]): void {
     this.viewModel.kick(def);
     this.audio.shot(def);
     this.muzzleLightTimer = MUZZLE_LIGHT_DURATION;
     this.bots.playerFired(this.player.position);
-    if (!hit) return;
 
-    if (!hit.object.userData.bot) {
-      this.impacts.add(hit);
-      return;
+    let touched = false;
+    let headshotHit = false;
+    for (const { hit, direction } of shots) {
+      if (!hit) continue;
+      if (!hit.object.userData.bot) {
+        this.impacts.add(hit);
+        continue;
+      }
+      const falloff = Math.pow(def.rangeModifier ?? 1, hit.distance / RANGE_UNIT);
+      const { bot, part, killed } = this.bots.hit(hit.object, def.damage * falloff);
+      const headshot = part === 'head';
+      touched = true;
+      headshotHit ||= headshot;
+      this.impacts.addBlood(hit.point, direction, shots.length > 1 ? 4 : headshot ? 18 : 10);
+      if (killed) {
+        this.kills++;
+        this.hud.addKill('Toi', bot.name, def.name, headshot);
+        this.hud.setScore(this.kills, this.deaths);
+      }
     }
-    const { bot, part, killed } = this.bots.hit(hit.object, def.damage);
-    const headshot = part === 'head';
-    this.impacts.addBlood(hit.point, direction, headshot ? 18 : 10);
-    this.hud.showHitmarker(headshot);
-    this.audio.hit(headshot);
-    if (killed) {
-      this.kills++;
-      this.hud.addKill('Toi', bot.name, def.name, headshot);
-      this.hud.setScore(this.kills, this.deaths);
+    if (touched) {
+      this.hud.showHitmarker(headshotHit);
+      this.audio.hit(headshotHit);
     }
   }
 
