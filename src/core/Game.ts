@@ -7,6 +7,7 @@ import { flashDuration } from '../grenades/flashbang';
 import { GrenadeSystem } from '../grenades/GrenadeSystem';
 import { Player } from '../player/Player';
 import { BuyMenu } from '../ui/BuyMenu';
+import { Radar } from '../ui/Radar';
 import { Hud } from '../ui/Hud';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { RIFLE, type WeaponDef } from '../weapons/definitions';
@@ -52,6 +53,9 @@ const IMPACT_HEARING = 30;
 /** Vitesse de chute au-delà de laquelle la réception fait du bruit. */
 const LANDING_SPEED = 4;
 const DOWN = new THREE.Vector3(0, -1, 0);
+/** Radar : repérage des ennemis 10 fois par seconde ; un ennemi repéré reste affiché 1,5 s. */
+const SPOT_INTERVAL_MS = 100;
+const SPOT_MEMORY_MS = 1500;
 /** Coup dans le dos si le bot regarde à moins de ~65° de la direction opposée au joueur. */
 const BACKSTAB_DOT = 0.4;
 
@@ -86,6 +90,8 @@ export class Game {
   private readonly right = new THREE.Vector3();
 
   private kills = 0;
+  /** Statistiques du joueur pour le tableau des scores et la fin de match. */
+  private stats = { shots: 0, hits: 0, headshots: 0, damage: 0 };
   private deaths = 0;
   /** Temps restant avant de réapparaître (deathmatch), ou null. */
   private respawnTimer: number | null = null;
@@ -95,6 +101,11 @@ export class Game {
   private hurtCooldown = 0;
   private playerStride = 0;
   private readonly botStrides = new Map<Bot, number>();
+  private readonly radar: Radar;
+  private readonly spotted = new Map<Bot, number>();
+  private lastSpotting = 0;
+  private readonly frustum = new THREE.Frustum();
+  private readonly projScreen = new THREE.Matrix4();
   private wasOnGround = true;
   private fallSpeed = 0;
 
@@ -122,6 +133,7 @@ export class Game {
     this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
 
     this.nav = new NavGrid(this.world.colliders, LEVEL_BOUNDS, PLAYER.radius + 0.1, PLAYER_SPAWN.position);
+    this.radar = new Radar(document.getElementById('radar') as HTMLCanvasElement, this.nav);
     this.bots = new BotManager(this.scene, this.world, this.nav, this.player, {
       shot: (shot) => this.onBotShot(shot),
     });
@@ -204,6 +216,7 @@ export class Game {
     this.bots.render(alpha);
     this.updateEffects(frameTime, mouse);
     this.updateHud();
+    this.updateRadar();
 
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
@@ -249,7 +262,7 @@ export class Game {
 
   /** Dégâts infligés au joueur, par un bot ou par une grenade (les siennes comprises). */
   /** Dégâts au joueur (`amount` brut : son gilet en arrête une partie selon la zone et l'arme). */
-  private damagePlayer(amount: number, zone: DamageZone, armorRatio: number, attacker: string, weapon: string, headshot = false): void {
+  private damagePlayer(amount: number, zone: DamageZone, armorRatio: number, attacker: string, weapon: string, headshot = false, killer?: Bot): void {
     if (!this.player.alive) return;
     const armored = this.player.armor > 0;
     this.player.health -= absorbDamage(this.player, amount, zone, armorRatio);
@@ -268,6 +281,7 @@ export class Game {
     if (this.player.alive) return;
 
     this.deaths++;
+    if (killer) killer.kills++;
     this.killer = attacker;
     this.hud.addKill(attacker, 'Toi', weapon, headshot);
     this.hud.setScore(this.kills, this.deaths);
@@ -277,16 +291,26 @@ export class Game {
   /** Dégâts infligés à un bot par le joueur ; renvoie vrai s'il en meurt. */
   /** Dégâts du joueur à un bot (grenade, feu, couteau) ; renvoie vrai s'il en meurt. */
   private damageBot(bot: Bot, amount: number, zone: DamageZone, armorRatio: number, weapon: string, reward: number, headshot = false): boolean {
+    const before = Math.max(bot.health, 0);
     const killed = this.bots.damageBot(bot, amount, zone, armorRatio);
+    this.stats.damage += before - Math.max(bot.health, 0);
     if (killed) this.onBotKilled(bot, weapon, reward, headshot);
     return killed;
   }
 
   private onBotKilled(bot: Bot, weapon: string, reward: number, headshot: boolean): void {
+    if (headshot) this.stats.headshots++;
     this.kills++;
     this.hud.addKill('Toi', bot.name, weapon, headshot);
     this.hud.setScore(this.kills, this.deaths);
     if (this.mode === 'rounds') this.economy.earn(reward, 'Élimination');
+  }
+
+  private resetStats(): void {
+    this.kills = this.deaths = 0;
+    this.stats = { shots: 0, hits: 0, headshots: 0, damage: 0 };
+    this.bots.resetStats();
+    this.hud.setScore(0, 0);
   }
 
   // --- Achat ---
@@ -426,14 +450,18 @@ export class Game {
         continue;
       }
       const falloff = Math.pow(def.rangeModifier ?? 1, hit.distance / RANGE_UNIT);
+      const healthBefore = Math.max((hit.object.userData.bot as Bot).health, 0);
       const { bot, part, killed } = this.bots.hit(hit.object, def.damage * falloff, def.armorRatio);
+      this.stats.damage += healthBefore - Math.max(bot.health, 0);
       const headshot = part === 'head';
       touched = true;
       headshotHit ||= headshot;
       this.impacts.addBlood(hit.point, direction, shots.length > 1 ? 4 : headshot ? 18 : 10);
       if (killed) this.onBotKilled(bot, def.name, def.killReward, headshot);
     }
+    this.stats.shots++;
     if (touched) {
+      this.stats.hits++;
       this.hud.showHitmarker(headshotHit);
       this.audio.hit(headshotHit);
     }
@@ -473,7 +501,7 @@ export class Game {
     this.audio.shot(RIFLE, { distant: distance > CLOSE_SHOT_DISTANCE, loudness: Math.min(loudness, 0.8), pan });
     this.tracers.add(shot.origin, shot.end);
     if (shot.worldHit) this.impactSound(this.impacts.add(shot.worldHit), shot.worldHit.point, true);
-    if (shot.playerDamage > 0) this.damagePlayer(shot.playerDamage, shot.part ?? 'body', RIFLE.armorRatio, shot.bot.name, RIFLE.name, shot.headshot);
+    if (shot.playerDamage > 0) this.damagePlayer(shot.playerDamage, shot.part ?? 'body', RIFLE.armorRatio, shot.bot.name, RIFLE.name, shot.headshot, shot.bot);
   }
 
   // --- Grenades ---
@@ -632,7 +660,7 @@ export class Game {
 
   private startMode(mode: GameMode): void {
     this.mode = mode;
-    this.kills = this.deaths = 0;
+    this.resetStats();
     this.hud.setScore(0, 0);
     this.bots.respawnEnabled = mode === 'deathmatch';
     if (mode === 'rounds') {
@@ -650,7 +678,10 @@ export class Game {
    */
   private resetRound(newMatch: boolean): void {
     const diedLastRound = !this.player.alive;
-    if (newMatch) this.economy.reset();
+    if (newMatch) {
+      this.economy.reset();
+      this.resetStats();
+    }
     if (newMatch || diedLastRound) {
       this.weapons.setPrimary(null, false);
       this.player.armor = 0;
@@ -685,6 +716,52 @@ export class Game {
   }
 
   // --- Affichage ---
+
+  /** Tableau des scores, tant que la touche (Tab) est maintenue. */
+  private updateScoreboard(): void {
+    if (!this.input.isDown('scoreboard')) {
+      this.hud.setScoreboard(null);
+      return;
+    }
+    const accuracy = this.stats.shots > 0 ? Math.round((100 * this.stats.hits) / this.stats.shots) : 0;
+    const rows = [
+      { name: 'Toi', kills: this.kills, deaths: this.deaths, extra: `${this.stats.headshots} HS · ${accuracy} %`, me: true, dead: !this.player.alive },
+      ...this.bots.bots.map((bot) => ({ name: bot.name, kills: bot.kills, deaths: bot.deaths, extra: '', me: false, dead: !bot.alive })),
+    ].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+    const round = this.rounds.current;
+    const title = this.mode === 'rounds' ? `Manche ${round.round} · Toi ${round.playerScore} – ${round.botScore} Bots` : 'Deathmatch';
+    this.hud.setScoreboard({ title, rows });
+  }
+
+  /** Bilan du joueur : éliminations, morts, précision, headshots, dégâts. */
+  private statsLine(): string {
+    const { shots, hits, headshots, damage } = this.stats;
+    const accuracy = shots > 0 ? Math.round((100 * hits) / shots) : 0;
+    return `${this.kills} élim. / ${this.deaths} morts · précision ${accuracy} % · ${headshots} headshots · ${Math.round(damage)} dégâts`;
+  }
+
+  /** Radar : ennemis repérés (dans le champ de vision et sans mur ni fumée entre eux et nous). */
+  private updateRadar(): void {
+    const now = performance.now();
+    if (now - this.lastSpotting > SPOT_INTERVAL_MS && this.player.alive) {
+      this.lastSpotting = now;
+      this.frustum.setFromProjectionMatrix(this.projScreen.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+      for (const bot of this.bots.bots) {
+        if (!bot.alive) continue;
+        const head = bot.eyePosition(this.eye.clone());
+        if (!this.frustum.containsPoint(head) || !this.clearLine(this.camera.position, head)) continue;
+        if (this.grenades.blocksVision(this.camera.position, head)) continue;
+        this.spotted.set(bot, now);
+      }
+    }
+    const enemies = [];
+    for (const [bot, time] of this.spotted) {
+      const age = now - time;
+      if (!bot.alive || age > SPOT_MEMORY_MS) continue;
+      enemies.push({ x: bot.body.position.x, z: bot.body.position.z, alpha: 1 - age / SPOT_MEMORY_MS });
+    }
+    this.radar.draw({ x: this.player.position.x, z: this.player.position.z, yaw: this.player.yaw }, enemies);
+  }
 
   private updateEffects(dt: number, mouse: { dx: number; dy: number }): void {
     this.viewModel.update(dt, {
@@ -736,6 +813,7 @@ export class Game {
       })),
     );
 
+    this.updateScoreboard();
     if (this.mode === 'deathmatch') {
       this.hud.setRound(null);
       this.hud.setBanner(null);
@@ -772,7 +850,7 @@ export class Game {
         const won = round.playerScore > round.botScore;
         this.hud.setBanner({
           title: won ? 'Victoire !' : 'Défaite',
-          text: `${round.playerScore} – ${round.botScore} · nouveau match dans ${Math.ceil(round.timeLeft)} s`,
+          text: `${round.playerScore} – ${round.botScore} · ${this.statsLine()} · nouveau match dans ${Math.ceil(round.timeLeft)} s`,
           tone: won ? 'win' : 'loss',
         });
         break;

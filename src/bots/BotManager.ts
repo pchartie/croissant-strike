@@ -137,6 +137,11 @@ export class BotManager {
     for (const bot of this.bots) bot.render(alpha);
   }
 
+  /** Remet à zéro les statistiques des bots (nouveau match, changement de mode). */
+  resetStats(): void {
+    for (const bot of this.bots) bot.kills = bot.deaths = 0;
+  }
+
   /** Les bots proches entendent les pas du joueur (quand il court) et viennent voir. */
   heardStep(position: THREE.Vector3): void {
     for (const bot of this.bots) {

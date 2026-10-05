@@ -45,6 +45,7 @@ cloudflared tunnel --url http://localhost:4173
 | R | Recharger |
 | 1 / 2 / 3 | Arme principale (M4A1, MP5-SD ou Nova) / pistolet (M1911) / couteau |
 | B | Menu d'achat (puis 1 à 0 pour acheter) |
+| Tab | Tableau des scores (maintenir) |
 | Clic gauche / droit | Avec le couteau : coup rapide / coup puissant |
 | 4 | Grenades (appuyer à nouveau pour passer à la suivante) |
 | Clic gauche / droit / les deux | Avec une grenade : lancer loin / en cloche / à mi-distance |
@@ -71,6 +72,10 @@ src/
 ```
 
 Le réticule est fixe, mais les balles se dispersent quand on court, saute ou tire en rafale : comme dans CS, il faut s'arrêter pour être précis.
+
+## Interface
+
+**Tab** (maintenu) : tableau des scores, avec éliminations, morts, headshots et précision. **Radar** en haut à gauche : la carte tourne avec le regard, et les ennemis apparaissent en rouge quand on les voit (ils s'effacent 1,5 s après). En fin de match (mode manches) : bilan avec éliminations, morts, précision, headshots et dégâts.
 
 ## Réglages
 

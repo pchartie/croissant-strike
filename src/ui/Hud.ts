@@ -37,6 +37,8 @@ export class Hud {
   private readonly play = document.getElementById('play')!;
   private readonly crosshair = document.getElementById('crosshair')!;
   private readonly money = document.getElementById('money')!;
+  private readonly scoreboard = document.getElementById('scoreboard')!;
+  private lastScoreboard = '';
   private readonly armor = document.getElementById('armor')!;
   private lastMoney = '';
   private lastArmor = '';
@@ -202,6 +204,20 @@ export class Hud {
       span.textContent = extra;
       this.money.append(span);
     }
+  }
+
+  /** Tableau des scores (touche Tab), ou null pour le cacher. */
+  setScoreboard(board: { title: string; rows: { name: string; kills: number; deaths: number; extra: string; me: boolean; dead: boolean }[] } | null): void {
+    this.scoreboard.classList.toggle('hidden', board === null);
+    if (!board) return;
+    const escape = (text: string) => text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+    const rows = board.rows
+      .map((r) => `<tr class="${r.me ? 'me' : ''} ${r.dead ? 'dead' : ''}"><td>${escape(r.name)}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${escape(r.extra)}</td></tr>`)
+      .join('');
+    const html = `<h2>${escape(board.title)}</h2><table><tr><th>Joueur</th><th>Élim.</th><th>Morts</th><th></th></tr>${rows}</table>`;
+    if (html === this.lastScoreboard) return;
+    this.lastScoreboard = html;
+    this.scoreboard.innerHTML = html;
   }
 
   /** Gilet pare-balles (et casque) affiché à côté de la santé. */

@@ -642,3 +642,70 @@ kbd {
   color: #ffd34d;
   font-size: 13px;
 }
+
+#scoreboard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 420px;
+  padding: 16px 20px;
+  border-radius: 8px;
+  background: rgba(12, 14, 17, 0.9);
+  color: #eee;
+  font-variant-numeric: tabular-nums;
+}
+
+#scoreboard.hidden {
+  display: none;
+}
+
+#scoreboard h2 {
+  margin-bottom: 10px;
+  font-size: 18px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+#scoreboard table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#scoreboard th,
+#scoreboard td {
+  padding: 4px 8px;
+  text-align: right;
+}
+
+#scoreboard th:first-child,
+#scoreboard td:first-child {
+  text-align: left;
+}
+
+#scoreboard th {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.6;
+  border-bottom: 1px solid #333;
+}
+
+#scoreboard tr.me td {
+  color: #4dff4d;
+  font-weight: 700;
+}
+
+#scoreboard tr.dead td {
+  opacity: 0.45;
+}
+
+#radar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+}

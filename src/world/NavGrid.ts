@@ -71,6 +71,11 @@ export class NavGrid {
     this.markReachable(start);
   }
 
+  /** Données brutes de la grille, pour dessiner la carte du radar. */
+  mapData(): { cols: number; rows: number; originX: number; originZ: number; cell: number; floor: Float64Array; reachable: Uint8Array } {
+    return { cols: this.cols, rows: this.rows, originX: this.originX, originZ: this.originZ, cell: CELL, floor: this.floor, reachable: this.reachable };
+  }
+
   /** Hauteur du sol à cet endroit. */
   floorAt(x: number, z: number): number {
     const [c, r] = this.cellOf(x, z);

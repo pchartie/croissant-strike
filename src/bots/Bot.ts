@@ -48,6 +48,9 @@ export class Bot {
   helmet = true;
   /** En mode passif, le bot patrouille sans jamais attaquer ni chercher le joueur. */
   private aggressive = true;
+  /** Statistiques pour le tableau des scores. */
+  kills = 0;
+  deaths = 0;
   /** Temps écoulé depuis la mort. */
   deadTime = 0;
 
@@ -144,6 +147,7 @@ export class Bot {
     if (!this.alive) return false;
     this.health -= amount;
     if (this.health <= 0) {
+      this.deaths++;
       this.state = 'dead';
       this.deadTime = 0;
       return true;

@@ -14,7 +14,8 @@ export type Action =
   | 'weapon2'
   | 'weapon3'
   | 'grenades'
-  | 'buy';
+  | 'buy'
+  | 'scoreboard';
 
 /** Codes de touches : ceux du clavier (`KeyW`…), `Mouse0` à `Mouse4` et `Wheel` pour la molette. */
 export type Bindings = Record<Action, string[]>;
@@ -38,6 +39,7 @@ export const ACTIONS: { action: Action; label: string }[] = [
   { action: 'weapon3', label: 'Couteau' },
   { action: 'grenades', label: 'Grenades (appuyer à nouveau pour changer)' },
   { action: 'buy', label: "Menu d'achat" },
+  { action: 'scoreboard', label: 'Tableau des scores (maintenir)' },
 ];
 
 // Codes physiques : sur un clavier AZERTY, KeyW est la touche Z et KeyA la touche Q.
@@ -58,6 +60,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   weapon3: ['Digit3'],
   grenades: ['Digit4'],
   buy: ['KeyB'],
+  scoreboard: ['Tab'],
 };
 
 /** Touches qu'on ne peut pas assigner : Échap met le jeu en pause. */
