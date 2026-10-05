@@ -5,6 +5,16 @@ import type { World } from '../world/World';
 
 const MAX_PITCH = THREE.MathUtils.degToRad(89);
 const AXES = ['x', 'z', 'y'] as const;
+/**
+ * Petit écart laissé entre le joueur et un mur après une collision. Sans lui,
+ * les arrondis de calcul laissent le joueur « dans » le mur d'un cheveu, et la
+ * collision suivante sur un autre axe le téléporte dessus ou dessous.
+ */
+const SKIN = 1e-4;
+/** sv_maxvelocity de CS: Source. */
+const MAX_VELOCITY = 3500 * 0.0254;
+/** En dessous de cette hauteur, le joueur est tombé hors de la carte. */
+const KILL_Y = -20;
 
 /**
  * Joueur avec les déplacements de Counter-Strike: Source : frottement au sol,
@@ -68,7 +78,13 @@ export class Player {
     }
 
     this.velocity.y -= MOVE.gravity * dt;
+    this.velocity.clampLength(0, MAX_VELOCITY);
     this.moveAndCollide(dt);
+  }
+
+  /** Vrai si le joueur est tombé hors de la carte (filet de sécurité). */
+  get outOfMap(): boolean {
+    return this.position.y < KILL_Y;
   }
 
   private applyFriction(dt: number): void {
@@ -103,11 +119,12 @@ export class Player {
 
       for (const collider of this.world.colliders) {
         if (!overlaps(this.box, collider)) continue;
-        const offset = axis === 'y' ? 0 : PLAYER.radius;
+        const below = axis === 'y' ? PLAYER.height : PLAYER.radius;
+        const above = axis === 'y' ? 0 : PLAYER.radius;
         if (delta > 0) {
-          this.position[axis] = collider.min[axis] - (axis === 'y' ? PLAYER.height : offset);
+          this.position[axis] = collider.min[axis] - below - SKIN;
         } else {
-          this.position[axis] = collider.max[axis] + offset;
+          this.position[axis] = collider.max[axis] + above + SKIN;
           if (axis === 'y') this.onGround = true;
         }
         this.velocity[axis] = 0;

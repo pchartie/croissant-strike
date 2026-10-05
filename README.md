@@ -41,6 +41,6 @@ src/
 └── ui/            HUD et écran de pause
 ```
 
-Le réticule s'écarte selon la précision réelle de l'arme : il grandit quand on court, saute ou tire en rafale.
+Le réticule est fixe, mais les balles se dispersent quand on court, saute ou tire en rafale : comme dans CS, il faut s'arrêter pour être précis.
 
 À venir : `bots/` (ennemis).

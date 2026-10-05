@@ -68,7 +68,7 @@ export class WeaponSystem {
     return this.drawTimer / this.current.def.drawTime;
   }
 
-  /** Imprécision actuelle en radians, aussi utilisée pour écarter le réticule. */
+  /** Imprécision actuelle en radians. */
   get spread(): number {
     const { spread } = this.current.def;
     const speed = Math.min(this.player.horizontalSpeed / MOVE.maxSpeed, 1);

@@ -12,7 +12,6 @@ import { Input } from './Input';
 
 const MAX_FRAME_TIME = 0.1;
 const MUZZLE_LIGHT_DURATION = 0.04;
-const CROSSHAIR_MIN_GAP = 4;
 
 export class Game {
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -90,6 +89,7 @@ export class Game {
       this.accumulator += frameTime;
       while (this.accumulator >= TICK) {
         this.player.update(TICK, this.input);
+        if (this.player.outOfMap) this.player.spawn(SPAWN.position, SPAWN.yaw);
         this.weapons.update(TICK, this.input);
         this.input.endTick();
         this.accumulator -= TICK;
@@ -128,11 +128,6 @@ export class Game {
 
     const { def, ammo, reserve } = this.weapons.current;
     this.hud.setAmmo(def.name, ammo, reserve);
-
-    // Convertit l'angle de dispersion en pixels à l'écran.
-    const halfFov = THREE.MathUtils.degToRad(CAMERA.fov / 2);
-    const spreadPixels = (Math.tan(this.weapons.spread) / Math.tan(halfFov)) * (window.innerHeight / 2);
-    this.hud.setCrosshairGap(CROSSHAIR_MIN_GAP + spreadPixels);
   }
 
   private resize(): void {
