@@ -274,6 +274,35 @@ export class Audio {
     this.noiseBurst('lowpass', 1200, 0.7, 0.7 * loudness, 0.3, 0, pan);
   }
 
+  /** Bip aigu de la bombe posée. */
+  bombBeep(loudness: number, pan: number): void {
+    this.tone(1950, 0.12, 0.22 * loudness, 'square', pan);
+  }
+
+  /** Touches du clavier de la bombe pendant la pose (une par appel). */
+  bombKey(): void {
+    this.tone(1200 + Math.random() * 600, 0.06, 0.08, 'square');
+  }
+
+  /** Bombe posée : deux bips plus graves, comme le « bomb has been planted ». */
+  bombPlanted(loudness: number, pan: number): void {
+    this.tone(880, 0.25, 0.25 * loudness, 'square', pan);
+    this.noiseBurst('bandpass', 2400, 3, 0.2 * loudness, 0.05, 0.3, pan);
+  }
+
+  /** Bombe désamorcée : déclic et petite mélodie descendante. */
+  bombDefused(loudness: number, pan: number): void {
+    this.click(0, 2600, 0.5 * loudness, pan);
+    this.sweep(900, 300, 0.4, 0.25 * loudness, pan);
+  }
+
+  /** Explosion de la bombe : la HE en bien plus long et plus grave. */
+  bombExplosion(loudness: number, pan: number): void {
+    this.explosion(loudness, pan);
+    this.noiseBurst('lowpass', 220, 0.7, 1.6 * loudness, 3.5, 0.05, pan, 1.2);
+    this.sweep(60, 18, 2.2, 1.3 * loudness, pan);
+  }
+
   private async loadSamples(ctx: AudioContext): Promise<void> {
     const names = new Set(Object.values(SAMPLES).flat());
     await Promise.all(

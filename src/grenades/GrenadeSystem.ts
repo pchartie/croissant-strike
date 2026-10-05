@@ -128,6 +128,17 @@ export class GrenadeSystem {
   }
 
   /** Retire toutes les grenades et leurs effets (nouvelle manche). */
+  /** Explosion de la bombe : une gerbe d'explosions de HE et une grande trace noire au sol. */
+  bigExplosion(position: THREE.Vector3): void {
+    for (let i = 0; i < 7; i++) {
+      const angle = (i / 7) * Math.PI * 2;
+      const spread = i === 0 ? 0 : 1.5 + Math.random() * 2;
+      const at = position.clone().add(new THREE.Vector3(Math.cos(angle) * spread, 0.3 + Math.random() * 2.5 * Math.min(i, 1), Math.sin(angle) * spread));
+      this.addEffect(this.explosions, new Explosion(at));
+    }
+    this.addEffect(this.scorches, new Scorch(position.clone().setY(position.y + 0.01), 9, 60));
+  }
+
   clear(): void {
     for (const p of this.projectiles) this.scene.remove(p.mesh);
     for (const d of this.decoys) this.scene.remove(d.projectile.mesh);

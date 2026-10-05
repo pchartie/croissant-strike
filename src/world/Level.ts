@@ -38,6 +38,20 @@ export const LEVEL_BOUNDS = new THREE.Box3(new THREE.Vector3(-HALF, 0, -HALF), n
 /** Apparition du joueur : au sud, face au nord. */
 export const PLAYER_SPAWN = { position: new THREE.Vector3(0, 0, 31), yaw: 0 };
 
+/** Site où poser la bombe : sa zone (plateforme et escaliers) et un point dégagé au milieu. */
+export interface BombSite {
+  readonly name: 'A' | 'B';
+  readonly zone: THREE.Box3;
+  readonly center: THREE.Vector3;
+  /** Où est peinte la lettre du site. */
+  readonly marker: THREE.Vector3;
+}
+
+export const BOMB_SITES: readonly BombSite[] = [
+  { name: 'A', zone: new THREE.Box3(new THREE.Vector3(-34, 0, -22), new THREE.Vector3(-22, 4, -10)), center: new THREE.Vector3(-27.5, 1.2, -19), marker: new THREE.Vector3(-25.5, 1.2, -17.5) },
+  { name: 'B', zone: new THREE.Box3(new THREE.Vector3(24, 0, -21), new THREE.Vector3(34, 4, -10)), center: new THREE.Vector3(29, 0.9, -17.5), marker: new THREE.Vector3(27.5, 0.9, -15) },
+];
+
 /** Construit la carte ; renvoie le soleil (pour régler la qualité des ombres). */
 export function buildLevel(world: World, anisotropy: number): THREE.DirectionalLight {
   const sun = setupLighting(world.scene);

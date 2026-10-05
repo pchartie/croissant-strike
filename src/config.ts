@@ -76,6 +76,23 @@ export const ROUNDS = {
   toWin: 5,
 };
 
+/** Mode bombe, valeurs de CS:GO. */
+export const BOMB = {
+  /** Temps pour poser la bombe (immobile, sur un site). */
+  plantTime: 3.2,
+  /** Temps pour la désamorcer sans kit. */
+  defuseTime: 10,
+  /** Compte à rebours une fois posée. */
+  timer: 40,
+  /** Rayon où l'explosion blesse, et dégâts au centre (mortels de près). */
+  radius: 20,
+  damage: 500,
+  /** Prime du poseur. */
+  plantReward: 300,
+  /** Distance pour ramasser la bombe tombée. */
+  pickupRange: 1,
+};
+
 /** Économie du mode manches, valeurs de CS:GO. */
 export const ECONOMY = {
   start: 800,

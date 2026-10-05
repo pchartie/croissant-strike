@@ -1,6 +1,6 @@
 import { DEFAULT_BINDINGS, validateBindings, type Bindings } from './bindings';
 
-export type GameMode = 'deathmatch' | 'rounds';
+export type GameMode = 'deathmatch' | 'rounds' | 'bomb';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type CrosshairColor = 'green' | 'white' | 'red' | 'cyan' | 'yellow';
 export type CrosshairSize = 'small' | 'medium' | 'large';
@@ -81,6 +81,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
         options: [
           { value: 'deathmatch', label: 'Deathmatch' },
           { value: 'rounds', label: 'Manches' },
+          { value: 'bomb', label: 'Bombe' },
         ],
       },
       { key: 'botsEnabled', label: 'Bots', type: 'toggle', on: 'Activés', off: 'Désactivés' },

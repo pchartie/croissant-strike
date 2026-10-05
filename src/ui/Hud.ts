@@ -39,6 +39,11 @@ export class Hud {
   private readonly money = document.getElementById('money')!;
   private readonly scoreboard = document.getElementById('scoreboard')!;
   private readonly fps = document.getElementById('fps')!;
+  private readonly objective = document.getElementById('objective')!;
+  private readonly objectiveText = document.getElementById('objective-text')!;
+  private readonly objectiveBar = document.getElementById('objective-bar')!;
+  private readonly objectiveFill = document.querySelector<HTMLElement>('#objective-bar div')!;
+  private lastObjective = '';
   private lastScoreboard = '';
   private readonly armor = document.getElementById('armor')!;
   private lastMoney = '';
@@ -224,6 +229,20 @@ export class Hud {
   }
 
   /** Gilet pare-balles (et casque) affiché à côté de la santé. */
+  /** Consigne du mode bombe (`null` : cachée), avec une barre de progression (pose, désamorçage). */
+  setObjective(objective: { text: string; progress: number | null; alert?: boolean } | null): void {
+    const progress = objective?.progress ?? null;
+    const key = objective ? `${objective.text}|${progress === null ? '' : progress.toFixed(2)}|${objective.alert ?? false}` : '';
+    if (key === this.lastObjective) return;
+    this.lastObjective = key;
+    this.objective.classList.toggle('hidden', !objective);
+    if (!objective) return;
+    this.objective.classList.toggle('alert', objective.alert ?? false);
+    this.objectiveText.textContent = objective.text;
+    this.objectiveBar.classList.toggle('visible', progress !== null);
+    if (progress !== null) this.objectiveFill.style.width = `${Math.min(progress, 1) * 100}%`;
+  }
+
   setArmor(armor: number, helmet: boolean): void {
     const value = Math.ceil(armor);
     const text = value > 0 ? `${helmet ? 'Gilet + casque' : 'Gilet'} ${value}` : '';

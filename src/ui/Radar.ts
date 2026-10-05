@@ -1,5 +1,12 @@
 import type { NavGrid } from '../world/NavGrid';
 
+export interface RadarMark {
+  x: number;
+  z: number;
+  color: string;
+  label?: string;
+}
+
 /** Rayon couvert par le radar, en mètres. */
 const RANGE = 28;
 
@@ -39,7 +46,13 @@ export class Radar {
     map.putImageData(image, 0, 0);
   }
 
-  draw(player: { x: number; z: number; yaw: number }, enemies: { x: number; z: number; alpha: number }[], allies: { x: number; z: number }[] = []): void {
+  /** `marks` : repères du mode bombe (lettres des sites, bombe), des lettres ou des points. */
+  draw(
+    player: { x: number; z: number; yaw: number },
+    enemies: { x: number; z: number; alpha: number }[],
+    allies: { x: number; z: number }[] = [],
+    marks: RadarMark[] = [],
+  ): void {
     const { ctx, canvas } = this;
     const size = canvas.width;
     const half = size / 2;
@@ -59,6 +72,25 @@ export class Radar {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(this.map, this.bounds.x, this.bounds.z, this.bounds.width, this.bounds.depth);
 
+    for (const mark of marks) {
+      ctx.fillStyle = mark.color;
+      if (mark.label) {
+        // Lettre toujours droite, quel que soit le sens du radar.
+        ctx.save();
+        ctx.translate(mark.x, mark.z);
+        ctx.rotate(-player.yaw);
+        ctx.scale(1 / scale, 1 / scale);
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(mark.label, 0, 0);
+        ctx.restore();
+      } else {
+        ctx.beginPath();
+        ctx.arc(mark.x, mark.z, 4 / scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     ctx.fillStyle = '#4da3ff';
     for (const ally of allies) {
       ctx.beginPath();

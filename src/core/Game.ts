@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import type { Bot } from '../bots/Bot';
 import { BotManager, type BotShot } from '../bots/BotManager';
-import { CAMERA, ECONOMY, MOVE, PLAYER, TICK, UNIT } from '../config';
+import { BOMB, CAMERA, ECONOMY, MOVE, PLAYER, TICK, UNIT } from '../config';
 import { DECOY, GRENADE_ORDER, GRENADES, HE, MOLOTOV } from '../grenades/definitions';
 import { throwVelocity } from '../grenades/ballistics';
 import { flashDuration } from '../grenades/flashbang';
 import { GrenadeSystem } from '../grenades/GrenadeSystem';
 import { Player } from '../player/Player';
 import { BuyMenu } from '../ui/BuyMenu';
-import { Radar } from '../ui/Radar';
+import { Radar, type RadarMark } from '../ui/Radar';
 import { Hud } from '../ui/Hud';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { RIFLE, type WeaponDef } from '../weapons/definitions';
@@ -17,12 +17,14 @@ import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
 import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem';
-import { buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
+import { BOMB_SITES, buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN, type BombSite } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { loadSky } from '../world/sky';
 import { surfaceOf, type Surface } from '../world/surfaces';
 import { World } from '../world/World';
 import { absorbDamage, BLAST_ARMOR_RATIO, type DamageZone } from './armor';
+import { keyName } from './bindings';
+import { BombMode, type Carrier } from './BombMode';
 import { Audio } from './Audio';
 import { Economy } from './Economy';
 import { HELMET_UPGRADE_PRICE, SHOP_ITEMS, type ShopItem } from './shop';
@@ -79,6 +81,10 @@ export class Game {
   private readonly grenades: GrenadeSystem;
   private readonly bots: BotManager;
   private readonly rounds: Rounds;
+  private readonly bomb: BombMode;
+  /** Nom de la touche pour poser la bombe, pour la consigne à l'écran. */
+  private useKey = 'E';
+  private plantKeyTimer = 0;
   private mode: GameMode = 'deathmatch';
   private readonly economy = new Economy();
   private readonly buyMenu = new BuyMenu();
@@ -166,6 +172,7 @@ export class Game {
 
     this.grenades = this.createGrenades();
     this.bots.setVisionBlocker((from, to) => this.grenades.blocksVision(from, to));
+    this.bomb = this.createBomb();
     this.rounds = new Rounds({
       reset: (newMatch) => this.resetRound(newMatch),
       ended: (winner) => this.economy.roundEnded(winner === 'player'),
@@ -242,7 +249,7 @@ export class Game {
 
   private tick(): void {
     // Pendant le gel de début de manche, on peut regarder autour mais pas bouger ni tirer.
-    const frozen = this.mode === 'rounds' && this.rounds.frozen;
+    const frozen = this.roundBased && this.rounds.frozen;
 
     // Le menu d'achat passe en premier : ses touches 1 à 0 ne doivent pas changer d'arme.
     this.updateBuyMenu();
@@ -265,7 +272,8 @@ export class Game {
     this.grenades.update(TICK);
     this.applyFire();
     this.updateFootsteps();
-    if (this.mode === 'rounds') this.rounds.update(TICK, this.player.alive, this.bots.aliveCount, this.bots.alliesAlive);
+    if (this.mode === 'bomb' && this.rounds.current.phase === 'live') this.updateBomb();
+    if (this.roundBased) this.rounds.update(TICK, this.player.alive, this.bots.aliveCount, this.bots.alliesAlive, this.bomb.planted);
 
     this.flashTime = Math.max(0, this.flashTime - TICK);
     this.hurtCooldown = Math.max(0, this.hurtCooldown - TICK);
@@ -317,7 +325,7 @@ export class Game {
     this.kills++;
     this.hud.addKill('Toi', bot.name, weapon, headshot);
     this.hud.setScore(this.kills, this.deaths);
-    if (this.mode === 'rounds') this.economy.earn(reward, 'Élimination');
+    if (this.roundBased) this.economy.earn(reward, 'Élimination');
   }
 
   private resetStats(): void {
@@ -379,7 +387,7 @@ export class Game {
         break;
     }
     if (owned) return 'owned';
-    return this.mode === 'rounds' && this.priceOf(item) > this.economy.money ? 'expensive' : 'ok';
+    return this.roundBased && this.priceOf(item) > this.economy.money ? 'expensive' : 'ok';
   }
 
   private buy(item: ShopItem): void {
@@ -388,7 +396,7 @@ export class Game {
       this.buyMenu.message = item.kind === 'grenade' ? 'Limite de grenades atteinte' : 'Déjà équipé';
       return;
     }
-    if (this.mode === 'rounds' && !this.economy.spend(this.priceOf(item))) {
+    if (this.roundBased && !this.economy.spend(this.priceOf(item))) {
       this.buyMenu.message = "Pas assez d'argent";
       return;
     }
@@ -538,6 +546,104 @@ export class Game {
     this.hud.addKill(attacker.name, victim.name, weapon, headshot);
   }
 
+  // --- Bombe ---
+
+  private createBomb(): BombMode {
+    return new BombMode(this.scene, this.player, this.bots, {
+      planted: (site, by) => this.onBombPlanted(site, by),
+      exploded: (position) => this.onBombExploded(position),
+      defused: (by) => {
+        const { loudness, pan } = this.hearing(this.bomb.position);
+        this.audio.bombDefused(Math.max(loudness, 0.5), pan);
+        this.rounds.end('bots', `${by.name} a désamorcé la bombe`);
+      },
+      beep: (position) => {
+        const { loudness, pan } = this.hearing(position);
+        this.audio.bombBeep(loudness, pan);
+      },
+      pickedUp: (by) => {
+        if (by === 'player') this.audio.draw();
+      },
+    });
+  }
+
+  /** Mode bombe, à chaque tick d'une manche en cours : pose (touche maintenue), bombe tombée, compte à rebours. */
+  private updateBomb(): void {
+    const planting = this.player.alive && this.input.isDown('use');
+    this.bomb.update(TICK, planting);
+    // Petits bips des touches tapées sur le clavier de la bombe pendant la pose.
+    this.plantKeyTimer -= TICK;
+    if (this.bomb.playerCarrying && this.bomb.plantProgress > 0 && this.plantKeyTimer <= 0) {
+      this.plantKeyTimer = 0.32;
+      this.audio.bombKey();
+    }
+  }
+
+  private onBombPlanted(site: BombSite, by: Carrier): void {
+    const { loudness, pan } = this.hearing(this.bomb.position);
+    this.audio.bombPlanted(Math.max(loudness, 0.6), pan);
+    if (by === 'player') this.economy.earn(BOMB.plantReward, 'Bombe posée');
+    this.hud.addKill(by === 'player' ? 'Toi' : by.name, `site ${site.name}`, 'Bombe posée', false);
+  }
+
+  /** La bombe explose : tout le monde autour est touché (murs compris), et l'équipe du joueur gagne la manche. */
+  private onBombExploded(position: THREE.Vector3): void {
+    const { loudness, pan, distance } = this.hearing(position);
+    this.audio.bombExplosion(Math.max(loudness, 0.5), pan);
+    this.grenades.bigExplosion(position);
+    const shake = Math.max(0, 1 - distance / 40) * 0.12;
+    this.weapons.punch.pitch += (Math.random() - 0.3) * shake;
+    this.weapons.punch.yaw += (Math.random() - 0.5) * shake;
+
+    const sigma = BOMB.radius / 3;
+    const damageAt = (feet: THREE.Vector3) => {
+      const d = feet.distanceTo(position);
+      return d > BOMB.radius ? 0 : BOMB.damage * Math.exp(-(d * d) / (2 * sigma * sigma));
+    };
+    for (const bot of this.bots.bots) {
+      if (!bot.alive) continue;
+      const damage = damageAt(bot.body.position);
+      if (damage >= 1 && this.bots.damageBot(bot, damage, 'blast', BLAST_ARMOR_RATIO, position)) this.hud.addKill('Bombe', bot.name, 'C4', false);
+    }
+    if (this.player.alive) {
+      const damage = damageAt(this.player.position);
+      if (damage >= 1) this.damagePlayer(damage, 'blast', BLAST_ARMOR_RATIO, 'Bombe', 'C4');
+    }
+    this.rounds.end('player', 'La bombe a explosé');
+  }
+
+  /** Consigne affichée en haut de l'écran en mode bombe. */
+  private bombObjective(): { text: string; progress: number | null; alert?: boolean } | null {
+    const bomb = this.bomb;
+    if (this.rounds.current.phase !== 'live') return null;
+    switch (bomb.state) {
+      case 'carried': {
+        if (bomb.carrier !== 'player') return { text: `${bomb.carrier!.name} a la bombe`, progress: bomb.plantProgress > 0 ? bomb.plantProgress : null };
+        const site = bomb.siteAt(this.player.position);
+        if (bomb.plantProgress > 0) return { text: `Pose de la bombe sur ${site?.name ?? ''}…`, progress: bomb.plantProgress };
+        if (site) return { text: `Site ${site.name} : maintiens ${this.useKey} pour poser la bombe`, progress: null };
+        return { text: 'Tu as la bombe : pose-la sur le site A ou B', progress: null };
+      }
+      case 'dropped':
+        return { text: 'Bombe tombée !', progress: null, alert: true };
+      case 'planted': {
+        const time = `${Math.ceil(bomb.timeLeft)} s`;
+        if (bomb.defuser) return { text: `${bomb.defuser.name} désamorce la bombe ! (${time})`, progress: bomb.defuseProgress, alert: true };
+        return { text: `Bombe posée sur ${bomb.site!.name} · explosion dans ${time}`, progress: null };
+      }
+      default:
+        return null;
+    }
+  }
+
+  /** Repères du radar en mode bombe : lettres des sites et bombe au sol (rouge). */
+  private radarMarks(): RadarMark[] {
+    if (this.mode !== 'bomb') return [];
+    const marks: RadarMark[] = BOMB_SITES.map((site) => ({ x: site.center.x, z: site.center.z, color: '#ff8a3d', label: site.name }));
+    if (this.bomb.state === 'dropped' || this.bomb.state === 'planted') marks.push({ x: this.bomb.position.x, z: this.bomb.position.z, color: '#ff3b1f' });
+    return marks;
+  }
+
   // --- Grenades ---
 
   private createGrenades(): GrenadeSystem {
@@ -685,6 +791,7 @@ export class Game {
   /** Applique tous les réglages (appelé au démarrage et à chaque changement dans le menu). */
   private applySettings(settings: Settings): void {
     this.input.setBindings(settings.bindings);
+    this.useKey = keyName(settings.bindings.use[0] ?? 'KeyE');
     this.player.sensitivity = (0.022 * settings.sensitivity * Math.PI) / 180;
     this.player.invertY = settings.invertY;
     if (this.camera.fov !== settings.fov) {
@@ -722,12 +829,18 @@ export class Game {
     this.hud.setFpsVisible(settings.showFps);
   }
 
+  /** Manches et bombe : une vie par manche, économie, achats limités dans le temps. */
+  private get roundBased(): boolean {
+    return this.mode !== 'deathmatch';
+  }
+
   private startMode(mode: GameMode): void {
     this.mode = mode;
     this.resetStats();
     this.hud.setScore(0, 0);
     this.bots.respawnEnabled = mode === 'deathmatch';
-    if (mode === 'rounds') {
+    if (mode !== 'bomb') this.bomb.stop();
+    if (this.roundBased) {
       this.rounds.startMatch();
     } else {
       this.grenades.clear();
@@ -761,6 +874,7 @@ export class Game {
     this.grenades.clear();
     this.buyMenu.close();
     this.bots.resetForRound();
+    if (this.mode === 'bomb') this.bomb.startRound();
   }
 
   /** Réapparition en deathmatch, hors de vue des bots. */
@@ -796,7 +910,9 @@ export class Game {
     const rows =
       this.bots.allies.length > 0 ? [...[me, ...this.bots.allies.map(row)].sort(byScore), ...enemies.sort(byScore)] : [me, ...enemies].sort(byScore);
     const round = this.rounds.current;
-    const title = this.mode === 'rounds' ? `Manche ${round.round} · Toi ${round.playerScore} – ${round.botScore} Bots` : 'Deathmatch';
+    const title = this.roundBased
+      ? `${this.mode === 'bomb' ? 'Bombe' : 'Manches'} · manche ${round.round} · Toi ${round.playerScore} – ${round.botScore} Bots`
+      : 'Deathmatch';
     this.hud.setScoreboard({ title, rows });
   }
 
@@ -829,7 +945,7 @@ export class Game {
     }
     // Les coéquipiers sont toujours affichés, comme dans CS.
     const allies = this.bots.allies.filter((bot) => bot.alive).map((bot) => ({ x: bot.body.position.x, z: bot.body.position.z }));
-    this.radar.draw({ x: this.player.position.x, z: this.player.position.z, yaw: this.player.yaw }, enemies, allies);
+    this.radar.draw({ x: this.player.position.x, z: this.player.position.z, yaw: this.player.yaw }, enemies, allies, this.radarMarks());
   }
 
   private updateEffects(dt: number, mouse: { dx: number; dy: number }): void {
@@ -859,11 +975,11 @@ export class Game {
     this.hud.setSmoke(this.grenades.smokeAt(this.camera.position) * 0.92);
 
     const gain = this.economy.lastGain && performance.now() - this.economy.lastGain.time < GAIN_DISPLAY_MS ? this.economy.lastGain : null;
-    this.hud.setMoney(this.mode === 'rounds' ? this.economy.money : null, gain);
+    this.hud.setMoney(this.roundBased ? this.economy.money : null, gain);
     this.hud.setArmor(this.player.armor, this.player.helmet);
     this.buyMenu.render(
       SHOP_ITEMS.map((item) => ({ key: item.key, label: item.label, price: this.priceOf(item), state: this.itemState(item) })),
-      this.mode === 'rounds' ? this.economy.money : null,
+      this.roundBased ? this.economy.money : null,
       this.buyTimeLeft,
     );
 
@@ -883,6 +999,7 @@ export class Game {
     );
 
     this.updateScoreboard();
+    this.hud.setObjective(this.mode === 'bomb' ? this.bombObjective() : null);
     if (this.mode === 'deathmatch') {
       this.hud.setRound(null);
       this.hud.setBanner(null);

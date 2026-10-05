@@ -10,6 +10,8 @@ const THINK_INTERVAL = 0.1;
 const WALK_SPEED = MOVE.maxSpeed * 0.85;
 const STRAFE_SPEED = MOVE.maxSpeed * 0.75;
 const WAYPOINT_REACHED = 0.35;
+/** Distance à laquelle un bot est arrivé sur son objectif. */
+const OBJECTIVE_REACHED = 1;
 /** Temps sans voir le joueur avant d'aller le chercher là où il a été vu. */
 const LOSE_SIGHT_DELAY = 0.6;
 const SEARCH_LOOK_TIME = 2;
@@ -83,6 +85,11 @@ export class Bot implements Target {
   private stuckTimer = 0;
   private readonly stuckCheck = new THREE.Vector3();
   private searchTimer = 0;
+  private objective: THREE.Vector3 | null = null;
+  private objectiveFacing: number | null = null;
+  private repathTimer = 0;
+  /** Fait balayer le regard d'un bot qui tient sa position. */
+  private holdTime = Math.random() * 10;
 
   private seesFoe = false;
   /** L'adversaire combattu (le plus proche de ceux qu'il voit). */
@@ -156,6 +163,8 @@ export class Bot implements Target {
     this.burstLeft = 0;
     this.seesFoe = false;
     this.foe = null;
+    this.objective = null;
+    this.objectiveFacing = null;
     this.yaw = yaw;
     this.blindTimer = 0;
     this.pitch = 0;
@@ -173,6 +182,32 @@ export class Bot implements Target {
     this.foe = null;
     this.burstLeft = 0;
     this.path = [];
+  }
+
+  /**
+   * Point à rejoindre et à tenir hors combat (un site à défendre, la bombe à
+   * ramasser ou à désamorcer), en regardant vers `facing` une fois arrivé.
+   * `null` : retour à la patrouille.
+   */
+  setObjective(point: THREE.Vector3 | null, facing: number | null = null): void {
+    this.objectiveFacing = facing;
+    const unchanged = point && this.objective ? point.distanceTo(this.objective) < 0.1 : point === this.objective;
+    if (unchanged) return;
+    this.objective = point ? point.clone() : null;
+    if (this.state === 'patrol') this.path = [];
+    this.repathTimer = 0;
+  }
+
+  /** Vrai s'il est sur son objectif. */
+  atObjective(range = OBJECTIVE_REACHED): boolean {
+    if (!this.objective) return false;
+    const { position } = this.body;
+    return Math.hypot(position.x - this.objective.x, position.z - this.objective.z) < range && Math.abs(position.y - this.objective.y) < 1.5;
+  }
+
+  /** Vrai s'il est en train de se battre (il ne pose ni ne désamorce alors la bombe). */
+  get fighting(): boolean {
+    return this.state === 'combat';
   }
 
   /** Retire le bot du jeu (invisible, intouchable) jusqu'au prochain `spawn`. */
@@ -304,7 +339,17 @@ export class Bot implements Target {
     this.seesFoe = sees;
     this.considerGrenade(ctx, targets);
 
-    if (this.state === 'patrol' && this.pathDone) {
+    if (this.state === 'patrol' && this.objective) {
+      // Un objectif (site, bombe) passe avant la patrouille : il y retourne dès qu'il s'en écarte.
+      // (Au plus une fois par seconde : un objectif dans une caisse reste hors d'atteinte.)
+      this.repathTimer -= THINK_INTERVAL;
+      // Arrivé : il s'arrête là (sans chercher à atteindre le point au centimètre près).
+      if (this.atObjective()) this.path = [];
+      else if (this.pathDone && this.repathTimer <= 0) {
+        this.repathTimer = 1;
+        this.setPath(ctx, this.objective);
+      }
+    } else if (this.state === 'patrol' && this.pathDone) {
       this.setPath(ctx, ctx.nav.randomWalkablePoint());
     } else if (this.state === 'search') {
       if (this.path.length === 0) this.setPath(ctx, this.lastKnown);
@@ -523,6 +568,10 @@ export class Bot implements Target {
       const dy = this.lastKnown.y + height - (this.body.position.y + PLAYER.eyeHeight);
       targetYaw = Math.atan2(-dx, -dz) + this.aimError.yaw;
       targetPitch = Math.atan2(dy, Math.hypot(dx, dz)) + this.aimError.pitch;
+    } else if (this.objectiveFacing !== null && this.atObjective() && this.body.horizontalSpeed < 0.5) {
+      // En position : surveille l'entrée en balayant le regard de part et d'autre.
+      this.holdTime += dt;
+      targetYaw = this.objectiveFacing + Math.sin(this.holdTime * 0.6) * 0.7;
     } else if (this.body.horizontalSpeed > 0.5) {
       targetYaw = Math.atan2(-this.body.velocity.x, -this.body.velocity.z);
     }
