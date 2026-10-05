@@ -1,6 +1,7 @@
 import type { WeaponDef } from '../weapons/definitions';
 
-const MASTER_VOLUME = 0.4;
+/** Gain général à 100 % de volume (70 % donne le niveau d'origine du jeu). */
+const MAX_GAIN = 0.57;
 const BASE = `${import.meta.env.BASE_URL}sounds/`;
 
 /** Enregistrements (public/sounds/), plusieurs variantes par son pour éviter la répétition. */
@@ -32,13 +33,20 @@ export class Audio {
   private noise!: AudioBuffer;
   private readonly buffers = new Map<string, AudioBuffer>();
   private reloadSource: AudioBufferSourceNode | null = null;
+  private volume = 0.7;
+
+  /** Volume général, de 0 à 1. */
+  setVolume(volume: number): void {
+    this.volume = volume;
+    if (this.ctx) this.master.gain.value = volume * MAX_GAIN;
+  }
 
   /** Le navigateur n'autorise le son qu'après un clic : à appeler depuis un clic. */
   unlock(): void {
     if (!this.ctx) {
       this.ctx = new AudioContext();
       this.master = this.ctx.createGain();
-      this.master.gain.value = MASTER_VOLUME;
+      this.master.gain.value = this.volume * MAX_GAIN;
       this.master.connect(this.ctx.destination);
 
       const length = this.ctx.sampleRate;

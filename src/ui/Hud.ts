@@ -1,7 +1,21 @@
-import type { Settings } from '../core/settings';
+import type { CrosshairColor, CrosshairSize } from '../core/settings';
 
 const KILLFEED_DURATION = 5000;
 const KILLFEED_MAX = 5;
+
+const CROSSHAIR_COLORS: Record<CrosshairColor, string> = {
+  green: '#4dff4d',
+  white: '#ffffff',
+  red: '#ff4d4d',
+  cyan: '#4df6ff',
+  yellow: '#ffe94d',
+};
+
+const CROSSHAIR_SIZES: Record<CrosshairSize, { len: number; gap: number; thick: number }> = {
+  small: { len: 5, gap: 3, thick: 2 },
+  medium: { len: 7, gap: 5, thick: 2 },
+  large: { len: 11, gap: 7, thick: 3 },
+};
 
 export class Hud {
   private readonly speed = document.getElementById('speed')!;
@@ -17,7 +31,8 @@ export class Hud {
   private readonly death = document.getElementById('death')!;
   private readonly deathText = document.getElementById('death-text')!;
   private readonly overlay = document.getElementById('overlay')!;
-  private readonly status = document.getElementById('overlay-status')!;
+  private readonly play = document.getElementById('play')!;
+  private readonly crosshair = document.getElementById('crosshair')!;
   private readonly grenades = document.getElementById('grenades')!;
   private readonly round = document.getElementById('round')!;
   private readonly roundScore = document.getElementById('round-score')!;
@@ -34,7 +49,7 @@ export class Hud {
   private lastHealth = -1;
 
   constructor(onPlay: () => void) {
-    this.overlay.addEventListener('click', onPlay);
+    this.play.addEventListener('click', onPlay);
   }
 
   /** Vitesse horizontale affichée en unités Source, comme cl_showpos. */
@@ -150,35 +165,23 @@ export class Hud {
     this.smoke.style.opacity = String(Math.min(1, Math.max(0, amount)));
   }
 
-  /** Boutons de réglage dans le menu de pause. */
-  bindSettings(settings: Settings, onChange: (settings: Settings) => void): void {
-    const bots = document.getElementById('setting-bots') as HTMLButtonElement;
-    const aggressive = document.getElementById('setting-aggressive') as HTMLButtonElement;
-    const mode = document.getElementById('setting-mode') as HTMLButtonElement;
+  /** Couleur et taille du réticule. */
+  setCrosshair(color: CrosshairColor, size: CrosshairSize): void {
+    const { len, gap, thick } = CROSSHAIR_SIZES[size];
+    const style = this.crosshair.style;
+    style.setProperty('--color', CROSSHAIR_COLORS[color]);
+    style.setProperty('--len', `${len}px`);
+    style.setProperty('--gap', `${gap}px`);
+    style.setProperty('--thick', `${thick}px`);
+  }
 
-    const render = () => {
-      setToggle(bots, 'Bots', settings.botsEnabled ? 'activés' : 'désactivés', settings.botsEnabled);
-      setToggle(aggressive, 'Comportement', settings.botsAggressive ? 'agressifs' : 'passifs', settings.botsAggressive);
-      setToggle(mode, 'Mode', settings.mode === 'rounds' ? 'manches' : 'deathmatch', true);
-      aggressive.disabled = !settings.botsEnabled;
-    };
-    const change = (apply: () => void) => (event: MouseEvent) => {
-      // Sinon le clic traverse jusqu'au menu et lance la partie.
-      event.stopPropagation();
-      apply();
-      render();
-      onChange(settings);
-    };
-
-    bots.addEventListener('click', change(() => (settings.botsEnabled = !settings.botsEnabled)));
-    aggressive.addEventListener('click', change(() => (settings.botsAggressive = !settings.botsAggressive)));
-    mode.addEventListener('click', change(() => (settings.mode = settings.mode === 'rounds' ? 'deathmatch' : 'rounds')));
-    render();
+  setSpeedVisible(visible: boolean): void {
+    this.speed.style.display = visible ? '' : 'none';
   }
 
   setPaused(paused: boolean): void {
     this.overlay.classList.toggle('hidden', !paused);
-    this.status.textContent = 'Pause : cliquer pour reprendre';
+    if (!paused) this.play.textContent = 'Reprendre';
   }
 
   private restartAnimation(element: HTMLElement, classes: string): void {
@@ -186,13 +189,4 @@ export class Hud {
     void element.offsetWidth;
     element.className = classes;
   }
-}
-
-function setToggle(button: HTMLButtonElement, label: string, value: string, on: boolean): void {
-  const name = document.createElement('span');
-  name.textContent = label;
-  const state = document.createElement('span');
-  state.className = `value ${on ? 'on' : 'off'}`;
-  state.textContent = value;
-  button.replaceChildren(name, state);
 }

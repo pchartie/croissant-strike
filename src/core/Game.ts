@@ -7,6 +7,7 @@ import { flashDuration } from '../grenades/flashbang';
 import { GrenadeSystem } from '../grenades/GrenadeSystem';
 import { Player } from '../player/Player';
 import { Hud } from '../ui/Hud';
+import { SettingsPanel } from '../ui/SettingsPanel';
 import { RIFLE, type WeaponDef } from '../weapons/definitions';
 import { Impacts } from '../weapons/Impacts';
 import { loadRetroWeapons } from '../weapons/RetroWeapons';
@@ -116,7 +117,7 @@ export class Game {
     this.hud.setScore(0, 0);
     const settings = loadSettings();
     this.applySettings(settings);
-    this.hud.bindSettings(settings, (changed) => {
+    new SettingsPanel(document.getElementById('settings')!, settings, (changed) => {
       this.applySettings(changed);
       saveSettings(changed);
     });
@@ -381,7 +382,20 @@ export class Game {
 
   // --- Modes de jeu ---
 
+  /** Applique tous les réglages (appelé au démarrage et à chaque changement dans le menu). */
   private applySettings(settings: Settings): void {
+    this.player.sensitivity = (0.022 * settings.sensitivity * Math.PI) / 180;
+    this.player.invertY = settings.invertY;
+    if (this.camera.fov !== settings.fov) {
+      this.camera.fov = settings.fov;
+      this.camera.updateProjectionMatrix();
+    }
+    this.audio.setVolume(settings.volume / 100);
+    this.hud.setCrosshair(settings.crosshairColor, settings.crosshairSize);
+    this.hud.setSpeedVisible(settings.showSpeed);
+
+    this.bots.setDifficulty(settings.difficulty);
+    this.bots.setCount(settings.botCount);
     this.bots.setAggressive(settings.botsAggressive);
     this.bots.setEnabled(settings.botsEnabled);
     if (settings.mode !== this.mode) this.startMode(settings.mode);

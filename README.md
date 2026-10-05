@@ -28,7 +28,7 @@ Le script extrait du zip (500 Mo) uniquement ce qui sert et compresse les animat
 | Touche | Action |
 |---|---|
 | Z Q S D | Se déplacer (W A S D en QWERTY) |
-| Souris | Viser (axe vertical inversé) |
+| Souris | Viser (axe vertical inversé par défaut, réglable) |
 | Clic gauche | Tirer |
 | R | Recharger |
 | 1 / 2 | Fusil (M4A1) / pistolet (M1911) |
@@ -58,9 +58,20 @@ src/
 
 Le réticule est fixe, mais les balles se dispersent quand on court, saute ou tire en rafale : comme dans CS, il faut s'arrêter pour être précis.
 
+## Réglages
+
+Le menu de pause (Échap) contient tous les réglages, mémorisés dans le navigateur :
+
+- **Jeu** : mode, bots activés ou non, agressifs ou passifs, nombre (1 à 10) et difficulté (facile, normale, difficile).
+- **Contrôles** : sensibilité de la souris (même échelle que CS), axe vertical inversé ou non, champ de vision.
+- **Audio et affichage** : volume, couleur et taille du réticule, compteur de vitesse.
+- **Touches** : récapitulatif des commandes.
+
+Les réglages sont décrits dans `src/core/settings.ts` : le panneau est construit à partir de cette liste, donc ajouter un réglage se fait en quelques lignes. Les préréglages de difficulté sont dans `src/config.ts` (`DIFFICULTY`).
+
 ## Modes de jeu
 
-À choisir dans le menu de pause (Échap) :
+À choisir dans les réglages :
 
 - **Deathmatch** : on réapparaît 3 s après chaque mort, les bots aussi.
 - **Manches** : comme dans CS, une vie par manche. Tu pars du sud, les bots du nord. 3 s de gel au départ, 1:55 de chrono ; on gagne la manche en éliminant l'autre camp, et les bots la gagnent si le temps s'écoule. Le premier à 5 manches remporte le match. Réglages dans `src/config.ts`, section `ROUNDS`.
@@ -81,6 +92,6 @@ Vrais enregistrements d'armes (AR-15 et 1911) et de rechargements, en CC0 : voir
 
 Les bots patrouillent sur toute la carte (escaliers et plateformes compris), t'attaquent dès qu'ils te voient et vont voir quand ils t'entendent tirer. Ils tirent en rafales en s'arrêtant, puis se décalent sur le côté entre deux rafales. Une balle dans la tête fait ×4 de dégâts, dans les jambes ×0,75, pour eux comme pour toi.
 
-Dans le menu de pause (Échap), deux boutons permettent de **désactiver les bots** et de les rendre **passifs** : ils se promènent sans attaquer ni réagir aux tirs, pratique pour s'entraîner à viser. Ces réglages sont mémorisés d'une partie à l'autre.
+En mode **passif** (dans les réglages), ils se promènent sans attaquer ni réagir aux tirs : pratique pour s'entraîner à viser.
 
-Le nombre de bots et leur difficulté (temps de réaction, précision, chance de viser la tête…) se règlent dans `src/config.ts`, section `BOTS`.
+Le nombre de bots et la difficulté se choisissent dans les réglages ; le détail de chaque niveau (temps de réaction, précision, chance de viser la tête…) est dans `src/config.ts`, section `DIFFICULTY`.

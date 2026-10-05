@@ -20,6 +20,9 @@ export class Player extends Body {
   yaw = 0;
   pitch = 0;
   health = MAX_HEALTH;
+  /** Radians par point de souris (réglage « Sensibilité »). */
+  sensitivity = CAMERA.sensitivity;
+  invertY = true;
   /** Boîte de collision en position accroupie. */
   crouched = false;
   /** Avancement de l'accroupissement pour la caméra : 0 debout, 1 accroupi. */
@@ -56,9 +59,10 @@ export class Player extends Body {
   }
 
   look(dx: number, dy: number): void {
-    this.yaw -= dx * CAMERA.sensitivity;
-    // Axe vertical inversé : pousser la souris vers l'avant fait regarder en bas.
-    this.pitch = THREE.MathUtils.clamp(this.pitch + dy * CAMERA.sensitivity, -MAX_PITCH, MAX_PITCH);
+    this.yaw -= dx * this.sensitivity;
+    // Inversé : pousser la souris vers l'avant fait regarder en bas.
+    const vertical = this.invertY ? dy : -dy;
+    this.pitch = THREE.MathUtils.clamp(this.pitch + vertical * this.sensitivity, -MAX_PITCH, MAX_PITCH);
   }
 
   update(dt: number, input: Input, colliders: readonly THREE.Box3[]): void {

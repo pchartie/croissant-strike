@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { BOTS, PLAYER } from '../config';
+import { BOTS, DIFFICULTY, PLAYER } from '../config';
 import { flashDuration } from '../grenades/flashbang';
 import type { Player } from '../player/Player';
 import { RIFLE } from '../weapons/definitions';
@@ -9,7 +9,7 @@ import type { World } from '../world/World';
 import { Bot, type BotContext } from './Bot';
 import { DAMAGE_MULTIPLIER, type HitPart } from './BotModel';
 
-const NAMES = ['Gaston', 'Marcel', 'Lucien', 'Raymond', 'Didier', 'Hubert', 'Roger', 'Firmin'];
+const NAMES = ['Gaston', 'Marcel', 'Lucien', 'Raymond', 'Didier', 'Hubert', 'Roger', 'Firmin', 'Edmond', 'Fernand'];
 /** Distance minimale entre le joueur et un bot qui réapparaît. */
 const MIN_SPAWN_DISTANCE = 25;
 /** Zone d'apparition des bots en mode manches : le nord de la carte. */
@@ -36,6 +36,8 @@ export class BotManager {
   readonly bots: Bot[] = [];
   private readonly context: BotContext;
   private enabled = true;
+  private aggressive = true;
+  private gunTemplate: THREE.Object3D | null = null;
   /** Faux en mode manches : un bot mort attend la manche suivante. */
   respawnEnabled = true;
   /** Ce qui bloque la vue en plus des murs (les fumigènes). */
@@ -63,17 +65,35 @@ export class BotManager {
       shoot: (bot, origin, direction) => this.shoot(bot, origin, direction),
     };
 
-    for (let i = 0; i < BOTS.count; i++) {
-      const bot = new Bot(NAMES[i % NAMES.length]);
-      this.scene.add(bot.model.root);
-      this.bots.push(bot);
-      bot.spawn(this.spawnPoint());
-    }
+    this.setCount(BOTS.count);
   }
 
   /** Donne à chaque bot une copie de ce modèle d'arme. */
   setWeaponModel(template: THREE.Object3D): void {
+    this.gunTemplate = template;
     for (const bot of this.bots) bot.model.setGun(cloneSkinned(template));
+  }
+
+  /**
+   * Ajoute ou retire des bots. Les nouveaux apparaissent loin du joueur, ou
+   * attendent la manche suivante en mode manches.
+   */
+  setCount(count: number): void {
+    while (this.bots.length < count) {
+      const bot = new Bot(NAMES[this.bots.length % NAMES.length]);
+      if (this.gunTemplate) bot.model.setGun(cloneSkinned(this.gunTemplate));
+      bot.setAggressive(this.aggressive);
+      this.scene.add(bot.model.root);
+      this.bots.push(bot);
+      if (this.enabled && this.respawnEnabled) bot.spawn(this.spawnPoint());
+      else bot.disable();
+    }
+    while (this.bots.length > count) this.scene.remove(this.bots.pop()!.model.root);
+  }
+
+  /** Change le temps de réaction, la précision et la vitesse de visée des bots. */
+  setDifficulty(difficulty: keyof typeof DIFFICULTY): void {
+    Object.assign(BOTS, DIFFICULTY[difficulty]);
   }
 
   /** Zones touchables des bots vivants. */
@@ -98,6 +118,7 @@ export class BotManager {
 
   /** Agressifs : ils attaquent le joueur. Passifs : ils se promènent et servent de cibles. */
   setAggressive(aggressive: boolean): void {
+    this.aggressive = aggressive;
     for (const bot of this.bots) bot.setAggressive(aggressive);
   }
 

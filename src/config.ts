@@ -52,6 +52,16 @@ export const BOTS = {
   hearingRange: 25,
 };
 
+/**
+ * Préréglages de difficulté des bots (réglage « Difficulté ») : ils remplacent
+ * les valeurs correspondantes de BOTS.
+ */
+export const DIFFICULTY = {
+  easy: { reactionTime: 0.85, aimErrorStart: 9, aimErrorSettled: 3.5, aimSettleTime: 1.6, turnSpeed: 200, headshotChance: 0.05 },
+  normal: { reactionTime: 0.6, aimErrorStart: 7, aimErrorSettled: 2.2, aimSettleTime: 1.2, turnSpeed: 300, headshotChance: 0.1 },
+  hard: { reactionTime: 0.35, aimErrorStart: 5, aimErrorSettled: 1.2, aimSettleTime: 0.8, turnSpeed: 420, headshotChance: 0.25 },
+};
+
 export const ROUNDS = {
   /** Gel au début de chaque manche (on peut regarder autour, pas bouger). */
   freezeTime: 3,
@@ -66,6 +76,6 @@ export const ROUNDS = {
 
 export const CAMERA = {
   fov: 75,
-  // 0,022 × sensibilité 2, comme dans CS : degrés par point de souris.
+  // Sensibilité par défaut : 0,022 × 2 degrés par point de souris, comme dans CS (réglable dans le menu).
   sensitivity: (0.022 * 2 * Math.PI) / 180,
 };
