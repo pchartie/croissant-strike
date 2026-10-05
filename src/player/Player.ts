@@ -34,7 +34,8 @@ export class Player {
 
   look(dx: number, dy: number): void {
     this.yaw -= dx * CAMERA.sensitivity;
-    this.pitch = THREE.MathUtils.clamp(this.pitch - dy * CAMERA.sensitivity, -MAX_PITCH, MAX_PITCH);
+    // Axe vertical inversé : pousser la souris vers l'avant fait regarder en bas.
+    this.pitch = THREE.MathUtils.clamp(this.pitch + dy * CAMERA.sensitivity, -MAX_PITCH, MAX_PITCH);
   }
 
   get horizontalSpeed(): number {
@@ -121,11 +122,18 @@ export class Player {
     this.box.max.set(x + PLAYER.radius, y + PLAYER.height, z + PLAYER.radius);
   }
 
-  /** Place la caméra à hauteur des yeux, en interpolant entre deux ticks. */
-  applyToCamera(camera: THREE.PerspectiveCamera, alpha: number): void {
+  eyePosition(target: THREE.Vector3): THREE.Vector3 {
+    return target.copy(this.position).setY(this.position.y + PLAYER.eyeHeight);
+  }
+
+  /**
+   * Place la caméra à hauteur des yeux, en interpolant entre deux ticks.
+   * `punch` est le recul de l'arme, ajouté à la direction du regard.
+   */
+  applyToCamera(camera: THREE.PerspectiveCamera, alpha: number, punch: { pitch: number; yaw: number }): void {
     camera.position.lerpVectors(this.previousPosition, this.position, alpha);
     camera.position.y += PLAYER.eyeHeight;
-    camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+    camera.rotation.set(this.pitch + punch.pitch, this.yaw + punch.yaw, 0, 'YXZ');
   }
 }
 

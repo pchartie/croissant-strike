@@ -82,6 +82,37 @@ canvas {
   opacity: 0.85;
 }
 
+#ammo {
+  position: absolute;
+  right: 32px;
+  bottom: 24px;
+  color: #fff;
+  text-align: right;
+  text-shadow: 0 1px 3px #000;
+  font-variant-numeric: tabular-nums;
+}
+
+#weapon-name {
+  font-size: 14px;
+  letter-spacing: 2px;
+  opacity: 0.75;
+}
+
+#ammo-count {
+  font-size: 40px;
+  font-weight: 700;
+}
+
+#ammo-count.low {
+  color: #ff5a4d;
+}
+
+#ammo .sep,
+#ammo-reserve {
+  font-size: 22px;
+  opacity: 0.75;
+}
+
 #overlay {
   position: fixed;
   inset: 0;

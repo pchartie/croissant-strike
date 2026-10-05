@@ -19,6 +19,15 @@ export class Input {
     window.addEventListener('keyup', (e) => this.held.delete(e.code));
     window.addEventListener('blur', () => this.held.clear());
 
+    // Boutons de la souris : Mouse0 = gauche, Mouse2 = droit.
+    document.addEventListener('mousedown', (e) => {
+      if (!this.locked) return;
+      this.pressed.add(`Mouse${e.button}`);
+      this.held.add(`Mouse${e.button}`);
+    });
+    document.addEventListener('mouseup', (e) => this.held.delete(`Mouse${e.button}`));
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+
     document.addEventListener('mousemove', (e) => {
       if (!this.locked) return;
       this.mouseDX += e.movementX;
@@ -56,6 +65,11 @@ export class Input {
   /** Vrai une seule fois par appui. */
   consumePress(code: string): boolean {
     return this.pressed.delete(code);
+  }
+
+  /** Oublie les appuis non utilisés pendant ce tick (sauter en l'air, recharger plein…). */
+  endTick(): void {
+    this.pressed.clear();
   }
 
   consumeMouse(): { dx: number; dy: number } {

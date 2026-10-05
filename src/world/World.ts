@@ -2,6 +2,8 @@ import * as THREE from 'three';
 
 export class World {
   readonly colliders: THREE.Box3[] = [];
+  /** Objets que les balles peuvent toucher. */
+  readonly meshes: THREE.Mesh[] = [];
 
   constructor(readonly scene: THREE.Scene) {}
 
@@ -24,6 +26,7 @@ export class World {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.scene.add(mesh);
+    this.meshes.push(mesh);
 
     this.colliders.push(new THREE.Box3().setFromObject(mesh));
     return mesh;

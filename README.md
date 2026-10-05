@@ -19,7 +19,10 @@ npm run dev     # puis ouvrir http://localhost:5173
 | Touche | Action |
 |---|---|
 | Z Q S D | Se déplacer (W A S D en QWERTY) |
-| Souris | Viser |
+| Souris | Viser (axe vertical inversé) |
+| Clic gauche | Tirer |
+| R | Recharger |
+| 1 / 2 | Fusil (AK-47) / pistolet (USP) |
 | Espace / molette | Sauter |
 | Échap | Pause |
 
@@ -31,10 +34,13 @@ Le nombre en bas de l'écran est la vitesse en unités Source (250 = vitesse de 
 src/
 ├── main.ts        point d'entrée
 ├── config.ts      constantes de jeu (vitesses, gravité, sensibilité…)
-├── core/          boucle de jeu (physique à 128 ticks/s), clavier et souris
+├── core/          boucle de jeu (physique à 128 ticks/s), clavier et souris, sons
 ├── world/         arène, collisions, textures
 ├── player/        déplacements façon CS: Source et caméra
+├── weapons/       caractéristiques des armes, tir et recul, arme en main, impacts
 └── ui/            HUD et écran de pause
 ```
 
-À venir : `weapons/` (armes, tir, recul) et `bots/` (ennemis).
+Le réticule s'écarte selon la précision réelle de l'arme : il grandit quand on court, saute ou tire en rafale.
+
+À venir : `bots/` (ennemis).
