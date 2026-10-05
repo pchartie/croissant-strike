@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FPS1</title>
+  </head>
+  <body>
+    <div id="hud">
+      <div id="crosshair">
+        <span class="top"></span><span class="bottom"></span>
+        <span class="left"></span><span class="right"></span>
+      </div>
+      <div id="speed">0</div>
+    </div>
+
+    <div id="overlay">
+      <div class="panel">
+        <h1>FPS1</h1>
+        <p id="overlay-status">Cliquer pour jouer</p>
+        <ul class="controls">
+          <li><span><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></span> se déplacer</li>
+          <li><span><kbd>Souris</kbd></span> viser</li>
+          <li><span><kbd>Espace</kbd> / <kbd>Molette</kbd></span> sauter</li>
+          <li><span><kbd>Échap</kbd></span> pause</li>
+        </ul>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

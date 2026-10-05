@@ -1,7 +1,40 @@
 # FPS1
 
-Jeu de tir à la première personne (en cours de création).
+Jeu de tir à la première personne en solo, inspiré de Counter-Strike: Source.
+Fait avec [Three.js](https://threejs.org), TypeScript et [Vite](https://vite.dev).
 
 ## Lancer
 
-Ouvrir `index.html` dans un navigateur (à venir).
+Il faut [Node.js](https://nodejs.org) 20 ou plus.
+
+```sh
+npm install     # une seule fois
+npm run dev     # puis ouvrir http://localhost:5173
+```
+
+`npm run build` produit une version finale dans `dist/`.
+
+## Commandes
+
+| Touche | Action |
+|---|---|
+| Z Q S D | Se déplacer (W A S D en QWERTY) |
+| Souris | Viser |
+| Espace / molette | Sauter |
+| Échap | Pause |
+
+Le nombre en bas de l'écran est la vitesse en unités Source (250 = vitesse de course avec un couteau dans CS).
+
+## Structure
+
+```
+src/
+├── main.ts        point d'entrée
+├── config.ts      constantes de jeu (vitesses, gravité, sensibilité…)
+├── core/          boucle de jeu (physique à 128 ticks/s), clavier et souris
+├── world/         arène, collisions, textures
+├── player/        déplacements façon CS: Source et caméra
+└── ui/            HUD et écran de pause
+```
+
+À venir : `weapons/` (armes, tir, recul) et `bots/` (ennemis).
