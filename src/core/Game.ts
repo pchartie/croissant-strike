@@ -502,7 +502,7 @@ export class Game {
   private updateHud(): void {
     this.hud.setSpeed(this.player.horizontalSpeed / UNIT);
     this.hud.setHealth(this.player.health);
-    // Écran blanc tant que la flash fait effet, qui s'estompe sur la dernière seconde.
+    // Écran blanc tant que la flash fait effet (voir Hud.setFlash).
     this.hud.setFlash(this.flashTime);
     this.hud.setSmoke(this.grenades.smokeAt(this.camera.position) * 0.92);
 

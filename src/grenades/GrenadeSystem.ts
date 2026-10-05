@@ -12,7 +12,7 @@ import {
   type GrenadeDef,
   type GrenadeType,
 } from './definitions';
-import { Explosion, FireArea, SmokeCloud } from './effects';
+import { Explosion, FireArea, Scorch, SmokeCloud } from './effects';
 import { Projectile } from './Projectile';
 
 const DEG = Math.PI / 180;
@@ -69,6 +69,7 @@ export class GrenadeSystem {
   private readonly smokes: SmokeCloud[] = [];
   private readonly fires: FireArea[] = [];
   private readonly explosions: Explosion[] = [];
+  private readonly scorches: Scorch[] = [];
   /** Lumières créées une fois pour toutes (en ajouter en cours de jeu fait saccader). */
   private readonly flashLight = new THREE.PointLight(0xffc27a, 0, 20, 2);
   private readonly fireLight = new THREE.PointLight(0xff7a2a, 0, 12, 2);
@@ -106,7 +107,8 @@ export class GrenadeSystem {
   clear(): void {
     for (const p of this.projectiles) this.scene.remove(p.mesh);
     for (const d of this.decoys) this.scene.remove(d.projectile.mesh);
-    for (const e of [...this.smokes, ...this.fires, ...this.explosions]) this.scene.remove(e.group);
+    for (const e of [...this.smokes, ...this.fires, ...this.explosions, ...this.scorches]) this.scene.remove(e.group);
+    this.scorches.length = 0;
     this.projectiles.length = this.decoys.length = this.smokes.length = this.fires.length = this.explosions.length = 0;
     this.current = null;
   }
@@ -184,6 +186,8 @@ export class GrenadeSystem {
     this.removeFinished(this.smokes);
     this.removeFinished(this.fires);
     this.removeFinished(this.explosions);
+    for (const scorch of this.scorches) scorch.update(dt);
+    this.removeFinished(this.scorches);
     this.updateLights();
   }
 
@@ -267,6 +271,9 @@ export class GrenadeSystem {
     switch (projectile.type) {
       case 'he':
         this.addEffect(this.explosions, new Explosion(position));
+        // Trace noire au sol si l'explosion a lieu près du sol.
+        const floorY = this.hooks.floorBelow(position.clone().setY(position.y + 0.1));
+        if (position.y - floorY < 1.5) this.addEffect(this.scorches, new Scorch(position.clone().setY(floorY), 3.4, 25));
         this.hooks.explode(position);
         break;
       case 'flash':
@@ -289,7 +296,10 @@ export class GrenadeSystem {
           : this.hooks.floorBelow(position));
         // Un molotov qui tombe dans une fumée s'éteint aussitôt.
         const fizzled = this.smokes.some((smoke) => smoke.contains(floor.clone().setY(floor.y + 0.9)));
-        if (!fizzled) this.addEffect(this.fires, new FireArea(floor));
+        if (!fizzled) {
+          this.addEffect(this.fires, new FireArea(floor));
+          this.addEffect(this.scorches, new Scorch(floor, MOLOTOV.radius * 2.3, MOLOTOV.duration + 12));
+        }
         this.hooks.fire(floor, fizzled);
         break;
       }

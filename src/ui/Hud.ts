@@ -2,6 +2,9 @@ import type { CrosshairColor, CrosshairSize } from '../core/settings';
 
 const KILLFEED_DURATION = 5000;
 const KILLFEED_MAX = 5;
+/** Blanc maximal d'une flash, et durée de son fondu final (secondes). */
+const FLASH_MAX_OPACITY = 0.85;
+const FLASH_FADE_TIME = 1.5;
 
 const CROSSHAIR_COLORS: Record<CrosshairColor, string> = {
   green: '#4dff4d',
@@ -158,9 +161,13 @@ export class Hud {
     this.bannerText.textContent = banner.text;
   }
 
-  /** Écran blanc d'une flash (0 à 1). */
-  setFlash(amount: number): void {
-    this.flash.style.opacity = String(Math.min(1, Math.max(0, amount)));
+  /**
+   * Écran blanc d'une flash : `seconds` est l'aveuglement restant. Jamais tout à
+   * fait blanc (on devine encore les formes), et il s'estompe sur la dernière
+   * seconde et demie.
+   */
+  setFlash(seconds: number): void {
+    this.flash.style.opacity = String(FLASH_MAX_OPACITY * Math.min(1, Math.max(0, seconds / FLASH_FADE_TIME)));
   }
 
   /** Voile gris quand on est dans un fumigène (0 à 1). */
