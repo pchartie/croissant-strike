@@ -135,3 +135,39 @@ export function plaster(anisotropy: number): THREE.CanvasTexture {
     }
   });
 }
+
+/**
+ * Matériau à partir des textures Poly Haven de public/textures/ (couleur, relief,
+ * rugosité). En attendant le chargement, ou si les fichiers manquent, il garde
+ * la texture dessinée par le code `fallback`.
+ */
+export function pbrMaterial(
+  name: 'ground' | 'plaster' | 'sandstone' | 'wood',
+  fallback: THREE.Texture,
+  anisotropy: number,
+  options: { tint?: number; normalScale?: number } = {},
+): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({ map: fallback, roughness: 0.95, color: options.tint ?? 0xffffff });
+  const loader = new THREE.TextureLoader();
+  const base = `${import.meta.env?.BASE_URL ?? '/'}textures/${name}`;
+  const load = (suffix: string, color: boolean) =>
+    loader.loadAsync(`${base}_${suffix}.jpg`).then((texture) => {
+      texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      texture.anisotropy = anisotropy;
+      if (color) texture.colorSpace = THREE.SRGBColorSpace;
+      return texture;
+    });
+  Promise.all([load('diff', true), load('nor', false), load('rough', false)])
+    .then(([map, normalMap, roughnessMap]) => {
+      material.map = map;
+      material.normalMap = normalMap;
+      material.normalScale.setScalar(options.normalScale ?? 1);
+      material.roughnessMap = roughnessMap;
+      material.roughness = 1;
+      material.needsUpdate = true;
+    })
+    .catch(() => {
+      // Textures absentes : on garde la texture dessinée par le code.
+    });
+  return material;
+}

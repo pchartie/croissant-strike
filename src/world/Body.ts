@@ -49,6 +49,7 @@ export class Body {
    */
   move(dt: number, colliders: readonly THREE.Box3[]): void {
     this.previousPosition.copy(this.position);
+    this.depenetrate(colliders);
     const canStep = this.onGround;
     this.onGround = false;
     for (const axis of AXES) {
@@ -71,6 +72,33 @@ export class Body {
         this.velocity[axis] = 0;
         this.updateBox();
       }
+    }
+  }
+
+  /**
+   * Si le corps est déjà dans un obstacle (apparition à cheval sur une marche, deux
+   * corps qui apparaissent l'un sur l'autre), on l'en sort par le chemin le plus court :
+   * dessus si c'est une marche, sinon sur le côté. Sans ça, la collision suivante le
+   * repousserait d'un coup à travers tout l'obstacle.
+   */
+  private depenetrate(colliders: readonly THREE.Box3[]): void {
+    for (const collider of colliders) {
+      if (collider === this.box || !overlaps(this.box, collider)) continue;
+      if (collider.max.y - this.position.y <= MOVE.stepSize) {
+        this.position.y = collider.max.y + SKIN;
+      } else {
+        const { x, z } = this.position;
+        const r = this.radius;
+        const pushes: [number, 'x' | 'z'][] = [
+          [collider.min.x - r - SKIN - x, 'x'],
+          [collider.max.x + r + SKIN - x, 'x'],
+          [collider.min.z - r - SKIN - z, 'z'],
+          [collider.max.z + r + SKIN - z, 'z'],
+        ];
+        const [shift, axis] = pushes.reduce((best, push) => (Math.abs(push[0]) < Math.abs(best[0]) ? push : best));
+        this.position[axis] += shift;
+      }
+      this.updateBox();
     }
   }
 

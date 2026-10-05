@@ -1,10 +1,12 @@
 import * as THREE from 'three';
-import { MOVE } from '../config';
+import { MOVE, PLAYER } from '../config';
 
 const CELL = 0.5;
 const SQRT2 = Math.SQRT2;
 /** Petite marge pour les comparaisons de hauteurs. */
 const EPSILON = 0.01;
+/** Marge au-dessus du sol pour les points d'apparition. */
+const SPAWN_CLEARANCE = 0.01;
 
 /**
  * Grille de navigation pour les bots : la carte découpée en cases de 50 cm,
@@ -12,8 +14,9 @@ const EPSILON = 0.01;
  * d'une case à sa voisine si elle n'est pas plus haute qu'une marche ; on
  * peut toujours descendre.
  *
- * La carte ne doit pas avoir de sol au-dessus d'un autre sol (pas de pont ni
- * de tunnel) : chaque case n'a qu'une hauteur.
+ * Un bloc qui flotte au-dessus de la tête (linteau, auvent) laisse passer
+ * dessous. En revanche, chaque case n'a qu'un sol : pas de pont sur lequel on
+ * marcherait au-dessus d'un passage.
  */
 export class NavGrid {
   private readonly cols: number;
@@ -21,7 +24,7 @@ export class NavGrid {
   private readonly originX: number;
   private readonly originZ: number;
   /** Hauteur du sol de chaque case. */
-  private readonly floor: Float32Array;
+  private readonly floor: Float64Array;
   private readonly blocked: Uint8Array;
   /** Cases atteignables depuis le point de départ du joueur (pas le haut des murs, etc.). */
   private readonly reachable: Uint8Array;
@@ -33,21 +36,32 @@ export class NavGrid {
     this.cols = Math.ceil((bounds.max.x - bounds.min.x) / CELL);
     this.rows = Math.ceil((bounds.max.z - bounds.min.z) / CELL);
     const size = this.cols * this.rows;
-    this.floor = new Float32Array(size).fill(-Infinity);
+    // Précision complète : arrondie en 32 bits, une hauteur de 2,1 m devient 2,0999999 et
+    // un corps qui apparaît dessus est enfoncé d'un cheveu dans le bloc.
+    this.floor = new Float64Array(size).fill(-Infinity);
     this.blocked = new Uint8Array(size);
     this.reachable = new Uint8Array(size);
 
-    // Sol de chaque case : le dessus du bloc le plus haut sous son centre.
-    for (const box of colliders) {
-      this.forEachCell(box, 0, (i) => {
-        this.floor[i] = Math.max(this.floor[i], box.max.y);
-      });
-    }
+    // Sol de chaque case : on empile les blocs sous son centre du plus bas au plus
+    // haut ; un bloc posé sur le sol actuel (ou à une marche au-dessus) devient le
+    // nouveau sol, un bloc qui flotte plus haut (linteau, auvent) passe au-dessus.
+    const stacks: THREE.Box3[][] = Array.from({ length: size }, () => []);
+    for (const box of colliders) this.forEachCell(box, 0, (i) => stacks[i].push(box));
+    stacks.forEach((stack, i) => {
+      stack.sort((a, b) => a.min.y - b.min.y);
+      let floor = -Infinity;
+      for (const box of stack) {
+        if (floor === -Infinity || box.min.y <= floor + MOVE.stepSize) floor = Math.max(floor, box.max.y);
+      }
+      this.floor[i] = floor;
+    });
 
-    // Case bloquée si un bot centré dessus toucherait quelque chose de plus haut qu'une marche.
+    // Case bloquée si un bot centré dessus toucherait quelque chose entre la hauteur
+    // d'une marche et le haut de sa tête (un mur, une caisse, un linteau trop bas).
     for (const box of colliders) {
       this.forEachCell(box, clearance, (i) => {
-        if (box.max.y > this.floor[i] + MOVE.stepSize) this.blocked[i] = 1;
+        const floor = this.floor[i];
+        if (box.max.y > floor + MOVE.stepSize && box.min.y < floor + PLAYER.height) this.blocked[i] = 1;
       });
     }
     for (let i = 0; i < size; i++) {
@@ -70,9 +84,12 @@ export class NavGrid {
     return Math.abs(this.floor[r * this.cols + c] - from.y) <= MOVE.stepSize + EPSILON;
   }
 
+  /** Point d'apparition au hasard, un centimètre au-dessus du sol pour ne pas toucher le bloc dessous. */
   randomWalkablePoint(): THREE.Vector3 {
     const i = this.reachableCells[Math.floor(Math.random() * this.reachableCells.length)];
-    return this.center(i);
+    const point = this.center(i);
+    point.y += SPAWN_CLEARANCE;
+    return point;
   }
 
   /** Chemin de `from` à `to` sous forme de points de passage, ou null si inaccessible. */

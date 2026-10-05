@@ -277,14 +277,16 @@ export class BotManager {
 
   /** Un point libre loin du joueur, choisi au hasard parmi les plus éloignés. */
   private spawnPoint(): THREE.Vector3 {
-    let best = this.nav.randomWalkablePoint();
-    for (let i = 0; i < 20; i++) {
+    // Jamais sur un autre bot : deux corps superposés, la collision en pose un sur la tête de l'autre.
+    const free = (point: THREE.Vector3) => this.bots.every((bot) => !bot.alive || bot.body.position.distanceTo(point) > 2);
+    let best: THREE.Vector3 | null = null;
+    for (let i = 0; i < 40; i++) {
       const candidate = this.nav.randomWalkablePoint();
+      if (!free(candidate)) continue;
       const distance = candidate.distanceTo(this.player.position);
-      const free = this.bots.every((bot) => !bot.alive || bot.body.position.distanceTo(candidate) > 2);
-      if (free && distance > MIN_SPAWN_DISTANCE) return candidate;
-      if (distance > best.distanceTo(this.player.position)) best = candidate;
+      if (distance > MIN_SPAWN_DISTANCE) return candidate;
+      if (!best || distance > best.distanceTo(this.player.position)) best = candidate;
     }
-    return best;
+    return best ?? this.nav.randomWalkablePoint();
   }
 }

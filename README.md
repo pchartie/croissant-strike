@@ -101,6 +101,8 @@ Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebon
 
 **Dunes**, une petite carte façon de_dust de 72 × 72 m (`src/world/Level.ts`) : apparition au sud, trois voies vers le nord — la longue A à l'ouest jusqu'au site A surélevé, le milieu avec sa passerelle et ses portes, le couloir B à l'est jusqu'au site B. Les marches de moins de 46 cm se montent sans sauter, comme dans CS.
 
+Textures de [Poly Haven](https://polyhaven.com) en CC0 à leur taille réelle (sable, crépi, grès, planches : `public/textures/`), et habillage façon de_dust : linteaux et poutres au-dessus des passages, battants de porte en bois, auvents sur poteaux, fenêtres, rebords de grès en haut des murs, barils et palettes.
+
 ## Ciel
 
 Ciel HDR de [Poly Haven](https://polyhaven.com) en CC0 (`public/sky/`) : il sert de fond et d'éclairage ambiant, et le soleil du jeu est placé là où il apparaît dans le ciel, pour que les ombres soient cohérentes.

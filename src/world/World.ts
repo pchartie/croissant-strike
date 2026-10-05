@@ -31,6 +31,21 @@ export class World {
     this.colliders.push(new THREE.Box3().setFromObject(mesh));
     return mesh;
   }
+
+  /**
+   * Ajoute un cylindre debout (baril…) posé en (x, y, z). La collision est une
+   * boîte carrée qui l'englobe : le moteur ne gère que des boîtes.
+   */
+  addCylinder(x: number, y: number, z: number, radius: number, height: number, material: THREE.Material): THREE.Mesh {
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 16), material);
+    mesh.position.set(x, y + height / 2, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    this.meshes.push(mesh);
+    this.colliders.push(new THREE.Box3(new THREE.Vector3(x - radius, y, z - radius), new THREE.Vector3(x + radius, y + height, z + radius)));
+    return mesh;
+  }
 }
 
 /** Répète la texture selon la taille réelle de chaque face, sans l'étirer. */
