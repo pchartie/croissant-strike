@@ -14,6 +14,15 @@ npm run dev     # puis ouvrir http://localhost:5173
 
 `npm run build` produit une version finale dans `dist/`.
 
+### Armes et bras animés (optionnel)
+
+Le jeu utilise les armes et les bras animés du [Retro Weapon Pack](https://kuptchi.itch.io/) (gratuit, usage commercial autorisé). Ils ne sont pas dans le dépôt : sans eux, le jeu affiche des armes en blocs.
+
+1. Télécharger `RetroWeaponPack_V1.zip` et le poser dans `FPS1/`.
+2. Lancer `npm run import-weapons`.
+
+Le script extrait du zip (500 Mo) uniquement ce qui sert et compresse les animations : il reste ~2 Mo dans `public/assets/weapons/`.
+
 ## Commandes
 
 | Touche | Action |
@@ -22,7 +31,7 @@ npm run dev     # puis ouvrir http://localhost:5173
 | Souris | Viser (axe vertical inversé) |
 | Clic gauche | Tirer |
 | R | Recharger |
-| 1 / 2 | Fusil (AK-47) / pistolet (USP) |
+| 1 / 2 | Fusil (M4A1) / pistolet (M1911) |
 | Espace / molette | Sauter |
 | Échap | Pause |
 

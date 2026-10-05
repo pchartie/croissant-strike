@@ -43,19 +43,19 @@ function repeat(times: number, kick: [number, number]): [number, number][] {
 
 export const RIFLE: WeaponDef = {
   id: 'rifle',
-  name: 'AK-47',
+  name: 'M4A1',
   slot: 1,
   automatic: true,
   damage: 36,
   fireInterval: 0.1,
   magazine: 30,
   reserve: 90,
-  reloadTime: 2.5,
+  reloadTime: 3.0,
   drawTime: 0.9,
   range: 200,
   spread: { base: 0.004, moving: 0.08, air: 0.25, perShot: 0.0015, maxShots: 10 },
   recoil: {
-    // Rafale façon AK de CS : monte fort, part à gauche, puis à droite, puis à gauche.
+    // Rafale façon CS : monte fort, part à gauche, puis à droite, puis à gauche.
     pattern: [
       [0.55, 0.05], [0.8, -0.05], [1.0, 0.1], [1.05, 0], [0.95, -0.1],
       [0.85, 0.1], [0.7, 0], [0.5, -0.1], [0.3, 0],
@@ -72,14 +72,14 @@ export const RIFLE: WeaponDef = {
 
 export const PISTOL: WeaponDef = {
   id: 'pistol',
-  name: 'USP',
+  name: 'M1911',
   slot: 2,
   automatic: false,
   damage: 35,
   fireInterval: 0.15,
   magazine: 12,
   reserve: 24,
-  reloadTime: 2.2,
+  reloadTime: 1.8,
   drawTime: 0.6,
   range: 120,
   spread: { base: 0.006, moving: 0.03, air: 0.15, perShot: 0.004, maxShots: 6 },

@@ -7,6 +7,7 @@ import { RIFLE, type WeaponDef } from '../weapons/definitions';
 import { Impacts } from '../weapons/Impacts';
 import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
+import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { WeaponSystem } from '../weapons/WeaponSystem';
 import { ARENA_BOUNDS, buildArena, SPAWN } from '../world/Arena';
 import { NavGrid } from '../world/NavGrid';
@@ -76,15 +77,21 @@ export class Game {
 
     this.weapons = new WeaponSystem(this.player, () => [...this.world.meshes, ...this.bots.hitboxes], {
       fired: (def, hit, direction) => this.onPlayerShot(def, hit, direction),
-      reloadStarted: (def) => this.audio.reload(def),
+      reloadStarted: (def) => {
+        this.viewModel.reload(def);
+        this.audio.reload(def);
+      },
       drawn: (def) => {
-        this.viewModel.show(def.id);
+        this.viewModel.show(def);
         this.audio.draw();
       },
       dryFired: () => this.audio.dryFire(),
     });
 
     this.hud.setScore(0, 0);
+    void loadRetroWeapons().then((weapons) => {
+      if (weapons) this.viewModel.useAnimated(weapons, this.weapons.current.def);
+    });
     window.addEventListener('resize', () => this.resize());
     this.resize();
   }

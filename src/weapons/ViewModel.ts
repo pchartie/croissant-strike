@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { WeaponDef, WeaponId } from './definitions';
 import { flashSprite } from './flash';
 import { MODEL_BUILDERS, type WeaponModel } from './models';
+import type { AnimatedWeapon } from './RetroWeapons';
 
 const FLASH_DURATION = 0.05;
 
@@ -18,15 +19,20 @@ export interface ViewModelState {
 /**
  * L'arme en main. Elle a sa propre scène et sa propre caméra, dessinées
  * par-dessus le monde : elle ne rentre donc jamais dans les murs.
+ *
+ * Si les armes du Retro Weapon Pack ont été importées, on affiche les bras
+ * animés ; sinon, des armes en blocs animées par le code.
  */
 export class ViewModel {
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(60, 1, 0.01, 10);
+  readonly camera = new THREE.PerspectiveCamera(70, 1, 0.01, 10);
 
-  private readonly models = {} as Record<WeaponId, WeaponModel>;
-  private current: WeaponModel;
-  private readonly flash: THREE.Sprite;
+  private readonly blocks = {} as Record<WeaponId, WeaponModel>;
+  private animated: Record<WeaponId, AnimatedWeapon> | null = null;
+  private currentId: WeaponId = 'rifle';
+  private readonly flash = flashSprite();
   private flashTimer = 0;
+  private readonly muzzlePosition = new THREE.Vector3();
 
   private bobPhase = 0;
   private bobAmount = 0;
@@ -45,37 +51,55 @@ export class ViewModel {
       const model = MODEL_BUILDERS[id]();
       model.root.visible = false;
       this.scene.add(model.root);
-      this.models[id] = model;
+      this.blocks[id] = model;
     }
-
-    this.flash = flashSprite();
-    this.current = this.models.rifle;
+    this.scene.add(this.flash);
   }
 
-  show(id: WeaponId): void {
-    this.current.root.visible = false;
-    this.current = this.models[id];
-    this.current.root.visible = true;
-    this.current.muzzle.add(this.flash);
+  /** Remplace les armes en blocs par les armes animées (une fois chargées). */
+  useAnimated(weapons: Record<WeaponId, AnimatedWeapon>, def: WeaponDef): void {
+    this.animated = weapons;
+    for (const weapon of Object.values(weapons)) this.scene.add(weapon.root);
+    for (const model of Object.values(this.blocks)) model.root.visible = false;
+    this.show(def);
+  }
+
+  show(def: WeaponDef): void {
+    if (this.animated) {
+      this.animated[this.currentId].stop();
+      this.animated[this.currentId].root.visible = false;
+    } else {
+      this.blocks[this.currentId].root.visible = false;
+    }
+    this.currentId = def.id;
     this.kickBack = this.kickPitch = 0;
+
+    if (this.animated) {
+      const weapon = this.animated[def.id];
+      weapon.root.visible = true;
+      weapon.play('draw', def.drawTime);
+    } else {
+      this.blocks[def.id].root.visible = true;
+    }
   }
 
   kick(def: WeaponDef): void {
-    this.kickBack += def.viewKick.back;
-    this.kickPitch += def.viewKick.pitch;
+    // Les bras animés ont leur propre recul : on n'ajoute qu'un léger à-coup.
+    const scale = this.animated ? 0.3 : 1;
+    this.kickBack += def.viewKick.back * scale;
+    this.kickPitch += def.viewKick.pitch * scale;
+    this.animated?.[def.id].play('fire');
+
     this.flashTimer = FLASH_DURATION;
     this.flash.material.rotation = Math.random() * Math.PI * 2;
-    this.flash.scale.setScalar(0.12 + Math.random() * 0.08);
+    this.flash.scale.setScalar((this.animated ? 0.16 : 0.12) + Math.random() * 0.08);
+  }
+
+  reload(def: WeaponDef): void {
+    this.animated?.[def.id].play('reload', def.reloadTime);
   }
 
   update(dt: number, state: ViewModelState): void {
-    // Balancement de la marche.
-    const targetBob = state.onGround ? state.speed : 0;
-    this.bobAmount += (targetBob - this.bobAmount) * Math.min(1, dt * 8);
-    this.bobPhase += dt * 11 * this.bobAmount;
-    const bobX = Math.sin(this.bobPhase) * 0.012 * this.bobAmount;
-    const bobY = -Math.abs(Math.cos(this.bobPhase)) * 0.01 * this.bobAmount;
-
     // L'arme traîne un peu derrière les mouvements de la souris.
     const follow = Math.min(1, dt * 10);
     this.swayX += (THREE.MathUtils.clamp(-state.mouseDX * 0.0004, -0.03, 0.03) - this.swayX) * follow;
@@ -85,7 +109,23 @@ export class ViewModel {
     this.kickBack *= recover;
     this.kickPitch *= recover;
 
-    const { root, rest } = this.current;
+    if (this.animated) {
+      const weapon = this.animated[this.currentId];
+      weapon.root.position.set(this.swayX, this.swayY, this.kickBack);
+      weapon.root.rotation.set(this.kickPitch, 0, 0);
+      weapon.update(dt, state.speed, state.onGround);
+      this.updateFlash(dt, weapon.muzzle);
+      return;
+    }
+
+    // Armes en blocs : balancement, rechargement et sortie animés par le code.
+    const targetBob = state.onGround ? state.speed : 0;
+    this.bobAmount += (targetBob - this.bobAmount) * Math.min(1, dt * 8);
+    this.bobPhase += dt * 11 * this.bobAmount;
+    const bobX = Math.sin(this.bobPhase) * 0.012 * this.bobAmount;
+    const bobY = -Math.abs(Math.cos(this.bobPhase)) * 0.01 * this.bobAmount;
+
+    const { root, rest, muzzle } = this.blocks[this.currentId];
     root.position.set(rest.x + bobX + this.swayX, rest.y + bobY + this.swayY, rest.z + this.kickBack);
     root.rotation.set(this.kickPitch, 0, 0);
 
@@ -102,12 +142,20 @@ export class ViewModel {
     root.position.y -= 0.25 * draw;
     root.rotation.x -= 0.8 * draw;
 
-    this.flashTimer -= dt;
-    this.flash.visible = this.flashTimer > 0;
+    this.updateFlash(dt, muzzle);
   }
 
   resize(aspect: number): void {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
+  }
+
+  private updateFlash(dt: number, muzzle: THREE.Object3D): void {
+    this.flashTimer -= dt;
+    this.flash.visible = this.flashTimer > 0;
+    if (this.flash.visible) {
+      this.scene.updateMatrixWorld();
+      this.flash.position.copy(muzzle.getWorldPosition(this.muzzlePosition));
+    }
   }
 }
