@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { BOTS, PLAYER } from '../config';
 import type { Player } from '../player/Player';
 import { RIFLE } from '../weapons/definitions';
@@ -58,6 +59,11 @@ export class BotManager {
       this.bots.push(bot);
       bot.spawn(this.spawnPoint());
     }
+  }
+
+  /** Donne à chaque bot une copie de ce modèle d'arme. */
+  setWeaponModel(template: THREE.Object3D): void {
+    for (const bot of this.bots) bot.model.setGun(cloneSkinned(template));
   }
 
   /** Zones touchables des bots vivants. */

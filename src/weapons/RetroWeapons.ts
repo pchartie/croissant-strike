@@ -128,7 +128,14 @@ export class AnimatedWeapon {
 }
 
 /** Charge les armes animées, ou renvoie null si les fichiers n'ont pas été importés. */
-export async function loadRetroWeapons(): Promise<Record<WeaponId, AnimatedWeapon> | null> {
+export interface RetroWeapons {
+  /** Bras + arme animés, pour la vue à la première personne. */
+  viewModels: Record<WeaponId, AnimatedWeapon>;
+  /** Fusil seul (avec chargeur), à cloner pour les bots. */
+  botRifle: THREE.Object3D;
+}
+
+export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
   try {
     const manager = new THREE.LoadingManager();
     // Les textures référencées dans les FBX sont remplacées plus bas : on ne les télécharge pas.
@@ -142,7 +149,8 @@ export async function loadRetroWeapons(): Promise<Record<WeaponId, AnimatedWeapo
       textures.loadAsync(`${BASE}projectiles.png`),
     ]);
 
-    const result = {} as Record<WeaponId, AnimatedWeapon>;
+    const viewModels = {} as Record<WeaponId, AnimatedWeapon>;
+    let botRifle: THREE.Object3D | null = null;
     for (const id of Object.keys(GUNS) as WeaponId[]) {
       const spec = GUNS[id];
       const [gun, extra, gunTexture, armsClips, gunClips] = await Promise.all([
@@ -153,12 +161,14 @@ export async function loadRetroWeapons(): Promise<Record<WeaponId, AnimatedWeapo
         loadClips(`${BASE}${spec.file}-anims.json`),
       ]);
 
-      const arms = cloneSkinned(armsSource);
-      attachMagazine(gun, extra, spec);
-      arms.getObjectByName('hand_item_r')!.add(gun);
-
       const materials = { arms: armsTexture, gun: gunTexture, projectiles: projectilesTexture };
-      for (const object of [arms, gun]) applyMaterials(object, materials);
+      attachMagazine(gun, extra, spec);
+      applyMaterials(gun, materials);
+      if (id === 'rifle') botRifle = cloneSkinned(gun);
+
+      const arms = cloneSkinned(armsSource);
+      applyMaterials(arms, materials);
+      arms.getObjectByName('hand_item_r')!.add(gun);
 
       // Repère du pack : la caméra regarde vers +x avec +y en haut ; le nôtre regarde vers -z.
       const root = new THREE.Group();
@@ -168,9 +178,9 @@ export async function loadRetroWeapons(): Promise<Record<WeaponId, AnimatedWeapo
       root.add(arms);
       root.visible = false;
 
-      result[id] = new AnimatedWeapon(root, arms, gun, armsClips, gunClips, spec.muzzle);
+      viewModels[id] = new AnimatedWeapon(root, arms, gun, armsClips, gunClips, spec.muzzle);
     }
-    return result;
+    return { viewModels, botRifle: botRifle! };
   } catch (error) {
     console.info('Armes animées absentes, modèles simples utilisés. Lancer `npm run import-weapons`.', error);
     return null;

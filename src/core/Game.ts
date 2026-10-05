@@ -90,7 +90,9 @@ export class Game {
 
     this.hud.setScore(0, 0);
     void loadRetroWeapons().then((weapons) => {
-      if (weapons) this.viewModel.useAnimated(weapons, this.weapons.current.def);
+      if (!weapons) return;
+      this.viewModel.useAnimated(weapons.viewModels, this.weapons.current.def);
+      this.bots.setWeaponModel(weapons.botRifle);
     });
     window.addEventListener('resize', () => this.resize());
     this.resize();

@@ -31,6 +31,8 @@ export class BotModel {
   private readonly leftLeg = new THREE.Group();
   private readonly rightLeg = new THREE.Group();
   private readonly arms = new THREE.Group();
+  /** Arme en blocs, cachée quand le vrai fusil est chargé. */
+  private readonly blockGun: THREE.Mesh[] = [];
   private readonly flash = flashSprite();
   private flashTimer = 0;
   private walkPhase = 0;
@@ -53,10 +55,12 @@ export class BotModel {
     this.arms.position.set(0, SHOULDER, 0);
     this.box(this.arms, shirt, [0.12, 0.12, 0.42], [0.2, -0.08, -0.18], 'body');
     this.box(this.arms, shirt, [0.12, 0.12, 0.5], [-0.1, -0.12, -0.26], 'body');
-    this.box(this.arms, gunMetal, [0.06, 0.09, 0.55], [0.05, -0.12, -0.5]);
-    this.box(this.arms, gunWood, [0.05, 0.08, 0.22], [0.05, -0.15, -0.12]);
-    this.box(this.arms, gunMetal, [0.04, 0.15, 0.06], [0.05, -0.22, -0.42]);
-    this.muzzle.position.set(0.05, -0.1, -0.8);
+    this.blockGun.push(
+      this.box(this.arms, gunMetal, [0.06, 0.09, 0.55], [0.05, -0.12, -0.5]),
+      this.box(this.arms, gunWood, [0.05, 0.08, 0.22], [0.05, -0.15, -0.12]),
+      this.box(this.arms, gunMetal, [0.04, 0.15, 0.06], [0.05, -0.22, -0.42]),
+    );
+    this.muzzle.position.set(0.05, -0.12, -0.85);
     this.muzzle.add(this.flash);
     this.arms.add(this.muzzle);
     this.root.add(this.arms);
@@ -72,7 +76,7 @@ export class BotModel {
     size: [number, number, number],
     position: [number, number, number],
     part?: HitPart,
-  ): void {
+  ): THREE.Mesh {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
     mesh.position.set(...position);
     parent.add(mesh);
@@ -80,6 +84,20 @@ export class BotModel {
       mesh.userData.part = part;
       this.hitboxes.push(mesh);
     }
+    return mesh;
+  }
+
+  /** Remplace l'arme en blocs par un vrai modèle (le M4 du pack, en centimètres, canon vers +x). */
+  setGun(gun: THREE.Object3D): void {
+    for (const mesh of this.blockGun) mesh.visible = false;
+    gun.scale.setScalar(0.01);
+    gun.rotation.y = Math.PI / 2;
+    // Poignée dans la main droite, canon à hauteur de l'ancienne arme.
+    gun.position.set(0.05, -0.285, -0.25);
+    gun.traverse((object) => {
+      object.castShadow = true;
+    });
+    this.arms.add(gun);
   }
 
   /** Place le modèle. `speed` (0 à 1) règle le balancement des jambes. */
