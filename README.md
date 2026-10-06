@@ -72,6 +72,7 @@ src/
 ├── player/        déplacements façon CS: Source et caméra
 ├── weapons/       caractéristiques des armes, tir et recul, arme en main, impacts
 ├── grenades/      les 5 grenades : lancer, rebonds, explosion, flash, fumée, feu, leurre
+├── net/           jeu en ligne : connexion PeerJS, messages, adversaire affiché
 ├── bots/          ennemis et coéquipiers : modèle, IA (patrouille, combat, recherche), apparitions
 └── ui/            HUD, fil des éliminations, écrans de pause et de mort
 ```
@@ -109,6 +110,12 @@ Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90
 - **Deathmatch** : on réapparaît 3 s après chaque mort (avec gilet, casque et grenades), les bots aussi. Le menu d'achat (B) est gratuit : on y choisit son arme principale.
 - **Manches** : comme dans CS, une vie par manche, avec l'économie de CS:GO (800 $ au départ, primes d'élimination selon l'arme, 3 250 $ par manche gagnée, bonus de défaite de 1 400 à 3 400 $). On achète avec B pendant le gel et les 20 premières secondes ; en survivant on garde son équipement, en mourant il ne reste que le pistolet. Tu pars du sud, les bots du nord. 3 s de gel au départ, 1:55 de chrono ; on gagne la manche en éliminant l'autre camp, et les bots la gagnent si le temps s'écoule. Le premier à 5 manches remporte le match. Réglages dans `src/config.ts`, section `ROUNDS`.
 - **Bombe** : les manches de CS:GO sur le modèle de de_dust. Ton équipe (au sud) attaque : tu pars avec la bombe et dois la poser sur le **site A** (plateforme à l'ouest) ou le **site B** (à l'est), marqués au sol et sur le radar, en maintenant E 3,2 s sans bouger (+300 $). Elle explose 40 s plus tard (mortelle de près, dangereuse jusqu'à 20 m). Les ennemis gardent les deux sites, puis foncent vers la bombe et la désamorcent en 10 s ; la consigne en haut de l'écran indique où en est la bombe et qui la désamorce, et ses bips accélèrent. Une fois posée, ni le chrono ni la mort de ton équipe ne finissent la manche : seuls l'explosion, le désamorçage ou l'élimination de tous les ennemis le font. Si tu meurs avec la bombe, elle tombe et un coéquipier bot va la ramasser pour la poser lui-même. Réglages dans `src/config.ts`, section `BOMB`.
+
+## En ligne (1 contre 1)
+
+Dans le menu (Échap), encart **En ligne** : choisis un pseudo, puis **Créer une partie** pour recevoir un code de 4 caractères à donner à ton adversaire ; lui l'entre et clique sur **Rejoindre**. C'est un deathmatch à deux (réapparition 3 s après chaque mort, hors de vue de l'autre), sans bots ni grenades pour l'instant ; armes, gilet et couteau (coups dans le dos compris) marchent comme contre les bots. **Quitter la partie** (ou le départ de l'autre) ramène au jeu seul, avec tes réglages.
+
+La connexion est directe entre les deux navigateurs (WebRTC, avec [PeerJS](https://peerjs.com)) : le serveur public de PeerJS sert seulement à se trouver grâce au code. Ça marche en local comme sur GitHub Pages, chacun chez soi. Sur certains réseaux très fermés (entreprise, certaines box), la connexion directe peut échouer. Chacun fait foi pour ses propres tirs (« je t'ai touché à la tête ») et l'autre applique les dégâts avec son gilet ; l'adversaire est affiché avec 100 ms de retard pour un mouvement fluide. Pour tester seul, ouvre le jeu dans deux fenêtres.
 
 ## Grenades
 

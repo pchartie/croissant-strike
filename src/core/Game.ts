@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Bot } from '../bots/Bot';
 import { BotManager, type BotShot } from '../bots/BotManager';
+import { DAMAGE_MULTIPLIER, type HitPart } from '../bots/BotModel';
 import { BOMB, CAMERA, ECONOMY, MOVE, PLAYER, TICK, UNIT } from '../config';
 import { DECOY, GRENADE_ORDER, GRENADES, HE, MOLOTOV } from '../grenades/definitions';
 import { throwVelocity } from '../grenades/ballistics';
@@ -11,6 +12,7 @@ import { BuyMenu } from '../ui/BuyMenu';
 import { Radar, type RadarMark } from '../ui/Radar';
 import { Hud } from '../ui/Hud';
 import { SettingsPanel } from '../ui/SettingsPanel';
+import { Duel } from '../net/Duel';
 import { RIFLE, type WeaponDef } from '../weapons/definitions';
 import { Impacts } from '../weapons/Impacts';
 import { loadRetroWeapons } from '../weapons/RetroWeapons';
@@ -82,6 +84,10 @@ export class Game {
   private readonly bots: BotManager;
   private readonly rounds: Rounds;
   private readonly bomb: BombMode;
+  /** Partie en ligne en 1 contre 1 (sans bots ni grenades pour l'instant). */
+  private readonly duel: Duel;
+  /** Derniers réglages, pour revenir au jeu seul après une partie en ligne. */
+  private settings!: Settings;
   /** Nom de la touche pour poser la bombe, pour la consigne à l'écran. */
   private useKey = 'E';
   private plantKeyTimer = 0;
@@ -109,6 +115,7 @@ export class Game {
   private flashTime = 0;
   private hurtCooldown = 0;
   private playerStride = 0;
+  private remoteStride = 0;
   private readonly botStrides = new Map<Bot, number>();
   private readonly radar: Radar;
   private readonly sun: THREE.DirectionalLight;
@@ -116,6 +123,7 @@ export class Game {
   private fpsTime = 0;
   private readonly spotted = new Map<Bot, number>();
   private lastSpotting = 0;
+  private remoteSpotted = -Infinity;
   private readonly frustum = new THREE.Frustum();
   private readonly projScreen = new THREE.Matrix4();
   private wasOnGround = true;
@@ -151,7 +159,7 @@ export class Game {
       grenade: (bot, type, target) => this.onBotGrenade(bot, type, target),
     });
 
-    this.weapons = new WeaponSystem(this.player, () => [...this.world.meshes, ...this.bots.hitboxes], {
+    this.weapons = new WeaponSystem(this.player, () => [...this.world.meshes, ...this.bots.hitboxes, ...(this.duel?.remote.hitboxes ?? [])], {
       fired: (def, shots) => this.onPlayerShot(def, shots),
       reloadStarted: (def, phase, duration) => {
         this.viewModel.reload(def, phase, duration);
@@ -166,6 +174,7 @@ export class Game {
       swung: (_def, kind) => {
         this.viewModel.swing(kind);
         this.audio.knifeSwing(kind === 'heavy');
+        this.duel.sendSwing(kind === 'heavy');
       },
       struck: (def, kind, hit, direction, combo) => this.onKnifeStrike(def, kind, hit, direction, combo),
     });
@@ -173,6 +182,7 @@ export class Game {
     this.grenades = this.createGrenades();
     this.bots.setVisionBlocker((from, to) => this.grenades.blocksVision(from, to));
     this.bomb = this.createBomb();
+    this.duel = this.createDuel();
     this.rounds = new Rounds({
       reset: (newMatch) => this.resetRound(newMatch),
       ended: (winner) => this.economy.roundEnded(winner === 'player'),
@@ -235,6 +245,7 @@ export class Game {
       this.camera.rotation.z = 0.4;
     }
     this.bots.render(alpha);
+    this.duel.update(frameTime, this.weapons.current.def.id);
     this.updateEffects(frameTime, mouse);
     this.updateHud();
     this.updateRadar();
@@ -254,7 +265,7 @@ export class Game {
     // Le menu d'achat passe en premier : ses touches 1 à 0 ne doivent pas changer d'arme.
     this.updateBuyMenu();
     if (this.player.alive && !frozen) {
-      this.player.update(TICK, this.input, [...this.world.colliders, ...this.bots.colliders]);
+      this.player.update(TICK, this.input, [...this.world.colliders, ...this.bots.colliders, ...this.remoteColliders]);
       if (this.player.outOfMap) this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
       if (this.input.consumePress('grenades') && this.grenades.cycle()) {
         this.weapons.holster();
@@ -396,6 +407,10 @@ export class Game {
       this.buyMenu.message = item.kind === 'grenade' ? 'Limite de grenades atteinte' : 'Déjà équipé';
       return;
     }
+    if (item.kind === 'grenade' && this.duel.active) {
+      this.buyMenu.message = 'Pas encore de grenades en ligne';
+      return;
+    }
     if (this.roundBased && !this.economy.spend(this.priceOf(item))) {
       this.buyMenu.message = "Pas assez d'argent";
       return;
@@ -470,11 +485,29 @@ export class Game {
     this.muzzleLightTimer = MUZZLE_LIGHT_DURATION;
     this.bots.playerFired(this.player.position);
 
+    // En ligne : l'adversaire voit le tir (son, traînées jusqu'au point d'arrivée de chaque balle).
+    if (this.duel.active) {
+      const eye = this.player.eyePosition(new THREE.Vector3());
+      this.duel.sendShot(def, eye, shots.map(({ hit, direction }) => (hit ? hit.point : eye.clone().addScaledVector(direction, def.range))));
+    }
+
     let touched = false;
     let headshotHit = false;
     let wallHits = 0;
     for (const { hit, direction } of shots) {
       if (!hit) continue;
+      if (hit.object.userData.remote) {
+        // On annonce la touche ; l'adversaire applique les dégâts avec son gilet.
+        const part = hit.object.userData.part as HitPart;
+        const falloff = Math.pow(def.rangeModifier ?? 1, hit.distance / RANGE_UNIT);
+        const damage = def.damage * falloff * DAMAGE_MULTIPLIER[part];
+        this.duel.sendHit(def, part, damage);
+        this.stats.damage += Math.min(damage, 100);
+        touched = true;
+        headshotHit ||= part === 'head';
+        this.impacts.addBlood(hit.point, direction, shots.length > 1 ? 4 : part === 'head' ? 18 : 10);
+        continue;
+      }
       if (!hit.object.userData.bot) {
         // Un seul bruit d'impact par tir (les plombs d'un fusil à pompe frappent ensemble).
         this.impactSound(this.impacts.add(hit), hit.point, wallHits++ === 0);
@@ -504,14 +537,25 @@ export class Game {
    */
   private onKnifeStrike(def: WeaponDef, kind: MeleeKind, hit: THREE.Intersection | null, direction: THREE.Vector3, combo: boolean): void {
     if (!hit) return;
+    const melee = def.melee!;
+    if (hit.object.userData.remote) {
+      const remote = this.duel.remote;
+      const backstab = this.isBehind(remote.forward(this.forward), remote.position);
+      const damage = backstab ? melee[kind].backstab : kind === 'light' && combo ? melee.light.followUp : melee[kind].damage;
+      this.impacts.addBlood(hit.point, direction, backstab ? 20 : 12);
+      this.hud.showHitmarker(backstab);
+      this.audio.knifeHit();
+      // Pas de ×4 à la tête au couteau, comme dans CS (la zone ne sert qu'au gilet).
+      this.duel.sendHit(def, hit.object.userData.part as HitPart, damage, backstab ? `${def.name} · dans le dos` : undefined);
+      return;
+    }
     if (!hit.object.userData.bot) {
       this.impactSound(this.impacts.add(hit), hit.point, true);
       this.audio.knifeWall();
       return;
     }
     const bot = hit.object.userData.bot as Bot;
-    const melee = def.melee!;
-    const backstab = this.isBehind(bot);
+    const backstab = this.isBehind(bot.forward(this.forward), bot.body.position);
     const damage = backstab ? melee[kind].backstab : kind === 'light' && combo ? melee.light.followUp : melee[kind].damage;
     this.impacts.addBlood(hit.point, direction, backstab ? 20 : 12);
     this.hud.showHitmarker(backstab);
@@ -520,11 +564,11 @@ export class Game {
     this.damageBot(bot, damage, zone, def.armorRatio, backstab ? `${def.name} · dans le dos` : def.name, def.killReward);
   }
 
-  /** Vrai si le joueur est derrière le bot (le bot lui tourne le dos). */
-  private isBehind(bot: Bot): boolean {
-    const facing = bot.forward(this.forward).setY(0).normalize();
-    const toBot = this.toSound.subVectors(bot.body.position, this.player.position).setY(0).normalize();
-    return facing.dot(toBot) > BACKSTAB_DOT;
+  /** Vrai si le joueur est derrière sa cible (qui regarde vers `facing` et lui tourne le dos). */
+  private isBehind(facing: THREE.Vector3, position: THREE.Vector3): boolean {
+    facing.setY(0).normalize();
+    const toTarget = this.toSound.subVectors(position, this.player.position).setY(0).normalize();
+    return facing.dot(toTarget) > BACKSTAB_DOT;
   }
 
   private onBotShot(shot: BotShot): void {
@@ -544,6 +588,85 @@ export class Game {
     if (!this.bots.damageBot(victim, amount, zone, armorRatio, attacker.body.position)) return;
     attacker.kills++;
     this.hud.addKill(attacker.name, victim.name, weapon, headshot);
+  }
+
+  // --- En ligne (1 contre 1) ---
+
+  private createDuel(): Duel {
+    return new Duel(this.scene, this.player, {
+      started: () => {
+        // Deathmatch à deux : pas de bots, pas de grenades (pour l'instant).
+        this.bots.setEnabled(false);
+        this.spotted.clear();
+        this.startMode('deathmatch');
+      },
+      ended: (message) => {
+        // Retour au jeu seul, avec ses réglages ; on sort de la visée pour voir le message.
+        this.applySettings(this.settings);
+        if (this.settings.mode === this.mode) this.startMode(this.mode);
+        if (message) document.exitPointerLock();
+      },
+      remoteShot: (def, from, ends) => this.onRemoteShot(def, from, ends),
+      remoteSwing: (heavy) => {
+        if (this.duel.remote.position.distanceTo(this.player.position) < 6) this.audio.knifeSwing(heavy);
+      },
+      hitByRemote: (def, part, damage, label) => {
+        if (!this.player.alive) return;
+        const weapon = label ?? def.name;
+        const headshot = part === 'head' && !def.melee;
+        this.damagePlayer(damage, part, def.armorRatio, this.duel.remote.name, weapon, headshot);
+        if (!this.player.alive) this.duel.sendDeath(weapon, headshot);
+      },
+      killedRemote: (weapon, headshot) => {
+        if (headshot) this.stats.headshots++;
+        this.kills++;
+        this.hud.addKill('Toi', this.duel.remote.name, weapon, headshot);
+        this.hud.setScore(this.kills, this.deaths);
+      },
+    });
+  }
+
+  /** L'adversaire tire : son selon la distance, traînées depuis son arme et impacts sur les murs. */
+  private onRemoteShot(def: WeaponDef, from: THREE.Vector3, ends: THREE.Vector3[]): void {
+    const muzzle = this.duel.remote.muzzle(new THREE.Vector3());
+    const { loudness, pan, distance } = this.hearing(muzzle);
+    this.audio.shot(def, { distant: distance > CLOSE_SHOT_DISTANCE, loudness, pan });
+    ends.forEach((end, i) => {
+      // Trois traînées au plus pour un fusil à pompe.
+      if (i < 3) this.tracers.add(muzzle, end);
+      // La balle s'est arrêtée sur un mur ? On le retrouve de notre côté pour y faire un trou.
+      const direction = end.clone().sub(from);
+      const length = direction.length();
+      if (length < 1e-3) return;
+      this.raycaster.set(from, direction.divideScalar(length));
+      this.raycaster.far = length + 0.05;
+      const wall = this.raycaster.intersectObjects(this.world.meshes, false)[0];
+      if (wall && wall.distance > length - 0.3) this.impactSound(this.impacts.add(wall), wall.point, i === 0);
+    });
+  }
+
+  /** L'adversaire, comme obstacle (tant qu'il est vivant et en ligne). */
+  private get remoteColliders(): THREE.Box3[] {
+    return this.duel.active && this.duel.remote.alive && !this.duel.remote.box.isEmpty() ? [this.duel.remote.box] : [];
+  }
+
+  /** En ligne : réapparition hors de vue de l'adversaire, et loin de lui. */
+  private duelSpawnPoint(): THREE.Vector3 {
+    const remote = this.duel.remote;
+    const eye = remote.eyePosition(new THREE.Vector3());
+    let best = this.nav.randomWalkablePoint();
+    let bestScore = -Infinity;
+    for (let i = 0; i < 40; i++) {
+      const candidate = this.nav.randomWalkablePoint();
+      const head = candidate.clone().setY(candidate.y + PLAYER.eyeHeight);
+      const seen = remote.alive && this.clearLine(eye, head);
+      const score = candidate.distanceTo(remote.position) - (seen ? 100 : 0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidate;
+      }
+    }
+    return best;
   }
 
   // --- Bombe ---
@@ -745,6 +868,15 @@ export class Game {
       const { loudness, pan, distance } = this.hearing(bot.body.position);
       if (distance < FOOTSTEP_HEARING) this.audio.footstep(this.surfaceUnder(bot.body.position), loudness * (1 - distance / FOOTSTEP_HEARING), pan);
     }
+
+    // L'adversaire en ligne : on l'entend courir, comme un bot.
+    const remote = this.duel.remote;
+    if (!this.duel.active || !remote.alive || !remote.onGround || remote.speed < STEP_SPEED) return;
+    this.remoteStride += remote.speed * TICK;
+    if (this.remoteStride < STRIDE) return;
+    this.remoteStride = 0;
+    const { loudness, pan, distance } = this.hearing(remote.position);
+    if (distance < FOOTSTEP_HEARING) this.audio.footstep(this.surfaceUnder(remote.position), loudness * (1 - distance / FOOTSTEP_HEARING), pan);
   }
 
   /** Matière du sol sous des pieds (pour le bruit des pas). */
@@ -803,6 +935,9 @@ export class Game {
     this.hud.setSpeedVisible(settings.showSpeed);
     this.applyGraphics(settings);
 
+    // En ligne, le mode et les bots sont imposés ; ces réglages reprendront effet après la partie.
+    this.settings = settings;
+    if (this.duel?.active) return;
     this.bots.setDifficulty(settings.difficulty);
     this.bots.setCount(settings.botCount);
     this.bots.setAllies(settings.allyCount);
@@ -881,7 +1016,7 @@ export class Game {
   private respawn(): void {
     this.respawnTimer = null;
     this.flashTime = 0;
-    const position = this.bots.playerSpawnPoint();
+    const position = this.duel?.active ? this.duelSpawnPoint() : this.bots.playerSpawnPoint();
     // Face au centre de la carte.
     this.player.spawn(position, Math.atan2(position.x, position.z));
     // Deathmatch : gilet, casque et grenades offerts ; on garde l'arme principale choisie.
@@ -890,7 +1025,9 @@ export class Game {
     if (!this.weapons.primary) this.weapons.setPrimary(RIFLE, false);
     this.weapons.reset();
     this.grenades.unequip();
-    this.grenades.refill();
+    // Pas encore de grenades en ligne : elles ne seraient que chez soi.
+    if (this.duel?.active) this.grenades.empty();
+    else this.grenades.refill();
   }
 
   // --- Affichage ---
@@ -906,13 +1043,20 @@ export class Game {
     const byScore = (a: { kills: number; deaths: number }, b: { kills: number; deaths: number }) => b.kills - a.kills || a.deaths - b.deaths;
     const me = { name: 'Toi', kills: this.kills, deaths: this.deaths, extra: `${this.stats.headshots} HS · ${accuracy} %`, me: true, dead: !this.player.alive, ally: true };
     const enemies = this.bots.enemies.map(row);
+    if (this.duel.active) {
+      // En ligne : ses éliminations sont nos morts, et inversement.
+      const remote = this.duel.remote;
+      enemies.push({ name: remote.name, kills: this.deaths, deaths: this.kills, extra: '', me: false, dead: !remote.alive, ally: false });
+    }
     // Avec des coéquipiers : ton équipe d'abord, puis les ennemis, chaque camp trié par éliminations.
     const rows =
       this.bots.allies.length > 0 ? [...[me, ...this.bots.allies.map(row)].sort(byScore), ...enemies.sort(byScore)] : [me, ...enemies].sort(byScore);
     const round = this.rounds.current;
     const title = this.roundBased
       ? `${this.mode === 'bomb' ? 'Bombe' : 'Manches'} · manche ${round.round} · Toi ${round.playerScore} – ${round.botScore} Bots`
-      : 'Deathmatch';
+      : this.duel.active
+        ? `En ligne · 1 contre 1 face à ${this.duel.remote.name}`
+        : 'Deathmatch';
     this.hud.setScoreboard({ title, rows });
   }
 
@@ -936,12 +1080,21 @@ export class Game {
         if (this.grenades.blocksVision(this.camera.position, head)) continue;
         this.spotted.set(bot, now);
       }
+      const remote = this.duel.remote;
+      if (this.duel.active && remote.alive) {
+        const head = remote.eyePosition(this.eye.clone());
+        if (this.frustum.containsPoint(head) && this.clearLine(this.camera.position, head)) this.remoteSpotted = now;
+      }
     }
     const enemies = [];
     for (const [bot, time] of this.spotted) {
       const age = now - time;
       if (!bot.alive || age > SPOT_MEMORY_MS) continue;
       enemies.push({ x: bot.body.position.x, z: bot.body.position.z, alpha: 1 - age / SPOT_MEMORY_MS });
+    }
+    const remoteAge = now - this.remoteSpotted;
+    if (this.duel.active && this.duel.remote.alive && remoteAge < SPOT_MEMORY_MS) {
+      enemies.push({ x: this.duel.remote.position.x, z: this.duel.remote.position.z, alpha: 1 - remoteAge / SPOT_MEMORY_MS });
     }
     // Les coéquipiers sont toujours affichés, comme dans CS.
     const allies = this.bots.allies.filter((bot) => bot.alive).map((bot) => ({ x: bot.body.position.x, z: bot.body.position.z }));

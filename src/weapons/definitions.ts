@@ -219,3 +219,6 @@ export const SHOTGUN: WeaponDef = {
 export const PRIMARIES: WeaponDef[] = [RIFLE, SMG, SHOTGUN];
 
 export const LOADOUT: WeaponDef[] = [RIFLE, PISTOL, KNIFE];
+
+/** Toutes les armes, par identifiant (pour le jeu en ligne). */
+export const WEAPONS: Record<WeaponId, WeaponDef> = { rifle: RIFLE, smg: SMG, shotgun: SHOTGUN, pistol: PISTOL, knife: KNIFE };

@@ -767,3 +767,87 @@ kbd {
   text-shadow: 0 1px 2px #000;
   opacity: 0.75;
 }
+
+/* Encart « En ligne » du menu. */
+#online {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+#online h2 {
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+#online input {
+  padding: 7px 9px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  background: #111;
+  color: #eee;
+  font: inherit;
+}
+
+#online button {
+  padding: 7px 12px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #2a2d33;
+}
+
+#online button:hover {
+  background: #353941;
+}
+
+.online-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.online-name input {
+  flex: 1;
+  min-width: 0;
+}
+
+.online-idle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.online-code {
+  width: 6.5em;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  text-align: center;
+}
+
+.online-or {
+  color: #999;
+}
+
+.online-status {
+  color: #bbb;
+  font-size: 14px;
+}
+
+.online-status.error {
+  color: #ff6b5b;
+}
+
+.online-code-value {
+  color: #4dff4d;
+  font-size: 18px;
+  letter-spacing: 3px;
+  user-select: all;
+}
+
+#online [hidden] {
+  display: none;
+}
