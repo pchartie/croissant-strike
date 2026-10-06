@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { HitPart } from '../bots/BotModel';
+import { GRENADES, type GrenadeType } from '../grenades/definitions';
 import type { Player } from '../player/Player';
 import { OnlinePanel } from '../ui/OnlinePanel';
 import { WEAPONS, type WeaponDef, type WeaponId } from '../weapons/definitions';
@@ -22,6 +23,9 @@ export interface DuelHooks {
   hitByRemote(def: WeaponDef, part: HitPart, damage: number, label: string | undefined): void;
   /** L'adversaire annonce que notre tir l'a tué. */
   killedRemote(weapon: string, headshot: boolean): void;
+  /** L'adversaire lance une grenade, puis annonce où elle éclate. */
+  remoteGrenade(type: GrenadeType, id: number, from: THREE.Vector3, velocity: THREE.Vector3): void;
+  remoteDetonate(id: number, at: THREE.Vector3): void;
 }
 
 /**
@@ -90,6 +94,14 @@ export class Duel {
     this.online.send({ t: 'hit', weapon: def.id, part, damage: Math.round(damage * 10) / 10, label });
   }
 
+  sendGrenade(type: GrenadeType, id: number, from: THREE.Vector3, velocity: THREE.Vector3): void {
+    this.online.send({ t: 'grenade', type, id, from: toVec3(from), velocity: toVec3(velocity) });
+  }
+
+  sendDetonate(id: number, at: THREE.Vector3): void {
+    this.online.send({ t: 'detonate', id, at: toVec3(at) });
+  }
+
   sendDeath(weapon: string, headshot: boolean): void {
     this.online.send({ t: 'died', weapon, headshot });
   }
@@ -117,6 +129,15 @@ export class Duel {
         this.hooks.hitByRemote(def, message.part, message.damage, message.label?.slice(0, 40));
         break;
       }
+      case 'grenade':
+        if (!Object.hasOwn(GRENADES, message.type) || !Number.isInteger(message.id) || !isVec3(message.from) || !isVec3(message.velocity)) return;
+        // Vitesse plafonnée : un lancer de grenade, pas un missile.
+        if (Math.hypot(...message.velocity) > 50) return;
+        this.hooks.remoteGrenade(message.type, message.id, toVector(message.from), toVector(message.velocity));
+        break;
+      case 'detonate':
+        if (Number.isInteger(message.id) && isVec3(message.at)) this.hooks.remoteDetonate(message.id, toVector(message.at));
+        break;
       case 'died':
         this.hooks.killedRemote(String(message.weapon).slice(0, 40), message.headshot === true);
         break;

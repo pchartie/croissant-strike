@@ -21,6 +21,8 @@ const DRAW_TIME = 0.4;
 /** Temps minimal pour dégoupiller avant de pouvoir lancer. */
 const PIN_TIME = 0.2;
 const THROW_TIME = 0.45;
+/** Grenade de l'adversaire dont on n'a jamais reçu l'éclatement (message perdu) : retirée après ce délai. */
+const REMOTE_TIMEOUT = 20;
 
 type State = 'drawing' | 'ready' | 'pulled' | 'throwing';
 
@@ -34,6 +36,10 @@ export interface GrenadeHooks {
   floorBelow(position: THREE.Vector3): number;
   pulled(def: GrenadeDef): void;
   thrown(def: GrenadeDef): void;
+  /** Le joueur vient de lancer une grenade (pour l'annoncer à l'adversaire en ligne). */
+  launched?(type: GrenadeType, origin: THREE.Vector3, velocity: THREE.Vector3, id: number): void;
+  /** Une grenade du joueur vient d'éclater à cet endroit (pour l'annoncer en ligne). */
+  detonated?(id: number, position: THREE.Vector3): void;
   /** Plus de grenade de ce type en main : le jeu ressort l'arme. */
   emptyHanded(): void;
   bounce(position: THREE.Vector3, speed: number): void;
@@ -43,7 +49,7 @@ export interface GrenadeHooks {
   smoke(position: THREE.Vector3): void;
   fire(position: THREE.Vector3, fizzled: boolean): void;
   decoyShot(position: THREE.Vector3): void;
-  decoyEnded(position: THREE.Vector3): void;
+  decoyEnded(position: THREE.Vector3, owner: GrenadeOwner | null): void;
 }
 
 interface Decoy {
@@ -65,6 +71,7 @@ export class GrenadeSystem {
   private state: State = 'drawing';
   private timer = 0;
   private heldMask = 0;
+  private nextId = 1;
 
   private readonly projectiles: Projectile[] = [];
   private readonly decoys: Decoy[] = [];
@@ -210,13 +217,35 @@ export class GrenadeSystem {
     this.scene.add(projectile.mesh);
   }
 
+  /**
+   * Grenade lancée par l'adversaire en ligne : elle vole ici aussi, mais n'éclate
+   * que quand il annonce où (voir `detonateRemote`), pour qu'elle éclate au même endroit des deux côtés.
+   */
+  launchRemote(type: GrenadeType, origin: THREE.Vector3, velocity: THREE.Vector3, id: number, owner: GrenadeOwner, throwerBox: THREE.Box3): void {
+    const projectile = new Projectile(type, origin.clone(), velocity.clone(), throwerBox, owner);
+    projectile.netId = id;
+    projectile.remote = true;
+    this.projectiles.push(projectile);
+    this.scene.add(projectile.mesh);
+  }
+
+  /** L'adversaire annonce que sa grenade `id` a éclaté à cet endroit. */
+  detonateRemote(id: number, position: THREE.Vector3): void {
+    const projectile = this.projectiles.find((p) => p.remote && p.netId === id);
+    if (!projectile) return;
+    projectile.position.copy(position);
+    projectile.mesh.position.copy(position);
+    projectile.resting = true;
+    this.detonate(projectile);
+  }
+
   /** Grenades en vol et effets au sol (à chaque tick). */
   update(dt: number): void {
     const colliders = this.hooks.colliders();
     for (const projectile of [...this.projectiles]) {
       projectile.update(dt, colliders, (impact) => {
         if (impact.speed > 1.5) this.hooks.bounce(projectile.position, impact.speed);
-        if (projectile.type === 'molotov' && impact.floor) this.detonate(projectile);
+        if (projectile.type === 'molotov' && impact.floor && !projectile.remote) this.detonate(projectile);
       });
       if (this.projectiles.includes(projectile)) this.checkFuse(projectile);
     }
@@ -243,9 +272,9 @@ export class GrenadeSystem {
     return this.fires.find((fire) => fire.burns(feet))?.center ?? null;
   }
 
-  /** Vrai si des pieds à cet endroit sont dans un feu de molotov. */
-  burning(feet: THREE.Vector3): boolean {
-    return this.fires.some((fire) => fire.burns(feet));
+  /** Le feu de molotov où se trouvent ces pieds (avec son lanceur), ou null. */
+  burning(feet: THREE.Vector3): FireArea | null {
+    return this.fires.find((fire) => fire.burns(feet)) ?? null;
   }
 
   /** Épaisseur de fumée au point donné (0 à 1), pour griser l'écran quand on est dedans. */
@@ -278,8 +307,10 @@ export class GrenadeSystem {
 
     const velocity = this.forward.clone().multiplyScalar(speed).addScaledVector(this.player.velocity, GRENADE_PHYSICS.inheritVelocity);
     const projectile = new Projectile(type, origin, velocity, this.player.box);
+    projectile.netId = this.nextId++;
     this.projectiles.push(projectile);
     this.scene.add(projectile.mesh);
+    this.hooks.launched?.(type, origin, velocity, projectile.netId);
 
     this.counts[type]--;
     this.state = 'throwing';
@@ -289,6 +320,13 @@ export class GrenadeSystem {
 
   private checkFuse(projectile: Projectile): void {
     const { fuse } = projectile.def;
+    if (projectile.remote) {
+      if (projectile.age > fuse + REMOTE_TIMEOUT) {
+        this.projectiles.splice(this.projectiles.indexOf(projectile), 1);
+        this.scene.remove(projectile.mesh);
+      }
+      return;
+    }
     if (projectile.age < fuse) return;
     switch (projectile.type) {
       case 'he':
@@ -309,6 +347,8 @@ export class GrenadeSystem {
     const position = projectile.position.clone();
     const keepMesh = projectile.type === 'decoy';
     if (!keepMesh) this.scene.remove(projectile.mesh);
+    // Nos grenades (pas celles des bots) : on annonce où elles éclatent.
+    if (!projectile.remote && !projectile.owner && projectile.netId) this.hooks.detonated?.(projectile.netId, position);
 
     switch (projectile.type) {
       case 'he':
@@ -339,7 +379,9 @@ export class GrenadeSystem {
         // Un molotov qui tombe dans une fumée s'éteint aussitôt.
         const fizzled = this.smokes.some((smoke) => smoke.contains(floor.clone().setY(floor.y + 0.9)));
         if (!fizzled) {
-          this.addEffect(this.fires, new FireArea(floor));
+          const fire = new FireArea(floor);
+          fire.owner = projectile.owner;
+          this.addEffect(this.fires, fire);
           this.addEffect(this.scorches, new Scorch(floor, MOLOTOV.radius * 2.3, MOLOTOV.duration + 12));
         }
         this.hooks.fire(floor, fizzled);
@@ -358,7 +400,7 @@ export class GrenadeSystem {
     if (decoy.time >= DECOY.duration) {
       this.decoys.splice(this.decoys.indexOf(decoy), 1);
       this.scene.remove(decoy.projectile.mesh);
-      this.hooks.decoyEnded(decoy.projectile.position);
+      this.hooks.decoyEnded(decoy.projectile.position, decoy.projectile.owner);
       return;
     }
     if (decoy.nextShot > 0) return;

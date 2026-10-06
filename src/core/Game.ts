@@ -108,6 +108,8 @@ export class Game {
   /** Statistiques du joueur pour le tableau des scores et la fin de match. */
   private stats = { shots: 0, hits: 0, headshots: 0, damage: 0 };
   private deaths = 0;
+  /** En ligne : nos morts causées par l'adversaire (ses éliminations ; on ne compte pas nos suicides à la grenade). */
+  private remoteKills = 0;
   /** Temps restant avant de réapparaître (deathmatch), ou null. */
   private respawnTimer: number | null = null;
   private killer = '';
@@ -340,7 +342,7 @@ export class Game {
   }
 
   private resetStats(): void {
-    this.kills = this.deaths = 0;
+    this.kills = this.deaths = this.remoteKills = 0;
     this.stats = { shots: 0, hits: 0, headshots: 0, damage: 0 };
     this.bots.resetStats();
     this.hud.setScore(0, 0);
@@ -407,10 +409,6 @@ export class Game {
       this.buyMenu.message = item.kind === 'grenade' ? 'Limite de grenades atteinte' : 'Déjà équipé';
       return;
     }
-    if (item.kind === 'grenade' && this.duel.active) {
-      this.buyMenu.message = 'Pas encore de grenades en ligne';
-      return;
-    }
     if (this.roundBased && !this.economy.spend(this.priceOf(item))) {
       this.buyMenu.message = "Pas assez d'argent";
       return;
@@ -439,14 +437,7 @@ export class Game {
    * au centre et qui baissent vite avec la distance, comme la HE de CS:GO.
    */
   private applyAreaDamage(center: THREE.Vector3, radius: number, maxDamage: number, weapon: string, thrower: Bot | null = null): void {
-    const sigma = radius / 3;
-    const origin = center.clone().setY(center.y + 0.1);
-    const hits = (feet: THREE.Vector3, height: number) => {
-      const body = feet.clone().setY(feet.y + height / 2);
-      const distance = body.distanceTo(origin);
-      if (distance > radius || !this.clearLine(origin, body)) return 0;
-      return maxDamage * Math.exp(-(distance * distance) / (2 * sigma * sigma));
-    };
+    const hits = (feet: THREE.Vector3, height: number) => this.blastDamage(center, radius, maxDamage, feet, height);
 
     // Pas de tir ami : une grenade ne blesse que le camp adverse (et le joueur qui l'a lancée).
     const throwerTeam = thrower ? thrower.team : 'ally';
@@ -464,11 +455,38 @@ export class Game {
     }
   }
 
+  /** Dégâts d'une explosion sur quelqu'un (pieds, taille) : rien derrière un mur, très forts au centre. */
+  private blastDamage(center: THREE.Vector3, radius: number, maxDamage: number, feet: THREE.Vector3, height: number): number {
+    const sigma = radius / 3;
+    const origin = center.clone().setY(center.y + 0.1);
+    const body = feet.clone().setY(feet.y + height / 2);
+    const distance = body.distanceTo(origin);
+    if (distance > radius || !this.clearLine(origin, body)) return 0;
+    return maxDamage * Math.exp(-(distance * distance) / (2 * sigma * sigma));
+  }
+
+  /** Explosion d'une grenade de l'adversaire en ligne : on calcule nous-mêmes ce qu'elle nous fait. */
+  private remoteAreaDamage(center: THREE.Vector3, radius: number, maxDamage: number, weapon: string): void {
+    if (!this.player.alive) return;
+    const damage = this.blastDamage(center, radius, maxDamage, this.player.position, this.player.height);
+    if (damage >= 1) this.hurtByRemote(damage, 'blast', BLAST_ARMOR_RATIO, weapon, false);
+  }
+
+  /** Dégâts venant de l'adversaire en ligne ; si on en meurt, on le lui annonce (c'est lui qui marque). */
+  private hurtByRemote(damage: number, zone: DamageZone, armorRatio: number, weapon: string, headshot: boolean): void {
+    if (!this.player.alive) return;
+    this.damagePlayer(damage, zone, armorRatio, this.duel.remote.name, weapon, headshot);
+    if (this.player.alive) return;
+    this.remoteKills++;
+    this.duel.sendDeath(weapon, headshot);
+  }
+
   /** Feux de molotov : brûlent le joueur et les bots qui sont dedans. */
   private applyFire(): void {
-    const burning = (feet: THREE.Vector3) => this.grenades.burning(feet);
     const damage = MOLOTOV.damagePerSecond * TICK;
-    if (this.player.alive && burning(this.player.position)) this.damagePlayer(damage, 'fire', 1, 'Toi', GRENADES.molotov.name);
+    const fire = this.player.alive ? this.grenades.burning(this.player.position) : null;
+    if (fire && this.duel.active && fire.owner === this.duel.remote) this.hurtByRemote(damage, 'fire', 1, GRENADES.molotov.name, false);
+    else if (fire) this.damagePlayer(damage, 'fire', 1, 'Toi', GRENADES.molotov.name);
     // Le feu (toujours lancé par le joueur) fait fuir tout le monde mais ne blesse pas ses coéquipiers.
     this.bots.burn(
       (feet) => this.grenades.fireAt(feet),
@@ -595,7 +613,7 @@ export class Game {
   private createDuel(): Duel {
     return new Duel(this.scene, this.player, {
       started: () => {
-        // Deathmatch à deux : pas de bots, pas de grenades (pour l'instant).
+        // Deathmatch à deux, sans bots (pour l'instant).
         this.bots.setEnabled(false);
         this.spotted.clear();
         this.startMode('deathmatch');
@@ -611,12 +629,13 @@ export class Game {
         if (this.duel.remote.position.distanceTo(this.player.position) < 6) this.audio.knifeSwing(heavy);
       },
       hitByRemote: (def, part, damage, label) => {
-        if (!this.player.alive) return;
-        const weapon = label ?? def.name;
-        const headshot = part === 'head' && !def.melee;
-        this.damagePlayer(damage, part, def.armorRatio, this.duel.remote.name, weapon, headshot);
-        if (!this.player.alive) this.duel.sendDeath(weapon, headshot);
+        this.hurtByRemote(damage, part, def.armorRatio, label ?? def.name, part === 'head' && !def.melee);
       },
+      remoteGrenade: (type, id, from, velocity) => {
+        const remote = this.duel.remote;
+        this.grenades.launchRemote(type, from, velocity, id, remote, remote.box);
+      },
+      remoteDetonate: (id, at) => this.grenades.detonateRemote(id, at),
       killedRemote: (weapon, headshot) => {
         if (headshot) this.stats.headshots++;
         this.kills++;
@@ -788,7 +807,8 @@ export class Game {
       explode: (position, owner) => {
         const { loudness, pan, distance } = this.hearing(position);
         this.audio.explosion(loudness, pan);
-        this.applyAreaDamage(position, HE.radius, HE.damage, GRENADES.he.name, owner as Bot | null);
+        if (owner && owner === this.duel.remote) this.remoteAreaDamage(position, HE.radius, HE.damage, GRENADES.he.name);
+        else this.applyAreaDamage(position, HE.radius, HE.damage, GRENADES.he.name, owner as Bot | null);
         this.bots.playerFired(position);
         // Secousse de la vue si l'explosion est proche.
         const shake = Math.max(0, 1 - distance / 15) * 0.06;
@@ -821,11 +841,15 @@ export class Game {
         this.audio.shot(RIFLE, { distant: distance > CLOSE_SHOT_DISTANCE, loudness: Math.min(loudness, 0.8), pan });
         this.bots.playerFired(position);
       },
-      decoyEnded: (position) => {
+      decoyEnded: (position, owner) => {
         const { loudness, pan } = this.hearing(position);
         this.audio.decoyPop(loudness, pan);
-        this.applyAreaDamage(position, DECOY.radius, DECOY.damage, GRENADES.decoy.name);
+        if (owner && owner === this.duel.remote) this.remoteAreaDamage(position, DECOY.radius, DECOY.damage, GRENADES.decoy.name);
+        else this.applyAreaDamage(position, DECOY.radius, DECOY.damage, GRENADES.decoy.name);
       },
+      // En ligne : l'adversaire voit nos grenades voler, puis éclater au même endroit que chez nous.
+      launched: (type, origin, velocity, id) => this.duel.active && this.duel.sendGrenade(type, id, origin, velocity),
+      detonated: (id, position) => this.duel.active && this.duel.sendDetonate(id, position),
     });
   }
 
@@ -1025,9 +1049,7 @@ export class Game {
     if (!this.weapons.primary) this.weapons.setPrimary(RIFLE, false);
     this.weapons.reset();
     this.grenades.unequip();
-    // Pas encore de grenades en ligne : elles ne seraient que chez soi.
-    if (this.duel?.active) this.grenades.empty();
-    else this.grenades.refill();
+    this.grenades.refill();
   }
 
   // --- Affichage ---
@@ -1044,9 +1066,9 @@ export class Game {
     const me = { name: 'Toi', kills: this.kills, deaths: this.deaths, extra: `${this.stats.headshots} HS · ${accuracy} %`, me: true, dead: !this.player.alive, ally: true };
     const enemies = this.bots.enemies.map(row);
     if (this.duel.active) {
-      // En ligne : ses éliminations sont nos morts, et inversement.
+      // En ligne : ses éliminations sont nos morts de sa main, et ses morts nos éliminations.
       const remote = this.duel.remote;
-      enemies.push({ name: remote.name, kills: this.deaths, deaths: this.kills, extra: '', me: false, dead: !remote.alive, ally: false });
+      enemies.push({ name: remote.name, kills: this.remoteKills, deaths: this.kills, extra: '', me: false, dead: !remote.alive, ally: false });
     }
     // Avec des coéquipiers : ton équipe d'abord, puis les ennemis, chaque camp trié par éliminations.
     const rows =

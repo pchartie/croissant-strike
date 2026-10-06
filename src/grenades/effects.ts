@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MOLOTOV, SMOKE } from './definitions';
+import type { GrenadeOwner } from './Projectile';
 
 // Effets visuels des grenades, à base de sprites (images toujours face à la
 // caméra) et de particules. Chaque effet expose `group` (à ajouter à la scène),
@@ -240,6 +241,8 @@ export class FireArea {
   readonly group = new THREE.Group();
   age = 0;
   extinguished = false;
+  /** Qui a lancé le molotov : null pour le joueur (pour savoir qui a fait des dégâts). */
+  owner: GrenadeOwner | null = null;
   /** Intensité de la lumière des flammes (une lumière partagée l'affiche). */
   glow = 0;
   private readonly flames: Flame[] = [];

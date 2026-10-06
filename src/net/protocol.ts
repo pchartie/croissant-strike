@@ -1,8 +1,9 @@
 import type { HitPart } from '../bots/BotModel';
+import type { GrenadeType } from '../grenades/definitions';
 import type { WeaponId } from '../weapons/definitions';
 
 /** Change quand le protocole change : deux versions différentes du jeu ne jouent pas ensemble. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export type Vec3 = [number, number, number];
 
@@ -34,7 +35,11 @@ export type NetMessage =
   /** « Je t'ai touché » : dégâts bruts (avant le gilet), déjà réduits par la distance. */
   | { t: 'hit'; weapon: WeaponId; part: HitPart; damage: number; label?: string }
   /** « Tu m'as tué » : envoyé par la victime au tireur. */
-  | { t: 'died'; weapon: string; headshot: boolean };
+  | { t: 'died'; weapon: string; headshot: boolean }
+  /** Grenade lancée : l'autre la fait voler de son côté. */
+  | { t: 'grenade'; type: GrenadeType; id: number; from: Vec3; velocity: Vec3 }
+  /** La grenade `id` a éclaté là (l'autre la fait éclater au même endroit). */
+  | { t: 'detonate'; id: number; at: Vec3 };
 
 export const toVec3 = (v: { x: number; y: number; z: number }): Vec3 => [round(v.x), round(v.y), round(v.z)];
 
@@ -47,5 +52,5 @@ function round(value: number): number {
 export function isMessage(data: unknown): data is NetMessage {
   if (!data || typeof data !== 'object') return false;
   const t = (data as { t?: unknown }).t;
-  return t === 'hello' || t === 'state' || t === 'shot' || t === 'swing' || t === 'hit' || t === 'died';
+  return t === 'hello' || t === 'state' || t === 'shot' || t === 'swing' || t === 'hit' || t === 'died' || t === 'grenade' || t === 'detonate';
 }

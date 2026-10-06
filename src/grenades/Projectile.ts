@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GRENADE_PHYSICS, GRENADES, type GrenadeType } from './definitions';
 import { buildGrenadeModel } from './models';
 
-/** Lanceur d'une grenade autre que le joueur (un bot), repéré par son nom. */
+/** Lanceur d'une grenade autre que le joueur (un bot ou l'adversaire en ligne), repéré par son nom. */
 export interface GrenadeOwner {
   name: string;
 }
@@ -30,6 +30,10 @@ export class Projectile {
   readonly mesh: THREE.Group;
   age = 0;
   resting = false;
+  /** Numéro de la grenade dans une partie en ligne (pour annoncer où elle a éclaté). */
+  netId = 0;
+  /** Lancée par l'adversaire en ligne : elle n'éclate que quand il l'annonce. */
+  remote = false;
 
   private readonly spin = new THREE.Vector3(Math.random() * 12 - 6, Math.random() * 12 - 6, Math.random() * 12 - 6);
   private readonly closest = new THREE.Vector3();
@@ -41,7 +45,7 @@ export class Projectile {
     readonly velocity: THREE.Vector3,
     /** Boîte du lanceur, ignorée pendant un court instant. */
     private readonly throwerBox: THREE.Box3 | null,
-    /** Qui l'a lancée : null pour le joueur, sinon un bot (pour savoir qui a fait des dégâts). */
+    /** Qui l'a lancée : null pour le joueur, sinon un bot ou l'adversaire en ligne (pour savoir qui a fait des dégâts). */
     readonly owner: GrenadeOwner | null = null,
   ) {
     this.mesh = buildGrenadeModel(type);
