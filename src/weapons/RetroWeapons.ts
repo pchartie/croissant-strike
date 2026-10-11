@@ -11,8 +11,12 @@ import { buildKnife, knifeOrientation } from './models';
 const BASE = `${import.meta.env.BASE_URL}assets/weapons/`;
 /** Le pack est en centimètres. */
 const CM = 0.01;
-/** Vitesse de fondu entre les animations (par seconde). */
-const BLEND_RATE = 18;
+/**
+ * Fondus entre l'animation ponctuelle (tir, sortie…) et l'animation de base, en secondes. Le retour
+ * au repos est adouci au début et à la fin : un fondu qui démarrait d'un coup faisait sauter les bras.
+ */
+const FADE_IN = 0.06;
+const FADE_OUT = 0.3;
 /** Décalage de l'arme en main (mètres) : un peu à droite et vers le bas pour dégager le réticule. */
 const VIEW_OFFSET = new THREE.Vector3(0.02, -0.015, 0);
 
@@ -131,16 +135,17 @@ export class AnimatedWeapon {
     // image pendant qu'on revient en fondu vers l'animation de base.
     const current = this.oneShot ? this.arms[this.oneShot] : null;
     const active = current !== null && current.isRunning();
-    this.override += ((active ? 1 : 0) - this.override) * Math.min(1, dt * BLEND_RATE);
-    if (current && !active && this.override < 0.01) {
+    this.override = active ? Math.min(1, this.override + dt / FADE_IN) : Math.max(0, this.override - dt / FADE_OUT);
+    if (current && !active && this.override === 0) {
       current.stop();
       this.oneShot = null;
     }
 
-    const base = 1 - this.override;
+    const weight = THREE.MathUtils.smoothstep(this.override, 0, 1);
+    const base = 1 - weight;
     this.arms.idle.setEffectiveWeight(base * (1 - this.walk));
     this.arms.walk.setEffectiveWeight(base * this.walk);
-    current?.setEffectiveWeight(this.override);
+    current?.setEffectiveWeight(weight);
 
     this.armsMixer.update(dt);
     this.gunMixer.update(dt);

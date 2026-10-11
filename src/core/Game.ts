@@ -210,10 +210,15 @@ export class Game {
       this.player.armor = 100;
       this.player.helmet = true;
     }
-    new SettingsPanel(document.getElementById('settings')!, settings, (changed) => {
-      this.applySettings(changed);
-      saveSettings(changed);
-    });
+    new SettingsPanel(
+      document.getElementById('settings')!,
+      settings,
+      (changed) => {
+        this.applySettings(changed);
+        saveSettings(changed);
+      },
+      [{ title: 'En ligne', element: document.getElementById('online')!, index: 1 }],
+    );
     void loadRetroWeapons().then((weapons) => {
       if (!weapons) return;
       this.viewModel.useAnimated(weapons.viewModels, this.weapons.current.def);

@@ -100,9 +100,9 @@ Le réticule est fixe, mais les balles se dispersent quand on court, saute ou ti
 
 ## Réglages
 
-Le menu (Échap) tient en un écran : **Jouer**, **En ligne · 1 contre 1** et **Réglages**. Les réglages sont mémorisés dans le navigateur :
+Le menu (Échap) range les réglages en rubriques à gauche, avec leurs options à droite et **Jouer** toujours en bas. Les réglages sont mémorisés dans le navigateur :
 
-- **Jeu** : mode, bots activés ou non, passifs (par défaut) ou agressifs, nombre d'ennemis (1 à 10), coéquipiers (0 à 4) et difficulté (facile, normale, difficile).
+- **Partie** : mode, bots activés ou non, passifs (par défaut) ou agressifs, nombre d'ennemis (1 à 10), coéquipiers (0 à 4) et difficulté (facile, normale, difficile).
 - **Contrôles** : sensibilité de la souris (même échelle que CS), axe vertical inversé ou non, champ de vision.
 - **Audio et affichage** : volume, couleur et taille du réticule, compteur de vitesse.
 - **Graphismes** : qualité des ombres (désactivées, basses, hautes), résolution de rendu (50 à 100 %, pour les PC moins puissants), compteur d'images par seconde.
@@ -131,7 +131,7 @@ Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90
 
 ## En ligne (1 contre 1)
 
-Dans le menu (Échap), bouton **En ligne · 1 contre 1** : choisis un pseudo, puis **Créer une partie** pour recevoir un code de 4 caractères à donner à ton adversaire ; lui l'entre et clique sur **Rejoindre**. C'est un deathmatch à deux (réapparition 3 s après chaque mort, hors de vue de l'autre), sans bots pour l'instant ; armes, gilet, couteau (coups dans le dos compris) et les cinq grenades marchent comme contre les bots. Une grenade vole chez les deux joueurs, et celui qui la lance annonce où elle éclate : HE, flash, fumée et feu sont donc au même endroit sur les deux écrans. **Quitter la partie** (ou le départ de l'autre) ramène au jeu seul, avec tes réglages.
+Dans le menu (Échap), rubrique **En ligne** : choisis un pseudo, puis **Créer une partie** pour recevoir un code de 4 caractères à donner à ton adversaire ; lui l'entre et clique sur **Rejoindre**. C'est un deathmatch à deux (réapparition 3 s après chaque mort, hors de vue de l'autre), sans bots pour l'instant ; armes, gilet, couteau (coups dans le dos compris) et les cinq grenades marchent comme contre les bots. Une grenade vole chez les deux joueurs, et celui qui la lance annonce où elle éclate : HE, flash, fumée et feu sont donc au même endroit sur les deux écrans. **Quitter la partie** (ou le départ de l'autre) ramène au jeu seul, avec tes réglages.
 
 La connexion est directe entre les deux navigateurs (WebRTC, avec [PeerJS](https://peerjs.com)) : le serveur public de PeerJS sert seulement à se trouver grâce au code. Ça marche en local comme sur GitHub Pages, chacun chez soi. Sur certains réseaux très fermés (entreprise, certaines box), la connexion directe peut échouer. Chacun fait foi pour ses propres tirs (« je t'ai touché à la tête ») et l'autre applique les dégâts avec son gilet ; l'adversaire est affiché avec 100 ms de retard pour un mouvement fluide. Pour tester seul, ouvre le jeu dans deux fenêtres.
 

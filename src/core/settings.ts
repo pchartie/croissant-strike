@@ -73,7 +73,7 @@ export interface SettingsTab {
 
 export const SETTINGS_TABS: SettingsTab[] = [
   {
-    title: 'Jeu',
+    title: 'Partie',
     fields: [
       {
         key: 'mode',

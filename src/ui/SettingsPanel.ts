@@ -16,9 +16,10 @@ import {
 } from '../core/bindings';
 
 /**
- * Panneau de réglages du menu de pause, construit à partir de SETTINGS_TABS :
- * un onglet par catégorie, plus un onglet « Touches » pour changer les touches
- * de chaque action. Chaque changement est appliqué tout de suite.
+ * Corps du menu, construit à partir de SETTINGS_TABS : les rubriques à gauche (une par
+ * catégorie, plus « Touches » pour changer les touches de chaque action, et les pages
+ * données par le jeu, comme « En ligne »), leurs options à droite. Chaque changement
+ * est appliqué tout de suite.
  */
 export class SettingsPanel {
   private readonly refreshers: (() => void)[] = [];
@@ -31,6 +32,8 @@ export class SettingsPanel {
     container: HTMLElement,
     private readonly settings: Settings,
     private readonly onChange: (settings: Settings, key: keyof Settings) => void,
+    /** Pages ajoutées par le jeu, insérées à la position `index` parmi les rubriques. */
+    extraPages: { title: string; element: HTMLElement; index: number }[] = [],
   ) {
     const tabs = document.createElement('div');
     tabs.className = 'tabs';
@@ -42,6 +45,7 @@ export class SettingsPanel {
       ...SETTINGS_TABS.map((tab) => ({ title: tab.title, element: this.buildPage(tab.fields) })),
       extra,
     ];
+    for (const page of extraPages) allTabs.splice(page.index, 0, { title: page.title, element: page.element });
 
     allTabs.forEach(({ title, element }, i) => {
       const button = document.createElement('button');
@@ -77,7 +81,10 @@ export class SettingsPanel {
       this.refresh();
     });
 
-    container.replaceChildren(tabs, pages, reset);
+    const content = document.createElement('div');
+    content.className = 'menu-content';
+    content.append(pages, reset);
+    container.replaceChildren(tabs, content);
     this.refresh();
   }
 
