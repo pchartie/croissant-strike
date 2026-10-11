@@ -22,7 +22,6 @@ const CROSSHAIR_SIZES: Record<CrosshairSize, { len: number; gap: number; thick: 
 };
 
 export class Hud {
-  private readonly speed = document.getElementById('speed')!;
   private readonly weaponName = document.getElementById('weapon-name')!;
   private readonly ammo = document.getElementById('ammo-count')!;
   private readonly reserve = document.getElementById('ammo-reserve')!;
@@ -59,7 +58,6 @@ export class Hud {
   private readonly flash = document.getElementById('flash-overlay')!;
   private readonly smoke = document.getElementById('smoke-overlay')!;
   private lastGrenades = '';
-  private lastSpeed = -1;
   private lastAmmo = '';
   private lastHealth = -1;
 
@@ -77,14 +75,6 @@ export class Hud {
   private showMenu(open: boolean): void {
     this.overlay.classList.toggle('hidden', !open);
     this.resume.classList.toggle('hidden', open || !this.paused);
-  }
-
-  /** Vitesse horizontale affichée en unités Source, comme cl_showpos. */
-  setSpeed(units: number): void {
-    const rounded = Math.round(units);
-    if (rounded === this.lastSpeed) return;
-    this.lastSpeed = rounded;
-    this.speed.textContent = String(rounded);
   }
 
   /**
@@ -259,10 +249,6 @@ export class Hud {
 
   setFpsVisible(visible: boolean): void {
     this.fps.style.display = visible ? '' : 'none';
-  }
-
-  setSpeedVisible(visible: boolean): void {
-    this.speed.style.display = visible ? '' : 'none';
   }
 
   setPaused(paused: boolean): void {

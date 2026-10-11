@@ -26,7 +26,6 @@ export interface Settings {
   volume: number;
   crosshairColor: CrosshairColor;
   crosshairSize: CrosshairSize;
-  showSpeed: boolean;
   // Graphismes
   shadows: ShadowQuality;
   /** Résolution de rendu, en % de celle de l'écran (moins = plus fluide). */
@@ -50,7 +49,6 @@ export const DEFAULT_SETTINGS: Settings = {
   volume: 70,
   crosshairColor: 'green',
   crosshairSize: 'medium',
-  showSpeed: true,
   shadows: 'high',
   renderScale: 100,
   showFps: true,
@@ -134,7 +132,6 @@ export const SETTINGS_TABS: SettingsTab[] = [
           { value: 'large', label: 'Grand' },
         ],
       },
-      { key: 'showSpeed', label: 'Compteur de vitesse', type: 'toggle', on: 'Affiché', off: 'Caché' },
     ],
   },
   {

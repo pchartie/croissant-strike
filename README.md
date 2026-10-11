@@ -74,8 +74,6 @@ cloudflared tunnel --url http://localhost:4173
 | Maj | Marcher lentement |
 | Échap | Ouvrir ou fermer le menu (menu fermé : un clic relance la partie) |
 
-Le nombre en bas de l'écran est la vitesse en unités Source (250 = vitesse de course avec un couteau dans CS).
-
 ## Structure
 
 ```
@@ -104,7 +102,7 @@ Le menu (Échap) range les réglages en rubriques à gauche, avec leurs options 
 
 - **Partie** : mode, bots activés ou non, passifs (par défaut) ou agressifs, nombre d'ennemis (1 à 10), coéquipiers (0 à 4) et difficulté (facile, normale, difficile).
 - **Contrôles** : sensibilité de la souris (même échelle que CS), axe vertical inversé ou non, champ de vision.
-- **Audio et affichage** : volume, couleur et taille du réticule, compteur de vitesse.
+- **Audio et affichage** : volume, couleur et taille du réticule.
 - **Graphismes** : qualité des ombres (désactivées, basses, hautes), résolution de rendu (50 à 100 %, pour les PC moins puissants), compteur d'images par seconde (affiché par défaut, sous le radar).
 - **Touches** : toutes les touches se changent (deux par action, clavier ou souris, molette comprise) : on clique sur une case puis on appuie sur la touche voulue. Les lettres s'affichent selon ton clavier (Z, Q, S, D en AZERTY).
 

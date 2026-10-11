@@ -910,7 +910,6 @@ export class Game {
     }
     this.audio.setVolume(settings.volume / 100);
     this.hud.setCrosshair(settings.crosshairColor, settings.crosshairSize);
-    this.hud.setSpeedVisible(settings.showSpeed);
     this.applyGraphics(settings);
 
     // En ligne, le mode et les bots sont imposés ; ces réglages reprendront effet après la partie.
@@ -1103,7 +1102,6 @@ export class Game {
   }
 
   private updateHud(): void {
-    this.hud.setSpeed(this.player.horizontalSpeed / UNIT);
     this.hud.setHealth(this.player.health);
     // Écran blanc tant que la flash fait effet (voir Hud.setFlash).
     this.hud.setFlash(this.flashTime);

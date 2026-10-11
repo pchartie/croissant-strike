@@ -71,18 +71,6 @@ canvas {
   left: var(--gap);
 }
 
-#speed {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #fff;
-  font-size: 20px;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 2px #000;
-  opacity: 0.85;
-}
-
 #ammo {
   position: absolute;
   right: 32px;
