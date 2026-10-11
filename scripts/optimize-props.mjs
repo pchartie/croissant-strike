@@ -21,8 +21,8 @@ const PROPS = [
   { id: 'barrel_03', file: 'barrel-blue', triangles: 1500 },
   { id: 'Barrel_01', file: 'barrel-red', triangles: 1600 },
   { id: 'metal_jerrycan', file: 'jerrycan', triangles: 1200 },
-  { id: 'trashbag', file: 'trashbag', triangles: 1200 },
-  { id: 'plastic_crate_02', file: 'crate', triangles: 1600 },
+  // Parois fines : dessinées des deux côtés, sinon la caisse paraît trouée vue de l'intérieur.
+  { id: 'plastic_crate_02', file: 'crate', triangles: 1600, doubleSided: true },
   { id: 'quiver_tree_02', file: 'tree', triangles: 3000 },
 ];
 const ERROR = 0.02;
@@ -53,6 +53,12 @@ for (const prop of PROPS) {
   for (const [file, { url }] of Object.entries(gltf.include)) await download(url, path.join(dir, file));
 
   const source = await io.read(path.join(dir, `${prop.id}.gltf`));
+  for (const material of source.getRoot().listMaterials()) {
+    // « Transparent » sans transparence (texture JPEG) : opaque. Sinon le moteur trie mal les faces
+    // des objets dessinés ensemble, et l'objet s'affiche de travers selon l'angle.
+    if (material.getAlphaMode() === 'BLEND' && material.getBaseColorTexture()?.getMimeType() !== 'image/png') material.setAlphaMode('OPAQUE');
+    if (prop.doubleSided) material.setDoubleSided(true);
+  }
   await source.transform(dedup(), flatten(), join(), weld());
   const before = triangles(source);
   const base = await io.writeBinary(source);

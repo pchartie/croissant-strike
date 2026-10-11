@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import type { Surface } from './surfaces';
 import type { World } from './World';
 
-// Objets de la carte (barils, jerricanes, sacs, caisses, arbres) : modèles Poly Haven optimisés par
+// Objets de la carte (barils, jerricanes, caisses, arbres) : modèles Poly Haven optimisés par
 // `npm run optimize-props`. Leurs collisions sont posées dès la construction de la carte (pour la
 // navigation des bots) ; les modèles arrivent ensuite, chacun dessiné en un seul appel (instanciation).
 
-export type PropId = 'barrelBlue' | 'barrelRed' | 'jerrycan' | 'trashbag' | 'crate' | 'tree';
+export type PropId = 'barrelBlue' | 'barrelRed' | 'jerrycan' | 'crate' | 'tree';
 
 interface PropSpec {
   file: string;
@@ -24,10 +24,9 @@ const SPECS: Record<PropId, PropSpec> = {
   barrelBlue: { file: 'barrel-blue', size: [0.61, 0.62, 0.9], surface: 'metal', shadow: true },
   barrelRed: { file: 'barrel-red', size: [0.58, 0.58, 0.9], surface: 'metal', shadow: true },
   jerrycan: { file: 'jerrycan', size: [0.35, 0.17, 0.46], surface: 'metal' },
-  trashbag: { file: 'trashbag', size: [0.53, 0.46, 0.57], surface: 'sand' },
   crate: { file: 'crate', size: [0.51, 0.41, 0.25], surface: 'plaster' },
-  // L'arbre carquois du pack fait 1,5 m : agrandi pour en faire un vrai arbre.
-  tree: { file: 'tree', size: [1.75, 1.76, 2.95], surface: 'wood', trunk: 0.36, shadow: true },
+  // L'arbre carquois du pack fait 1,5 m : agrandi à 5 m pour en faire un vrai arbre.
+  tree: { file: 'tree', size: [2.97, 2.98, 5], surface: 'wood', trunk: 0.55, shadow: true },
 };
 
 export interface PropPlacement {

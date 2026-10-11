@@ -143,7 +143,7 @@ Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebon
 
 Textures de [Poly Haven](https://polyhaven.com) en CC0 à leur taille réelle (sable, crépi, grès, planches : `public/textures/`), et habillage façon de_dust : linteaux et poutres au-dessus des passages, battants de porte en bois, auvents sur poteaux, fenêtres, rebords de grès en haut des murs, barils et palettes.
 
-**Objets** : barils, jerricanes, caisses en plastique, sacs poubelle et arbres carquois de [Poly Haven](https://polyhaven.com) (CC0, crédits dans `public/assets/props/CREDITS.md`), posés contre les murs et sous les auvents. Ils sont optimisés pour le navigateur par `npm run optimize-props` (maillages simplifiés, textures WebP de 256 à 512 px, géométrie compressée Meshopt : 450 Ko pour les six modèles), et chaque modèle est dessiné en un seul appel pour tous ses exemplaires (instanciation). Les petits objets ne projettent pas d'ombre.
+**Objets** : barils, jerricanes, caisses en plastique et arbres carquois de [Poly Haven](https://polyhaven.com) (CC0, crédits dans `public/assets/props/CREDITS.md`), posés contre les murs et sous les auvents. Ils sont optimisés pour le navigateur par `npm run optimize-props` (maillages simplifiés, textures WebP de 256 à 512 px, géométrie compressée Meshopt : environ 400 Ko pour les cinq modèles), et chaque modèle est dessiné en un seul appel pour tous ses exemplaires (instanciation). Les petits objets ne projettent pas d'ombre.
 
 ## Ciel
 

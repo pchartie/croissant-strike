@@ -251,17 +251,11 @@ export function buildLevel(world: World, anisotropy: number): THREE.DirectionalL
     { id: 'crate', x: 23.65, z: 14.95, y: 0.25, yaw: 85 },
     { id: 'crate', x: -3.78, z: 27, y: 0.14 },
     { id: 'crate', x: -3.22, z: 27, y: 0.14, yaw: 4 },
-    // Sacs poubelle dans les recoins.
-    { id: 'trashbag', x: -23.65, z: 10.9, yaw: 30 },
-    { id: 'trashbag', x: 23.6, z: 19.2, yaw: 160 },
-    { id: 'trashbag', x: -11.35, z: 10.6, yaw: 70 },
-    { id: 'trashbag', x: 11.35, z: 21.4, yaw: 250 },
-    { id: 'trashbag', x: 27.6, z: -30.4, yaw: 10 },
     // Arbres carquois contre le mur d'enceinte, dans les zones d'apparition.
-    { id: 'tree', x: -20, z: 34.6, yaw: 40 },
-    { id: 'tree', x: 19, z: 34.6, yaw: 160 },
-    { id: 'tree', x: -22, z: -34.6, yaw: 250 },
-    { id: 'tree', x: 21, z: -34.6, yaw: 310 },
+    { id: 'tree', x: -20, z: 34.1, yaw: 40 },
+    { id: 'tree', x: 19, z: 34.1, yaw: 160 },
+    { id: 'tree', x: -22, z: -34.1, yaw: 250 },
+    { id: 'tree', x: 21, z: -34.1, yaw: 310 },
   ];
   placeProps(world, placements, { barrelBlue, barrelRed: barrelRust });
   void loadProps(world, placements);
