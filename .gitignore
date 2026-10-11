@@ -3,8 +3,7 @@ dist/
 .DS_Store
 .env
 
-# Retro Weapon Pack (kuptchi) : trop lourd, redistribution non prévue.
-# Voir le README pour le récupérer et regénérer les assets.
+# Retro Weapon Pack (Kuptchi) : le zip complet (482 Mo) reste hors du dépôt ;
+# seuls les fichiers utilisés par le jeu sont versionnés, dans public/assets/weapons/.
 RetroWeaponPack_V1.zip
 .retro/
-public/assets/

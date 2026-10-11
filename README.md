@@ -6,7 +6,10 @@ mode bombe, cinq grenades et 1 contre 1 en ligne, directement dans le navigateur
 Projet commencé par [Leochartrain](https://github.com/Leochartrain) sous le nom **FPS1**, dans son dépôt
 [projets](https://github.com/Leochartrain/projets) ; l'historique de ses commits est conservé ici.
 
-<p align="center"><img src="docs/screenshots/menu.png" width="720" alt="Menu de Croissant Strike sur la carte Dunes"></p>
+<p align="center">
+  <img src="docs/screenshots/jeu.png" width="49%" alt="En jeu sur la carte Dunes, M4A1 en main">
+  <img src="docs/screenshots/menu.png" width="49%" alt="Menu : modes de jeu, bots et 1 contre 1 en ligne">
+</p>
 Fait avec [Three.js](https://threejs.org), TypeScript et [Vite](https://vite.dev).
 
 ## Lancer
@@ -20,20 +23,25 @@ npm run dev     # puis ouvrir http://localhost:5173
 
 `npm run build` produit une version finale dans `dist/`.
 
-### Armes et bras animés (optionnel)
+### Armes et bras animés
 
-Le jeu utilise les armes et les bras animés du [Retro Weapon Pack](https://kuptchi.itch.io/) (gratuit, usage commercial autorisé). Ils ne sont pas dans le dépôt : sans eux, le jeu affiche des armes en blocs.
+Les armes et les bras animés viennent du pack **PSX-Weapons Assets** (`RetroWeaponPack_V1.zip`) de
+[Kuptchi](https://kuptchi.itch.io/f), gratuit et utilisable librement, y compris commercialement
+(seule la revente du pack est interdite). Les fichiers utilisés par le jeu (~4 Mo) sont dans
+`public/assets/weapons/`.
 
-1. Télécharger `RetroWeaponPack_V1.zip` et le poser à la racine du projet.
+Pour les regénérer (après une mise à jour du pack, par exemple) :
+
+1. Télécharger `RetroWeaponPack_V1.zip` (482 Mo) et le poser à la racine du projet.
 2. Lancer `npm run import-weapons`.
 
-Le script extrait du zip (500 Mo) uniquement ce qui sert et compresse les animations : il reste ~2 Mo dans `public/assets/weapons/`.
+Le script extrait du zip uniquement ce qui sert et compresse les animations. Sans ces fichiers, le jeu
+affiche des armes en blocs.
 
 ## Publier en ligne (GitHub Pages)
 
 `npm run build` avec `VITE_BASE=/croissant-strike/` produit une version servable sous
-`https://<compte>.github.io/croissant-strike/`. Le Retro Weapon Pack n'étant pas dans le dépôt, une version
-publiée ainsi utilise les armes en blocs ; le ciel, les textures et les sons, en CC0, y sont.
+`https://<compte>.github.io/croissant-strike/`. Une version publiée ainsi contient tout : armes, ciel, textures et sons.
 
 ## Faire tester à distance (tunnel Cloudflare)
 
