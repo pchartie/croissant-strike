@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.DS_Store
+.env
+
+# Retro Weapon Pack (kuptchi) : trop lourd, redistribution non prévue.
+# Voir le README pour le récupérer et regénérer les assets.
+RetroWeaponPack_V1.zip
+.retro/
+public/assets/

@@ -1,6 +1,12 @@
-# FPS1
+# Croissant Strike 🥐
 
-Jeu de tir à la première personne en solo, inspiré de Counter-Strike: Source.
+Jeu de tir à la première personne, inspiré de Counter-Strike: Source : bots, manches avec économie,
+mode bombe, cinq grenades et 1 contre 1 en ligne, directement dans le navigateur.
+
+Projet commencé par [Leochartrain](https://github.com/Leochartrain) sous le nom **FPS1**, dans son dépôt
+[projets](https://github.com/Leochartrain/projets) ; l'historique de ses commits est conservé ici.
+
+<p align="center"><img src="docs/screenshots/menu.png" width="720" alt="Menu de Croissant Strike sur la carte Dunes"></p>
 Fait avec [Three.js](https://threejs.org), TypeScript et [Vite](https://vite.dev).
 
 ## Lancer
@@ -18,14 +24,16 @@ npm run dev     # puis ouvrir http://localhost:5173
 
 Le jeu utilise les armes et les bras animés du [Retro Weapon Pack](https://kuptchi.itch.io/) (gratuit, usage commercial autorisé). Ils ne sont pas dans le dépôt : sans eux, le jeu affiche des armes en blocs.
 
-1. Télécharger `RetroWeaponPack_V1.zip` et le poser dans `FPS1/`.
+1. Télécharger `RetroWeaponPack_V1.zip` et le poser à la racine du projet.
 2. Lancer `npm run import-weapons`.
 
 Le script extrait du zip (500 Mo) uniquement ce qui sert et compresse les animations : il reste ~2 Mo dans `public/assets/weapons/`.
 
-## En ligne (GitHub Pages)
+## Publier en ligne (GitHub Pages)
 
-Une GitHub Action (`.github/workflows/fps1-pages.yml`, à la racine du dépôt) compile et publie le jeu à chaque push qui touche `FPS1/`, à l'adresse **https://leochartrain.github.io/projets/**. À activer une seule fois : sur GitHub, *Settings → Pages → Source : GitHub Actions* (on peut aussi la lancer à la main depuis l'onglet *Actions*). Le Retro Weapon Pack n'étant pas dans le dépôt, la version en ligne utilise les armes en blocs ; le ciel, les textures et les sons, en CC0, y sont.
+`npm run build` avec `VITE_BASE=/croissant-strike/` produit une version servable sous
+`https://<compte>.github.io/croissant-strike/`. Le Retro Weapon Pack n'étant pas dans le dépôt, une version
+publiée ainsi utilise les armes en blocs ; le ciel, les textures et les sons, en CC0, y sont.
 
 ## Faire tester à distance (tunnel Cloudflare)
 
