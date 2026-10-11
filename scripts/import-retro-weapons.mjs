@@ -6,7 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { unzipSync } from 'fflate';
+import { unzipSync, unzlibSync, zlibSync } from 'fflate';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 
@@ -60,6 +60,16 @@ function armsClips(gun, extra = {}) {
   };
 }
 
+/** Silhouettes des armes (512 × 256, blanc sur transparent) : recadrées et réduites pour le HUD. */
+const ICONS = [
+  ['Guns/Rifle_01/Textures/Rifle_01_silhouette.png', 'rifle-icon.png'],
+  ['Guns/Pistol_01/Textures/Pistol_01_silhouette.png', 'pistol-icon.png'],
+  ['Guns/SMG_01/Textures/SMG_01_silhouette.png', 'smg-icon.png'],
+  ['Guns/Shotgun_01/Textures/Shotgun_01_silhouette.png', 'shotgun-icon.png'],
+];
+/** Hauteur des icônes (le HUD les affiche plus petites, nettes sur les écrans haute densité). */
+const ICON_HEIGHT = 48;
+
 const ANIMATIONS = {
   'arms-rifle.json': armsClips('Rifle_01'),
   'arms-pistol.json': armsClips('Pistol_01'),
@@ -93,6 +103,7 @@ if (!fs.existsSync(ZIP)) {
 
 const needed = new Set([
   ...COPIES.map(([file]) => PACK + file),
+  ...ICONS.map(([file]) => PACK + file),
   ...Object.values(ANIMATIONS).flatMap((clips) => Object.values(clips).map((file) => PACK + file)),
 ]);
 console.log(`Lecture de ${path.basename(ZIP)}…`);
@@ -105,6 +116,12 @@ fs.mkdirSync(OUT, { recursive: true });
 for (const [file, name] of COPIES) {
   fs.writeFileSync(path.join(OUT, name), files[PACK + file]);
   console.log(`  ${name}`);
+}
+
+for (const [file, name] of ICONS) {
+  const icon = encodePng(shrink(trim(decodePng(files[PACK + file])), ICON_HEIGHT));
+  fs.writeFileSync(path.join(OUT, name), icon);
+  console.log(`  ${name} (${(icon.length / 1024).toFixed(1)} Ko)`);
 }
 
 for (const [output, clips] of Object.entries(ANIMATIONS)) {
@@ -149,4 +166,118 @@ function compact(clip, name) {
     tracks.push(resampled);
   }
   return new THREE.AnimationClip(name, clip.duration, tracks);
+}
+
+// --- Images PNG (RGBA 8 bits, sans entrelacement : le format des silhouettes du pack) ---
+
+/** Décode un PNG en { width, height, data } (data : RGBA, 4 octets par pixel). */
+function decodePng(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let width = 0;
+  let height = 0;
+  const idat = [];
+  for (let at = 8; at < bytes.length; ) {
+    const length = view.getUint32(at);
+    const type = String.fromCharCode(...bytes.subarray(at + 4, at + 8));
+    const body = bytes.subarray(at + 8, at + 8 + length);
+    if (type === 'IHDR') {
+      width = view.getUint32(at + 8);
+      height = view.getUint32(at + 12);
+      if (body[8] !== 8 || body[9] !== 6 || body[12] !== 0) throw new Error('PNG non pris en charge (RGBA 8 bits attendu)');
+    }
+    if (type === 'IDAT') idat.push(body);
+    at += 12 + length;
+  }
+  const raw = unzlibSync(Buffer.concat(idat));
+  const stride = width * 4;
+  const data = new Uint8Array(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    const line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+    for (let x = 0; x < stride; x++) {
+      const a = x >= 4 ? data[y * stride + x - 4] : 0;
+      const b = y > 0 ? data[(y - 1) * stride + x] : 0;
+      const c = x >= 4 && y > 0 ? data[(y - 1) * stride + x - 4] : 0;
+      const p = a + b - c;
+      const paeth = Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - b) <= Math.abs(p - c) ? b : c;
+      const predictor = [0, a, b, (a + b) >> 1, paeth][filter];
+      data[y * stride + x] = (line[x] + predictor) & 0xff;
+    }
+  }
+  return { width, height, data };
+}
+
+/** Recadre au plus près des pixels visibles. */
+function trim(image) {
+  const { width, height, data } = image;
+  let x0 = width, y0 = height, x1 = -1, y1 = -1;
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++)
+      if (data[(y * width + x) * 4 + 3] > 8) {
+        x0 = Math.min(x0, x); x1 = Math.max(x1, x);
+        y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+      }
+  const w = x1 - x0 + 1;
+  const h = y1 - y0 + 1;
+  const out = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) out.set(data.subarray(((y0 + y) * width + x0) * 4, ((y0 + y) * width + x1 + 1) * 4), y * w * 4);
+  return { width: w, height: h, data: out };
+}
+
+/** Réduit à la hauteur voulue (moyenne des pixels couverts, couleurs pondérées par l'opacité). */
+function shrink(image, targetHeight) {
+  const scale = image.height / targetHeight;
+  const width = Math.max(1, Math.round(image.width / scale));
+  const out = new Uint8Array(width * targetHeight * 4);
+  for (let y = 0; y < targetHeight; y++)
+    for (let x = 0; x < width; x++) {
+      const sum = [0, 0, 0, 0];
+      let count = 0;
+      for (let sy = Math.floor(y * scale); sy < Math.min(image.height, Math.ceil((y + 1) * scale)); sy++)
+        for (let sx = Math.floor(x * scale); sx < Math.min(image.width, Math.ceil((x + 1) * scale)); sx++) {
+          const i = (sy * image.width + sx) * 4;
+          const alpha = image.data[i + 3];
+          for (let k = 0; k < 3; k++) sum[k] += image.data[i + k] * alpha;
+          sum[3] += alpha;
+          count++;
+        }
+      const o = (y * width + x) * 4;
+      for (let k = 0; k < 3; k++) out[o + k] = sum[3] ? Math.round(sum[k] / sum[3]) : 0;
+      out[o + 3] = Math.round(sum[3] / count);
+    }
+  return { width, height: targetHeight, data: out };
+}
+
+function encodePng({ width, height, data }) {
+  const raw = new Uint8Array((width * 4 + 1) * height);
+  for (let y = 0; y < height; y++) raw.set(data.subarray(y * width * 4, (y + 1) * width * 4), y * (width * 4 + 1) + 1);
+  const header = new Uint8Array(13);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, width);
+  view.setUint32(4, height);
+  header.set([8, 6, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', zlibSync(raw, { level: 9 })),
+    chunk('IEND', new Uint8Array(0)),
+  ]);
+}
+
+function chunk(type, body) {
+  const out = Buffer.alloc(12 + body.length);
+  out.writeUInt32BE(body.length, 0);
+  out.write(type, 4, 'ascii');
+  out.set(body, 8);
+  out.writeUInt32BE(crc32(out.subarray(4, 8 + body.length)), 8 + body.length);
+  return out;
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }

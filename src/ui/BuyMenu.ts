@@ -4,6 +4,8 @@ export interface BuyMenuItem {
   price: number;
   /** ok : achetable ; expensive : pas assez d'argent ; owned : déjà possédé ou limite atteinte. */
   state: 'ok' | 'expensive' | 'owned';
+  /** Silhouette de l'arme (armes seulement). */
+  icon?: string | null;
 }
 
 /**
@@ -30,7 +32,8 @@ export class BuyMenu {
     const rows = items
       .map((item) => {
         const price = money === null ? 'gratuit' : `${item.price} $`;
-        return `<div class="item ${item.state}"><span class="key">${item.key}</span><span class="name">${escape(item.label)}</span><span>${price}</span></div>`;
+        const icon = item.icon ? `<img class="icon" src="${item.icon}" alt="">` : '<span class="icon"></span>';
+        return `<div class="item ${item.state}"><span class="key">${item.key}</span>${icon}<span class="name">${escape(item.label)}</span><span>${price}</span></div>`;
       })
       .join('');
     const footer = [

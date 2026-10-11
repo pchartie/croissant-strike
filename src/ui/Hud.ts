@@ -1,4 +1,5 @@
 import type { CrosshairColor, CrosshairSize } from '../core/settings';
+import { weaponIcon } from './weaponIcons';
 
 const KILLFEED_DURATION = 5000;
 const KILLFEED_MAX = 5;
@@ -75,10 +76,13 @@ export class Hud {
    * nombre) ; `ammo` null aussi pour le couteau (juste le nom).
    */
   setAmmo(name: string, ammo: number | null, reserve: number | null): void {
-    const key = `${name}|${ammo}|${reserve}`;
+    // Silhouette de l'arme si elle existe (armes à feu), sinon son nom (couteau, grenades).
+    const icon = weaponIcon(name);
+    const key = `${name}|${ammo}|${reserve}|${icon ?? ''}`;
     if (key === this.lastAmmo) return;
     this.lastAmmo = key;
-    this.weaponName.textContent = name;
+    if (icon) this.weaponName.replaceChildren(iconImage(icon, name));
+    else this.weaponName.textContent = name;
     this.ammo.textContent = ammo === null ? '' : String(ammo);
     this.ammo.classList.toggle('low', ammo === 0);
     this.reserve.textContent = reserve === null ? '' : String(reserve);
@@ -112,13 +116,13 @@ export class Hud {
     entry.className = 'kill';
     if (killer === 'Toi') entry.classList.add('mine');
     if (victim === 'Toi') entry.classList.add('me');
-    const parts = [killer, `[${weapon}${headshot ? ' · tête' : ''}]`, victim];
-    for (const [i, text] of parts.entries()) {
-      const span = document.createElement('span');
-      span.textContent = text;
-      if (i === 1) span.className = 'weapon';
-      entry.append(span);
-    }
+    const span = (text: string, className = '') => Object.assign(document.createElement('span'), { textContent: text, className });
+    // Comme dans CS : tueur, silhouette de l'arme (ou son nom), tête si headshot, victime.
+    const icon = weaponIcon(weapon);
+    const how = icon ? iconImage(icon, weapon) : span(`[${weapon}]`, 'weapon');
+    entry.append(span(killer), how);
+    if (headshot) entry.append(span('tête', 'headshot'));
+    entry.append(span(victim));
     this.killfeed.prepend(entry);
     while (this.killfeed.children.length > KILLFEED_MAX) this.killfeed.lastElementChild!.remove();
     setTimeout(() => entry.remove(), KILLFEED_DURATION);
@@ -254,4 +258,9 @@ export class Hud {
     void element.offsetWidth;
     element.className = classes;
   }
+}
+
+/** Image d'une arme (silhouette blanche), avec son nom en texte de remplacement. */
+function iconImage(src: string, name: string): HTMLImageElement {
+  return Object.assign(document.createElement('img'), { src, alt: name, title: name, className: 'weapon-icon' });
 }

@@ -11,6 +11,7 @@ import { Player } from '../player/Player';
 import { BuyMenu } from '../ui/BuyMenu';
 import { Radar } from '../ui/Radar';
 import { Hud } from '../ui/Hud';
+import { weaponIcon } from '../ui/weaponIcons';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { Duel } from '../net/Duel';
 import { RIFLE, type WeaponDef } from '../weapons/definitions';
@@ -1101,7 +1102,13 @@ export class Game {
     this.hud.setMoney(this.roundBased ? this.economy.money : null, gain);
     this.hud.setArmor(this.player.armor, this.player.helmet);
     this.buyMenu.render(
-      SHOP_ITEMS.map((item) => ({ key: item.key, label: item.label, price: this.priceOf(item), state: this.itemState(item) })),
+      SHOP_ITEMS.map((item) => ({
+        key: item.key,
+        label: item.label,
+        price: this.priceOf(item),
+        state: this.itemState(item),
+        icon: item.kind === 'weapon' ? weaponIcon(item.weapon.id) : null,
+      })),
       this.roundBased ? this.economy.money : null,
       this.buyTimeLeft,
     );

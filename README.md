@@ -116,6 +116,8 @@ Armes principales (touche 1, une seule à la fois) : **M4A1**, **MP5-SD** (SMG s
 
 À chaque tir, la **douille** est éjectée à droite de l'arme (5,56 pour la M4A1, 9 mm pour la MP5 et le pistolet, cartouche rouge au coup de pompe de la Nova) : elle rebondit en tintant et reste 10 s au sol. Les douilles des bots aussi, quand ils tirent près de toi.
 
+Les armes à feu sont représentées par leur **silhouette** dans le fil des éliminations (avec « tête » pour un headshot), au-dessus des munitions et dans le menu d'achat ; le couteau et les grenades gardent leur nom.
+
 ## Couteau
 
 Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90 dans le dos, portée 1,2 m), clic droit puissant (65, 180 dans le dos, portée au contact). On le tient de la main droite, avec les mêmes bras que pour les armes à feu ; les coups sont animés par le code (balayage, coup de pointe).

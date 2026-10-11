@@ -161,8 +161,9 @@ export interface RetroWeapons {
 export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
   try {
     const manager = new THREE.LoadingManager();
-    // Les textures référencées dans les FBX sont remplacées plus bas : on ne les télécharge pas.
-    manager.setURLModifier((url) => (/\.(png|jpe?g|tga)$/i.test(url) && !url.includes('/assets/weapons/') ? EMPTY_PNG : url));
+    // Les textures référencées dans les FBX sont remplacées plus bas : on ne les télécharge pas
+    // (nos propres textures passent par un autre chargeur, sans ce gestionnaire).
+    manager.setURLModifier((url) => (/\.(png|jpe?g|tga)$|\/$/i.test(url) ? EMPTY_PNG : url));
     const fbx = new FBXLoader(manager);
     const textures = new THREE.TextureLoader();
 

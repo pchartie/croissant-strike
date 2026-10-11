@@ -99,6 +99,11 @@ canvas {
   opacity: 0.75;
 }
 
+#weapon-name .weapon-icon {
+  height: 26px;
+  filter: drop-shadow(0 1px 2px #000);
+}
+
 #ammo-count {
   font-size: 40px;
   font-weight: 700;
@@ -176,6 +181,18 @@ canvas {
 .kill .weapon {
   color: #ddd;
   opacity: 0.8;
+}
+
+.kill .weapon-icon {
+  height: 18px;
+  align-self: center;
+  opacity: 0.9;
+}
+
+.kill .headshot {
+  color: #ff6b5b;
+  font-size: 12px;
+  align-self: center;
 }
 
 /* Croix de touche : 4 traits en diagonale autour du réticule. */
@@ -310,7 +327,8 @@ canvas {
 #grenades {
   position: absolute;
   right: 32px;
-  bottom: 92px;
+  /* Au-dessus du bloc des munitions, silhouette de l'arme comprise. */
+  bottom: 106px;
   display: flex;
   gap: 6px;
   color: #fff;
@@ -615,6 +633,13 @@ kbd {
   min-width: 22px;
   color: #4dff4d;
   font-weight: 700;
+}
+
+#buy-menu .item .icon {
+  width: 52px;
+  height: 18px;
+  object-fit: contain;
+  object-position: left center;
 }
 
 #buy-menu .item .name {
