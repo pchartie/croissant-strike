@@ -39,7 +39,8 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   mode: 'deathmatch',
   botsEnabled: true,
-  botsAggressive: true,
+  // Passifs par défaut : on découvre la carte et on s'entraîne à viser sans se faire tirer dessus.
+  botsAggressive: false,
   botCount: 5,
   allyCount: 0,
   difficulty: 'normal',

@@ -404,6 +404,83 @@ canvas {
   text-align: center;
 }
 
+/* Menu : accueil (titre, Jouer, deux boutons), puis les écrans En ligne et Réglages. */
+.menu-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.menu-view[hidden] {
+  display: none;
+}
+
+.menu-main {
+  align-items: stretch;
+  padding: 8px 0 4px;
+}
+
+.menu-main h1 {
+  font-size: 40px;
+  letter-spacing: 3px;
+  line-height: 1.1;
+}
+
+.title-accent {
+  color: #f2b84b;
+}
+
+.tagline {
+  margin-top: -8px;
+  color: #9aa0a8;
+  font-size: 14px;
+  text-align: center;
+}
+
+.menu-main .play {
+  margin-top: 8px;
+  padding: 16px;
+  font-size: 22px !important;
+}
+
+.menu-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.menu-buttons button {
+  padding: 11px 8px;
+  border: 1px solid #4a4e57;
+  border-radius: 6px;
+  background: #2a2d33;
+  font-size: 15px !important;
+}
+
+.menu-buttons button:hover {
+  border-color: #8f8;
+  background: #32363d;
+}
+
+.menu-hint {
+  color: #777c84;
+  font-size: 13px;
+  text-align: center;
+}
+
+.back {
+  align-self: flex-start;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: #9aa0a8 !important;
+  font-size: 14px !important;
+}
+
+.back:hover {
+  color: #fff !important;
+}
+
 .panel button {
   font: inherit;
   color: inherit;
@@ -544,6 +621,10 @@ kbd {
 @media (max-width: 480px) {
   .panel {
     padding: 20px 16px;
+  }
+
+  .menu-buttons {
+    grid-template-columns: 1fr;
   }
 
   .setting {

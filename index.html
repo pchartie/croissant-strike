@@ -37,10 +37,24 @@
 
     <div id="overlay">
       <div class="panel">
-        <h1>Croissant Strike</h1>
-        <button id="play" class="play" type="button">Jouer</button>
-        <div id="online"></div>
-        <div id="settings"></div>
+        <section class="menu-view menu-main" data-view="main">
+          <h1><span class="title-accent">Croissant</span> Strike</h1>
+          <p class="tagline">Un FPS façon Counter-Strike, directement dans le navigateur</p>
+          <button id="play" class="play" type="button">Jouer</button>
+          <div class="menu-buttons">
+            <button type="button" data-open="online">En ligne · 1 contre 1</button>
+            <button type="button" data-open="settings">Réglages</button>
+          </div>
+          <p class="menu-hint">Échap pour revenir à ce menu</p>
+        </section>
+        <section class="menu-view" data-view="online" hidden>
+          <button type="button" class="back">← Retour</button>
+          <div id="online"></div>
+        </section>
+        <section class="menu-view" data-view="settings" hidden>
+          <button type="button" class="back">← Retour</button>
+          <div id="settings"></div>
+        </section>
       </div>
     </div>
 

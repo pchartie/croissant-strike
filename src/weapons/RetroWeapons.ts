@@ -30,8 +30,8 @@ type GunId = Exclude<WeaponId, 'knife'>;
 const GUNS: Record<GunId, GunSpec> = {
   rifle: { file: 'rifle', magazine: { mesh: 'Rifle_01_Magazine_2+Bullets', bone: 'Magazine' }, muzzle: [60, 16.5, 0] },
   smg: { file: 'smg', magazine: { mesh: 'SMG_01_Magazine2+Bullets_Mesh', bone: 'Magazine' }, muzzle: [36.4, 16.6, 0] },
-  // Le fusil à pompe est modélisé à l'envers : son canon est du côté +x, crosse vers -x.
-  shotgun: { file: 'shotgun', muzzle: [29.5, 0, 0] },
+  // Fusil à pompe : sa pose de repos est retournée dans le FBX (voir alignRestPose).
+  shotgun: { file: 'shotgun', muzzle: [64.5, 9.2, 0] },
   pistol: { file: 'pistol', magazine: { mesh: 'Pistol_01_Magazine_Full_Mesh', bone: 'Main' }, muzzle: [19.2, 12, 0] },
 };
 
@@ -188,6 +188,7 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
       ]);
 
       const materials = { arms: armsTexture, gun: gunTexture, projectiles: projectilesTexture };
+      alignRestPose(gun, gunClips);
       if (extra && spec.magazine) attachMagazine(gun, extra, spec.magazine);
       applyMaterials(gun, materials);
       if (id === 'rifle') botRifle = cloneSkinned(gun);
@@ -240,6 +241,17 @@ async function loadClips(url: string): Promise<THREE.AnimationClip[]> {
   if (!response.ok) throw new Error(`${url} : ${response.status}`);
   const json = (await response.json()) as THREE.AnimationClipJSON[];
   return json.map((clip) => THREE.AnimationClip.parse(clip));
+}
+
+/**
+ * Oriente l'arme au repos comme dans ses animations : le squelette de la Nova est retourné
+ * de 180° dans le FBX (crosse vers l'avant, canon vers le joueur) alors que ses animations
+ * de tir et de rechargement le tiennent dans le bon sens.
+ */
+function alignRestPose(gun: THREE.Object3D, clips: THREE.AnimationClip[]): void {
+  const track = clips.flatMap((clip) => clip.tracks).find((t) => t.name.endsWith('_Armature.quaternion'));
+  if (!track) return;
+  gun.getObjectByName(track.name.slice(0, -'.quaternion'.length))?.quaternion.fromArray(track.values, 0);
 }
 
 /** Fixe le chargeur sur son os, orienté comme l'arme au repos. */

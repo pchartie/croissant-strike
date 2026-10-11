@@ -61,6 +61,15 @@ export class Hud {
 
   constructor(onPlay: () => void) {
     this.play.addEventListener('click', onPlay);
+    // Menu en trois écrans : accueil, en ligne, réglages (avec un bouton Retour).
+    for (const button of this.overlay.querySelectorAll<HTMLElement>('[data-open]')) {
+      button.addEventListener('click', () => this.showMenu(button.dataset.open!));
+    }
+    for (const button of this.overlay.querySelectorAll('.back')) button.addEventListener('click', () => this.showMenu('main'));
+  }
+
+  private showMenu(view: string): void {
+    for (const section of this.overlay.querySelectorAll<HTMLElement>('.menu-view')) section.hidden = section.dataset.view !== view;
   }
 
   /** Vitesse horizontale affichée en unités Source, comme cl_showpos. */
@@ -250,7 +259,8 @@ export class Hud {
 
   setPaused(paused: boolean): void {
     this.overlay.classList.toggle('hidden', !paused);
-    if (!paused) this.play.textContent = 'Reprendre';
+    if (paused) this.showMenu('main');
+    else this.play.textContent = 'Reprendre';
   }
 
   private restartAnimation(element: HTMLElement, classes: string): void {
