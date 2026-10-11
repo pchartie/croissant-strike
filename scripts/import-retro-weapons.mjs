@@ -40,6 +40,7 @@ const COPIES = [
   ['Guns/SMG_01/Textures/SMG_01_Albedo.png', 'smg.png'],
   ['Guns/Shotgun_01/FbxFiles/Shotgun_01.fbx', 'shotgun.fbx'],
   ['Guns/Shotgun_01/Textures/Shotgun_01_Albedo.png', 'shotgun.png'],
+  ['Guns/AdditionalMeshes/Projectiles/FbxFile/Projectiles.fbx', 'projectiles.fbx'],
   ['Guns/AdditionalMeshes/Projectiles/Texture/Projectiles_Albedo.png', 'projectiles.png'],
   ['FX/Textures/MuzzleFlash.png', 'muzzleflash.png'],
 ];

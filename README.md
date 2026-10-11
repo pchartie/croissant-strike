@@ -1,7 +1,7 @@
 # Croissant Strike 🥐
 
 Jeu de tir à la première personne, inspiré de Counter-Strike: Source : bots, manches avec économie,
-mode bombe, cinq grenades et 1 contre 1 en ligne, directement dans le navigateur.
+cinq grenades et 1 contre 1 en ligne, directement dans le navigateur.
 
 Projet commencé par [Leochartrain](https://github.com/Leochartrain) sous le nom **FPS1**, dans son dépôt
 [projets](https://github.com/Leochartrain/projets) ; l'historique de ses commits est conservé ici.
@@ -38,10 +38,10 @@ Pour les regénérer (après une mise à jour du pack, par exemple) :
 Le script extrait du zip uniquement ce qui sert et compresse les animations. Sans ces fichiers, le jeu
 affiche des armes en blocs.
 
-## Publier en ligne (GitHub Pages)
+## En ligne (GitHub Pages)
 
-`npm run build` avec `VITE_BASE=/croissant-strike/` produit une version servable sous
-`https://<compte>.github.io/croissant-strike/`. Une version publiée ainsi contient tout : armes, ciel, textures et sons.
+Le jeu est publié sur **https://pchartie.github.io/croissant-strike/** à chaque push sur `main`, par une
+GitHub Action (`.github/workflows/pages.yml`) qui le compile avec `VITE_BASE=/croissant-strike/`.
 
 ## Faire tester à distance (tunnel Cloudflare)
 
@@ -65,7 +65,6 @@ cloudflared tunnel --url http://localhost:4173
 | R | Recharger |
 | 1 / 2 / 3 | Arme principale (M4A1, MP5-SD ou Nova) / pistolet (M1911) / couteau |
 | B | Menu d'achat (puis 1 à 0 pour acheter) |
-| E | Poser la bombe (maintenir, en mode bombe) |
 | Tab | Tableau des scores (maintenir) |
 | Clic gauche / droit | Avec le couteau : coup rapide / coup puissant |
 | 4 | Grenades (appuyer à nouveau pour passer à la suivante) |
@@ -115,6 +114,8 @@ Les réglages sont décrits dans `src/core/settings.ts` : le panneau est constru
 
 Armes principales (touche 1, une seule à la fois) : **M4A1**, **MP5-SD** (SMG silencieux, précis en mouvement) et **Nova** (fusil à pompe, 9 plombs, rechargé cartouche par cartouche). Les dégâts baissent avec la distance comme dans CS. **Gilet** et **casque** : le gilet réduit les dégâts au corps et aux explosions selon l'arme, le casque protège la tête, rien ne protège les jambes ni le feu. Les bots portent gilet et casque.
 
+À chaque tir, la **douille** est éjectée à droite de l'arme (5,56 pour la M4A1, 9 mm pour la MP5 et le pistolet, cartouche rouge au coup de pompe de la Nova) : elle rebondit en tintant et reste 10 s au sol. Les douilles des bots aussi, quand ils tirent près de toi.
+
 ## Couteau
 
 Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90 dans le dos, portée 1,2 m), clic droit puissant (65, 180 dans le dos, portée au contact). On le tient de la main droite, avec les mêmes bras que pour les armes à feu ; les coups sont animés par le code (balayage, coup de pointe).
@@ -125,7 +126,6 @@ Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90
 
 - **Deathmatch** : on réapparaît 3 s après chaque mort (avec gilet, casque et grenades), les bots aussi. Le menu d'achat (B) est gratuit : on y choisit son arme principale.
 - **Manches** : comme dans CS, une vie par manche, avec l'économie de CS:GO (800 $ au départ, primes d'élimination selon l'arme, 3 250 $ par manche gagnée, bonus de défaite de 1 400 à 3 400 $). On achète avec B pendant le gel et les 20 premières secondes ; en survivant on garde son équipement, en mourant il ne reste que le pistolet. Tu pars du sud, les bots du nord. 3 s de gel au départ, 1:55 de chrono ; on gagne la manche en éliminant l'autre camp, et les bots la gagnent si le temps s'écoule. Le premier à 5 manches remporte le match. Réglages dans `src/config.ts`, section `ROUNDS`.
-- **Bombe** : les manches de CS:GO sur le modèle de de_dust. Ton équipe (au sud) attaque : tu pars avec la bombe et dois la poser sur le **site A** (plateforme à l'ouest) ou le **site B** (à l'est), marqués au sol et sur le radar, en maintenant E 3,2 s sans bouger (+300 $). Elle explose 40 s plus tard (mortelle de près, dangereuse jusqu'à 20 m). Les ennemis gardent les deux sites, puis foncent vers la bombe et la désamorcent en 10 s ; la consigne en haut de l'écran indique où en est la bombe et qui la désamorce, et ses bips accélèrent. Une fois posée, ni le chrono ni la mort de ton équipe ne finissent la manche : seuls l'explosion, le désamorçage ou l'élimination de tous les ennemis le font. Si tu meurs avec la bombe, elle tombe et un coéquipier bot va la ramasser pour la poser lui-même. Réglages dans `src/config.ts`, section `BOMB`.
 
 ## En ligne (1 contre 1)
 
@@ -139,7 +139,7 @@ Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebon
 
 ## Carte
 
-**Dunes**, une petite carte façon de_dust de 72 × 72 m (`src/world/Level.ts`) : apparition au sud, trois voies vers le nord — la longue A à l'ouest jusqu'au site A surélevé, le milieu avec sa passerelle et ses portes, le couloir B à l'est jusqu'au site B. Les marches de moins de 46 cm se montent sans sauter, comme dans CS.
+**Dunes**, une petite carte façon de_dust de 72 × 72 m (`src/world/Level.ts`) : apparition au sud, trois voies vers le nord — la longue voie à l'ouest jusqu'à une plateforme surélevée, le milieu avec sa passerelle et ses portes, le couloir à l'est jusqu'à une seconde plateforme. Les marches de moins de 46 cm se montent sans sauter, comme dans CS.
 
 Textures de [Poly Haven](https://polyhaven.com) en CC0 à leur taille réelle (sable, crépi, grès, planches : `public/textures/`), et habillage façon de_dust : linteaux et poutres au-dessus des passages, battants de porte en bois, auvents sur poteaux, fenêtres, rebords de grès en haut des murs, barils et palettes.
 

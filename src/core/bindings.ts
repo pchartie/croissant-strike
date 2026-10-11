@@ -14,7 +14,6 @@ export type Action =
   | 'weapon2'
   | 'weapon3'
   | 'grenades'
-  | 'use'
   | 'buy'
   | 'scoreboard';
 
@@ -39,7 +38,6 @@ export const ACTIONS: { action: Action; label: string }[] = [
   { action: 'weapon2', label: 'Pistolet' },
   { action: 'weapon3', label: 'Couteau' },
   { action: 'grenades', label: 'Grenades (appuyer à nouveau pour changer)' },
-  { action: 'use', label: 'Poser la bombe (maintenir)' },
   { action: 'buy', label: "Menu d'achat" },
   { action: 'scoreboard', label: 'Tableau des scores (maintenir)' },
 ];
@@ -61,7 +59,6 @@ export const DEFAULT_BINDINGS: Bindings = {
   weapon2: ['Digit2'],
   weapon3: ['Digit3'],
   grenades: ['Digit4'],
-  use: ['KeyE'],
   buy: ['KeyB'],
   scoreboard: ['Tab'],
 };

@@ -1,3 +1,5 @@
+import type { CasingKind } from './Casings';
+
 export type WeaponId = 'rifle' | 'smg' | 'shotgun' | 'pistol' | 'knife';
 
 /** Une attaque au couteau. */
@@ -59,6 +61,8 @@ export interface WeaponDef {
   rangeModifier?: number;
   /** Rechargement cartouche par cartouche (fusil à pompe) : durées du début, de chaque cartouche, de la fin. */
   shellReload?: { start: number; step: number; end: number };
+  /** Douille éjectée à chaque tir, après `delay` secondes (le temps du coup de pompe). */
+  casing?: { kind: CasingKind; delay?: number };
   /** Arme de corps à corps : clic gauche rapide, clic droit puissant (pas de munitions). */
   melee?: {
     light: MeleeAttack & { /** Dégâts des coups enchaînés après une touche. */ followUp: number };
@@ -72,6 +76,7 @@ function repeat(times: number, kick: [number, number]): [number, number][] {
 
 export const RIFLE: WeaponDef = {
   id: 'rifle',
+  casing: { kind: '556' },
   name: 'M4A1',
   slot: 1,
   automatic: true,
@@ -105,6 +110,7 @@ export const RIFLE: WeaponDef = {
 
 export const PISTOL: WeaponDef = {
   id: 'pistol',
+  casing: { kind: '9mm' },
   name: 'M1911',
   slot: 2,
   automatic: false,
@@ -160,6 +166,7 @@ export const KNIFE: WeaponDef = {
 /** MP5-SD de CS:GO : SMG silencieux, précis en mouvement, recul léger. */
 export const SMG: WeaponDef = {
   id: 'smg',
+  casing: { kind: '9mm' },
   name: 'MP5-SD',
   slot: 1,
   automatic: true,
@@ -192,6 +199,7 @@ export const SMG: WeaponDef = {
 /** Nova de CS:GO : fusil à pompe, 9 plombs, rechargé cartouche par cartouche. */
 export const SHOTGUN: WeaponDef = {
   id: 'shotgun',
+  casing: { kind: 'buckshot', delay: 0.35 },
   name: 'Nova',
   slot: 1,
   automatic: false,

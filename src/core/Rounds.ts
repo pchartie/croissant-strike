@@ -56,10 +56,8 @@ export class Rounds {
 
   /**
    * `alliesAlive` : coéquipiers bots encore en vie (la manche continue tant qu'il en reste un).
-   * `bombPlanted` : une fois la bombe posée, ni le chrono ni la mort de l'équipe du joueur ne
-   * terminent la manche ; seules l'explosion ou le désamorçage le font (voir `end`).
    */
-  update(dt: number, playerAlive: boolean, botsAlive: number, alliesAlive = 0, bombPlanted = false): void {
+  update(dt: number, playerAlive: boolean, botsAlive: number, alliesAlive = 0): void {
     const s = this.status;
     s.timeLeft = Math.max(0, s.timeLeft - dt);
     if (alliesAlive > 0) this.hadAllies = true;
@@ -73,7 +71,6 @@ export class Rounds {
         break;
       case 'live':
         if (botsAlive === 0) this.endRound('player', 'Tous les ennemis sont éliminés');
-        else if (bombPlanted) break;
         else if (!playerAlive && alliesAlive === 0) this.endRound('bots', this.hadAllies ? 'Ton équipe a été éliminée' : 'Tu as été éliminé');
         else if (s.timeLeft === 0) this.endRound('bots', 'Temps écoulé');
         break;
@@ -101,11 +98,6 @@ export class Rounds {
     this.status.winner = null;
     this.status.reason = '';
     this.hooks.reset(this.status.round === 1);
-  }
-
-  /** Fin de manche décidée ailleurs (bombe qui explose ou désamorcée). */
-  end(winner: Side, reason: string): void {
-    if (this.status.phase === 'live') this.endRound(winner, reason);
   }
 
   private endRound(winner: Side, reason: string): void {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { CASING_COLORS, type CasingKind } from './Casings';
 import type { WeaponId } from './definitions';
 import { buildKnife, knifeOrientation } from './models';
 
@@ -153,6 +154,8 @@ export interface RetroWeapons {
   viewModels: Record<WeaponId, AnimatedWeapon>;
   /** Fusil seul (avec chargeur), à cloner pour les bots. */
   botRifle: THREE.Object3D;
+  /** Douilles éjectées (null si projectiles.fbx manque : cylindres de secours). */
+  casings: Record<CasingKind, THREE.Object3D> | null;
 }
 
 export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
@@ -163,10 +166,11 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
     const fbx = new FBXLoader(manager);
     const textures = new THREE.TextureLoader();
 
-    const [armsSource, armsTexture, projectilesTexture] = await Promise.all([
+    const [armsSource, armsTexture, projectilesTexture, projectiles] = await Promise.all([
       fbx.loadAsync(`${BASE}arms.fbx`),
       textures.loadAsync(`${BASE}arms.png`),
       textures.loadAsync(`${BASE}projectiles.png`),
+      fbx.loadAsync(`${BASE}projectiles.fbx`).catch(() => null),
     ]);
 
     const viewModels = {} as Record<WeaponId, AnimatedWeapon>;
@@ -203,11 +207,31 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
       viewModels[id] = new AnimatedWeapon(root, arms, gun, armsClips, gunClips, spec.muzzle);
     }
     viewModels.knife = buildKnifeArms(armsSource, pistolClips, { arms: armsTexture, gun: armsTexture, projectiles: projectilesTexture });
-    return { viewModels, botRifle: botRifle! };
+    const casings = projectiles ? casingModels(projectiles) : null;
+    return { viewModels, botRifle: botRifle!, casings };
   } catch (error) {
     console.info('Armes animées absentes, modèles simples utilisés. Lancer `npm run import-weapons`.', error);
     return null;
   }
+}
+
+/**
+ * Douilles du pack (en cm, couchées le long de x), recentrées et mises à l'échelle. Couleur unie :
+ * la texture du pack, surtout sombre, les rendait presque noires une fois réduites à quelques pixels.
+ */
+function casingModels(source: THREE.Object3D): Record<CasingKind, THREE.Object3D> {
+  const brass = new THREE.MeshStandardMaterial({ color: CASING_COLORS.brass, roughness: 0.5, metalness: 0.2 });
+  const plastic = new THREE.MeshStandardMaterial({ color: CASING_COLORS.plastic, roughness: 0.6 });
+  const model = (name: string, material: THREE.Material) => {
+    const mesh = source.getObjectByName(name) as THREE.Mesh;
+    const geometry = mesh.geometry.clone();
+    geometry.scale(mesh.scale.x * CM, mesh.scale.y * CM, mesh.scale.z * CM);
+    geometry.center();
+    const casing = new THREE.Mesh(geometry, material);
+    casing.castShadow = true;
+    return casing;
+  };
+  return { '556': model('556mm_Shell_Mesh', brass), '9mm': model('9mm_Shell_Mesh', brass), buckshot: model('BuckShot_Shell_Mesh', plastic) };
 }
 
 async function loadClips(url: string): Promise<THREE.AnimationClip[]> {
