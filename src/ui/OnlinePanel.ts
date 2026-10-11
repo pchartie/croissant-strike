@@ -34,7 +34,7 @@ export class OnlinePanel {
     this.busy = $('.online-busy');
     this.leave = $<HTMLButtonElement>('.online-leave');
 
-    this.name.value = loadName();
+    this.name.value = loadPlayerName();
     this.name.addEventListener('change', () => saveName(this.name.value));
     $('.online-host').addEventListener('click', () => void online.host(this.playerName));
     $('.online-join').addEventListener('click', () => void online.join(this.code.value, this.playerName));
@@ -80,9 +80,10 @@ export class OnlinePanel {
   }
 }
 
-function loadName(): string {
+/** Pseudo choisi dans la rubrique En ligne (vide s'il n'y en a pas) : il sert aussi en jeu solo. */
+export function loadPlayerName(): string {
   try {
-    return localStorage.getItem(NAME_KEY) ?? '';
+    return (localStorage.getItem(NAME_KEY) ?? '').trim();
   } catch {
     return '';
   }

@@ -371,6 +371,29 @@ canvas {
   font-size: 22px;
 }
 
+/* Menu fermé avec Échap pendant la pause : un clic n'importe où relance la partie. */
+#resume {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-size: 22px;
+  text-shadow: 0 1px 3px #000;
+  cursor: pointer;
+}
+
+#resume span {
+  color: #bbb;
+  font-size: 16px;
+}
+
+#resume.hidden {
+  display: none;
+}
+
 #overlay {
   position: fixed;
   inset: 0;

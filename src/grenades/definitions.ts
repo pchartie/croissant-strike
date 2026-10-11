@@ -21,7 +21,7 @@ export const GRENADES: Record<GrenadeType, GrenadeDef> = {
   he: { type: 'he', name: 'Grenade HE', short: 'HE', fuse: 1.5, color: 0x4b5a32 },
   flash: { type: 'flash', name: 'Flash', short: 'Flash', fuse: 1.5, color: 0x9aa0a6 },
   smoke: { type: 'smoke', name: 'Fumigène', short: 'Fumi', fuse: 1.5, color: 0x6f8a94 },
-  molotov: { type: 'molotov', name: 'Molotov', short: 'Molo', fuse: 2, color: 0x7a4a1c },
+  molotov: { type: 'molotov', name: 'Molotov', short: 'Molotov', fuse: 2, color: 0x7a4a1c },
   decoy: { type: 'decoy', name: 'Leurre', short: 'Leurre', fuse: 2, color: 0x3a3c40 },
 };
 

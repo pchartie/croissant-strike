@@ -53,7 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showSpeed: true,
   shadows: 'high',
   renderScale: 100,
-  showFps: false,
+  showFps: true,
   bindings: DEFAULT_BINDINGS,
 };
 

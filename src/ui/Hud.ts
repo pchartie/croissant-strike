@@ -36,6 +36,10 @@ export class Hud {
   private readonly deathText = document.getElementById('death-text')!;
   private readonly overlay = document.getElementById('overlay')!;
   private readonly play = document.getElementById('play')!;
+  private readonly resume = document.getElementById('resume')!;
+  /** Jeu en pause (souris libérée), et depuis quand : l'Échap qui vient de libérer la souris ne compte pas. */
+  private paused = true;
+  private pausedAt = 0;
   private readonly crosshair = document.getElementById('crosshair')!;
   private readonly money = document.getElementById('money')!;
   private readonly scoreboard = document.getElementById('scoreboard')!;
@@ -61,6 +65,18 @@ export class Hud {
 
   constructor(onPlay: () => void) {
     this.play.addEventListener('click', onPlay);
+    this.resume.addEventListener('click', onPlay);
+    // Échap ouvre ou ferme le menu pendant la pause. Le navigateur ne laisse pas reprendre la
+    // souris sur une touche : menu fermé, un clic n'importe où relance la partie.
+    window.addEventListener('keydown', (event) => {
+      if (event.code !== 'Escape' || !this.paused || performance.now() - this.pausedAt < 400) return;
+      this.showMenu(this.overlay.classList.contains('hidden'));
+    });
+  }
+
+  private showMenu(open: boolean): void {
+    this.overlay.classList.toggle('hidden', !open);
+    this.resume.classList.toggle('hidden', open || !this.paused);
   }
 
   /** Vitesse horizontale affichée en unités Source, comme cl_showpos. */
@@ -111,11 +127,12 @@ export class Hud {
     this.restartAnimation(this.damage, 'show');
   }
 
-  addKill(killer: string, victim: string, weapon: string, headshot: boolean): void {
+  /** `mine` : tué par le joueur (encadré rouge) ; `me` : le joueur est la victime. */
+  addKill(killer: string, victim: string, weapon: string, headshot: boolean, side: { mine?: boolean; me?: boolean } = {}): void {
     const entry = document.createElement('div');
     entry.className = 'kill';
-    if (killer === 'Toi') entry.classList.add('mine');
-    if (victim === 'Toi') entry.classList.add('me');
+    if (side.mine) entry.classList.add('mine');
+    if (side.me) entry.classList.add('me');
     const span = (text: string, className = '') => Object.assign(document.createElement('span'), { textContent: text, className });
     // Comme dans CS : tueur, silhouette de l'arme (ou son nom), tête si headshot, victime.
     const icon = weaponIcon(weapon);
@@ -249,7 +266,9 @@ export class Hud {
   }
 
   setPaused(paused: boolean): void {
-    this.overlay.classList.toggle('hidden', !paused);
+    this.paused = paused;
+    if (paused) this.pausedAt = performance.now();
+    this.showMenu(paused);
     if (!paused) this.play.textContent = 'Reprendre';
   }
 

@@ -11,6 +11,7 @@ import { Player } from '../player/Player';
 import { BuyMenu } from '../ui/BuyMenu';
 import { Radar } from '../ui/Radar';
 import { Hud } from '../ui/Hud';
+import { loadPlayerName } from '../ui/OnlinePanel';
 import { weaponIcon } from '../ui/weaponIcons';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { Duel } from '../net/Duel';
@@ -310,6 +311,11 @@ export class Game {
     this.input.endTick();
   }
 
+  /** Pseudo du joueur (rubrique En ligne), ou « Toi » s'il n'en a pas choisi. */
+  private get playerName(): string {
+    return loadPlayerName() || 'Toi';
+  }
+
   // --- Dégâts ---
 
   /** Dégâts infligés au joueur, par un bot ou par une grenade (les siennes comprises). */
@@ -335,7 +341,7 @@ export class Game {
     this.deaths++;
     if (killer) killer.kills++;
     this.killer = attacker;
-    this.hud.addKill(attacker, 'Toi', weapon, headshot);
+    this.hud.addKill(attacker, this.playerName, weapon, headshot, { me: true });
     this.hud.setScore(this.kills, this.deaths);
     if (this.mode === 'deathmatch') this.respawnTimer = RESPAWN_DELAY;
   }
@@ -353,7 +359,7 @@ export class Game {
   private onBotKilled(bot: Bot, weapon: string, reward: number, headshot: boolean): void {
     if (headshot) this.stats.headshots++;
     this.kills++;
-    this.hud.addKill('Toi', bot.name, weapon, headshot);
+    this.hud.addKill(this.playerName, bot.name, weapon, headshot, { mine: true });
     this.hud.setScore(this.kills, this.deaths);
     if (this.roundBased) this.economy.earn(reward, 'Élimination');
   }
@@ -468,7 +474,7 @@ export class Game {
     // Le joueur : touché par ses propres grenades et celles des ennemis, pas par celles de ses coéquipiers.
     if (this.player.alive && thrower?.team !== 'ally') {
       const damage = hits(this.player.position, this.player.height);
-      if (damage >= 1) this.damagePlayer(damage, 'blast', BLAST_ARMOR_RATIO, thrower?.name ?? 'Toi', weapon, false, thrower ?? undefined);
+      if (damage >= 1) this.damagePlayer(damage, 'blast', BLAST_ARMOR_RATIO, thrower?.name ?? this.playerName, weapon, false, thrower ?? undefined);
     }
   }
 
@@ -503,7 +509,7 @@ export class Game {
     const damage = MOLOTOV.damagePerSecond * TICK;
     const fire = this.player.alive ? this.grenades.burning(this.player.position) : null;
     if (fire && this.duel.active && fire.owner === this.duel.remote) this.hurtByRemote(damage, 'fire', 1, GRENADES.molotov.name, false);
-    else if (fire) this.damagePlayer(damage, 'fire', 1, 'Toi', GRENADES.molotov.name);
+    else if (fire) this.damagePlayer(damage, 'fire', 1, this.playerName, GRENADES.molotov.name);
     // Le feu (toujours lancé par le joueur) fait fuir tout le monde mais ne blesse pas ses coéquipiers.
     this.bots.burn(
       (feet) => this.grenades.fireAt(feet),
@@ -661,7 +667,7 @@ export class Game {
       killedRemote: (weapon, headshot) => {
         if (headshot) this.stats.headshots++;
         this.kills++;
-        this.hud.addKill('Toi', this.duel.remote.name, weapon, headshot);
+        this.hud.addKill(this.playerName, this.duel.remote.name, weapon, headshot, { mine: true });
         this.hud.setScore(this.kills, this.deaths);
       },
     });
@@ -1011,7 +1017,7 @@ export class Game {
     const accuracy = this.stats.shots > 0 ? Math.round((100 * this.stats.hits) / this.stats.shots) : 0;
     const row = (bot: Bot) => ({ name: bot.name, kills: bot.kills, deaths: bot.deaths, extra: '', me: false, dead: !bot.alive, ally: bot.team === 'ally' });
     const byScore = (a: { kills: number; deaths: number }, b: { kills: number; deaths: number }) => b.kills - a.kills || a.deaths - b.deaths;
-    const me = { name: 'Toi', kills: this.kills, deaths: this.deaths, extra: `${this.stats.headshots} HS · ${accuracy} %`, me: true, dead: !this.player.alive, ally: true };
+    const me = { name: this.playerName, kills: this.kills, deaths: this.deaths, extra: `${this.stats.headshots} HS · ${accuracy} %`, me: true, dead: !this.player.alive, ally: true };
     const enemies = this.bots.enemies.map(row);
     if (this.duel.active) {
       // En ligne : ses éliminations sont nos morts de sa main, et ses morts nos éliminations.
