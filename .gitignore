@@ -7,3 +7,6 @@ dist/
 # seuls les fichiers utilisés par le jeu sont versionnés, dans public/assets/weapons/.
 RetroWeaponPack_V1.zip
 .retro/
+
+# Modèles Poly Haven bruts téléchargés par npm run optimize-props
+.props-src/

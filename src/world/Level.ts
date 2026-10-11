@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import * as textures from './textures';
 import { SUN_DIRECTION } from './sky';
 import type { Surface } from './surfaces';
+import { loadProps, placeProps, type PropPlacement } from './props';
 import type { World } from './World';
 
 // « Dunes » : petite carte façon de_dust, vue de dessus (nord = -z) :
@@ -223,17 +224,47 @@ export function buildLevel(world: World, anisotropy: number): THREE.DirectionalL
   for (const z of [-2, 16]) facadeWindow(-24, z - 0.6, -23.95, z + 0.6); // façade du bâtiment ouest (longue A)
   for (const z of [4, 9]) facadeWindow(23.95, z - 0.6, 24, z + 0.6); // façade du bâtiment est (couloir B)
 
-  // Barils contre les murs, par deux ou trois.
-  const barrel = (x: number, z: number, material: THREE.Material) => world.addCylinder(x, 0, z, 0.3, 0.9, material);
-  barrel(-11.45, -9, barrelBlue);
-  barrel(-11.45, -9.7, barrelRust);
-  barrel(11.45, 15, barrelRust);
-  barrel(11.45, 15.7, barrelBlue);
-  barrel(-33, -7.4, barrelBlue);
-  barrel(-32.3, -7.4, barrelBlue);
-  barrel(-33, -8.1, barrelRust);
-  barrel(25, -1.6, barrelRust);
-  barrel(33.5, 27.5, barrelBlue);
+  // Objets (modèles Poly Haven, voir props.ts) : toujours contre un mur, sous un auvent ou dans une
+  // zone d'apparition, jamais au milieu d'un passage.
+  const placements: PropPlacement[] = [
+    // Barils contre les murs, par deux ou trois (mêmes places que les anciens cylindres).
+    { id: 'barrelBlue', x: -11.45, z: -9, yaw: 20 },
+    { id: 'barrelRed', x: -11.45, z: -9.7, yaw: 200 },
+    { id: 'barrelRed', x: 11.45, z: 15, yaw: 75 },
+    { id: 'barrelBlue', x: 11.45, z: 15.7, yaw: 140 },
+    { id: 'barrelBlue', x: -33, z: -7.4 },
+    { id: 'barrelBlue', x: -32.3, z: -7.4, yaw: 110 },
+    { id: 'barrelRed', x: -33, z: -8.1, yaw: 300 },
+    { id: 'barrelRed', x: 25, z: -1.6, yaw: 40 },
+    { id: 'barrelBlue', x: 33.5, z: 27.5, yaw: 250 },
+    // Jerricanes au pied des barils.
+    { id: 'jerrycan', x: -11.12, z: -8.35, yaw: 90 },
+    { id: 'jerrycan', x: 11.12, z: 16.35, yaw: 90 },
+    { id: 'jerrycan', x: -32.35, z: -8.2, yaw: 30 },
+    { id: 'jerrycan', x: 33.55, z: 26.85, yaw: 180 },
+    // Caisses en plastique sous les auvents (longue A, couloir B), et sur la palette du sud.
+    { id: 'crate', x: -23.65, z: 6, yaw: 90 },
+    { id: 'crate', x: -23.65, z: 6, y: 0.25, yaw: 80 },
+    { id: 'crate', x: -23.65, z: 6.55, yaw: 90 },
+    { id: 'crate', x: 23.65, z: 14.4, yaw: 90 },
+    { id: 'crate', x: 23.65, z: 14.95, yaw: 95 },
+    { id: 'crate', x: 23.65, z: 14.95, y: 0.25, yaw: 85 },
+    { id: 'crate', x: -3.78, z: 27, y: 0.14 },
+    { id: 'crate', x: -3.22, z: 27, y: 0.14, yaw: 4 },
+    // Sacs poubelle dans les recoins.
+    { id: 'trashbag', x: -23.65, z: 10.9, yaw: 30 },
+    { id: 'trashbag', x: 23.6, z: 19.2, yaw: 160 },
+    { id: 'trashbag', x: -11.35, z: 10.6, yaw: 70 },
+    { id: 'trashbag', x: 11.35, z: 21.4, yaw: 250 },
+    { id: 'trashbag', x: 27.6, z: -30.4, yaw: 10 },
+    // Arbres carquois contre le mur d'enceinte, dans les zones d'apparition.
+    { id: 'tree', x: -20, z: 34.6, yaw: 40 },
+    { id: 'tree', x: 19, z: 34.6, yaw: 160 },
+    { id: 'tree', x: -22, z: -34.6, yaw: 250 },
+    { id: 'tree', x: 21, z: -34.6, yaw: 310 },
+  ];
+  placeProps(world, placements, { barrelBlue, barrelRed: barrelRust });
+  void loadProps(world, placements);
 
   // Palettes en bois (assez basses pour marcher dessus).
   const pallet = (x: number, z: number) => block(x - 0.6, z - 0.5, x + 0.6, z + 0.5, 0, 0.14, wood, WOOD_TILE);
@@ -251,7 +282,8 @@ export function buildLevel(world: World, anisotropy: number): THREE.DirectionalL
     [barrelBlue, 'metal'],
     [barrelRust, 'metal'],
   ]);
-  for (const mesh of world.meshes) mesh.userData.surface = surfaces.get(mesh.material as THREE.Material) ?? 'stone';
+  // (Les objets de props.ts ont déjà la leur.)
+  for (const mesh of world.meshes) mesh.userData.surface ??= surfaces.get(mesh.material as THREE.Material) ?? 'stone';
   return sun;
 }
 
