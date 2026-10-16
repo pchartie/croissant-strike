@@ -21,7 +21,9 @@ sys.path.insert(0, os.path.join(HERE, '..', 'lib'))
 
 import bake  # noqa: E402
 import kit  # noqa: E402
+import decals  # noqa: E402
 import palm  # noqa: E402
+import props  # noqa: E402
 from mathutils import Vector  # noqa: E402
 
 args = sys.argv[sys.argv.index('--') + 1:]
@@ -63,6 +65,13 @@ WALKABLE = [rect for rect, _ in ZONES]
 RAISED = {5, 6}  # terrasse A et passerelle
 SOUK = 14
 SURFACE = {'packedSand': 'sand', 'cobble': 'stone', 'paving': 'stone', 'terracotta': 'stone'}
+# Objets posés (src/world/props.ts) : {id, x, z, y?, yaw?}. Le jeu les dessine ; ici, ils font leurs ombres.
+PROPS = []
+
+
+def prop(pid, x, z, yaw=0, y=0.0):
+    PROPS.append({'id': pid, 'x': x, 'z': z, 'y': y, 'yaw': yaw})
+
 
 kit.reset_scene(TEXTURES)
 carte = kit.Kit((X0, 0, Z0), (X1, 100, Z1))
@@ -131,6 +140,28 @@ def relief(side, at, a, b, y1, y2, depth, material):
         box(a, at - depth, b, at, y1, y2, material, solid=False)
 
 
+# Côté d'une façade → (normale vers la rue, direction « vers la droite » vue de la rue).
+FACING = {'x+': ((1, 0, 0), (0, 0, -1)), 'x-': ((-1, 0, 0), (0, 0, 1)), 'z+': ((0, 0, 1), (1, 0, 0)), 'z-': ((0, 0, -1), (-1, 0, 0))}
+
+
+def decal(side, at, a, b, y1, y2, material, u=(0.0, 1.0), offset=0.01):
+    """
+    Image plaquée sur une façade, de `a` à `b` le long du mur et de `y1` à `y2` ; `u` = partie de
+    l'image en largeur (affiches côte à côte), dans le sens de lecture vu de la rue.
+    """
+    normal, right = FACING[side]
+    plane = at + offset * (normal[0] + normal[2])
+    def point(t, y):
+        return (plane, y, t) if side[0] == 'x' else (t, y, plane)
+    # De gauche à droite vu de la rue : t croît vers la droite si `right` est positif.
+    left, rightmost = (a, b) if right[0] + right[2] > 0 else (b, a)
+    corners = [point(left, y1), point(rightmost, y1), point(rightmost, y2), point(left, y2)]
+    uvs = [(u[0], 0), (u[1], 0), (u[1], 1), (u[0], 1)]
+    if oriented(corners, normal) is not corners:
+        corners, uvs = corners[::-1], uvs[::-1]
+    carte.face(corners, material, uvs)
+
+
 def facade_runs(x1, z1, x2, z2):
     """Parties des côtés d'un mur qui donnent sur une zone jouable : (côté, plan, début, fin, zone)."""
     sides = [('x+', x2, z1, z2, lambda t: (x2 + 0.3, t)), ('x-', x1, z1, z2, lambda t: (x1 - 0.3, t)),
@@ -161,6 +192,17 @@ def dress(x1, z1, x2, z2, height, seed):
         planks = 'bluePlanks' if seed < 0.5 else 'greenPlanks'
         relief(side, at, a, b, base, base + 0.7, 0.05, 'stone')  # soubassement
         relief(side, at, a, b, height - 0.3, height, 0.12, 'stone')  # corniche
+        # Saleté au-dessus du soubassement (l'image se répète tous les 2 m), coulures sous la corniche.
+        decal(side, at, a, b, base + 0.7, base + 1.6, 'decalGrime', (0, length / 2))
+        if rng.random() < 0.55:
+            w = rng.uniform(1.2, min(3.0, length))
+            c = a + rng.uniform(w / 2, length - w / 2)
+            decal(side, at, c - w / 2, c + w / 2, height - 0.3 - rng.uniform(1.5, 3.0), height - 0.3, 'decalStreaks')
+        if rng.random() < 0.3:
+            c = a + rng.uniform(0.8, max(0.8, length - 0.8))
+            size = rng.uniform(1.0, 1.8)
+            y = base + rng.uniform(1.0, 2.6)
+            decal(side, at, c - size / 2, c + size / 2, y, y + size, 'decalCracks', offset=0.012)
         if zone != SOUK and height - base >= 5.0:
             count = int((length - 0.6) // 3.2)
             for i in range(count):
@@ -170,10 +212,24 @@ def dress(x1, z1, x2, z2, height, seed):
                 y = base + 3.6
                 relief(side, at, c - 0.6, c + 0.6, y - 0.75, y + 0.75, 0.06, 'stone')
                 relief(side, at, c - 0.45, c + 0.45, y - 0.6, y + 0.6, 0.1, planks)
+        # Climatiseur au-dessus des fenêtres, tourné vers la rue (le modèle regarde vers +z).
+        if zone != SOUK and length >= 4.0 and height - base >= 5.9 and rng.random() < 0.25:
+            c = a + rng.uniform(1.0, length - 1.0)
+            yaw, offset = {'x+': (90, 0.21), 'x-': (-90, -0.21), 'z+': (0, 0.21), 'z-': (180, -0.21)}[side]
+            x, z = (at + offset, c) if side[0] == 'x' else (c, at + offset)
+            prop('aircon', x, z, yaw, base + 4.6)
+        door = None
         if length >= 3.0 and rng.random() < 0.5:
-            c = a + length * rng.uniform(0.3, 0.7)
+            door = c = a + length * rng.uniform(0.3, 0.7)
             relief(side, at, c - 0.75, c + 0.75, base, base + 2.6, 0.06, 'stone')
             relief(side, at, c - 0.55, c + 0.55, base, base + 2.3, 0.1, planks)
+        # Affiche, à hauteur d'yeux, loin de la porte.
+        if length >= 2.0 and rng.random() < 0.18:
+            c = a + rng.uniform(0.6, length - 0.6)
+            if door is None or abs(c - door) > 1.5:
+                k = rng.randrange(decals.POSTERS)
+                y = base + rng.uniform(1.2, 1.5)
+                decal(side, at, c - 0.4, c + 0.4, y, y + 1.1, 'decalPosters', (k / decals.POSTERS, (k + 1) / decals.POSTERS), offset=0.015)
 
 
 for facade in FACADES:
@@ -316,6 +372,66 @@ crate(7, 41, SMALL)
 crate(-4, -42)
 crate(10, -41)
 
+# --- Objets : jarres et plantes, poubelles, voitures bâchées, café sur la place, étals du souk ---
+for x, z in ((-9.4, 37.8), (-9.4, 38.6), (-8.7, 38.2), (-7.6, 45.2), (7.6, 45.2), (-20, 36.5), (-28.5, 43.5), (19, -10)):
+    prop('clayPot', x, z)
+for x, z in ((-9.4, 39.4), (19.1, -9.2), (-39.4, 42.8)):
+    prop('jug', x, z, 30)
+for x, z in ((-9.3, 35), (9.3, 35), (-13, -45.3), (13, -45.3), (39.4, -33.3)):
+    prop('pottedPlant', x, z)
+for x, z, yaw in ((9.6, 37.4, 90), (-14, 43.6, 0), (-39.6, 6, 90), (39.6, -1, 90)):
+    prop('trashCan', x, z, yaw)
+prop('coveredCar', 37.6, -20, 0)
+prop('coveredCar', -15, -44.6, 90)
+for x, z in ((-11.3, -45.4), (-10.6, -45.4)):
+    prop('barrelBlue', x, z)
+prop('jerrycan', -11, -44.8, 15)
+# Café : deux tables le long des façades est de la place, chaises de part et d'autre.
+for tz in (-0.5, -6.5):
+    prop('cafeTable', 7.2, tz, 90)
+    prop('lantern', 7.2, tz + 0.4, 0, 0.75)
+    for dz in (-0.5, 0.5):
+        # Le modèle regarde vers +z : -90 le tourne vers l'est (vers la table), 90 vers l'ouest.
+        prop('plasticChair', 6.0, tz + dz, -90)
+        prop('plasticChair', 8.4, tz + dz, 90)
+# Étals du souk : jarres et caisses en plastique dessus.
+for x, z1 in ((22.6, 10), (22.6, 20), (22.6, 28), (29.4, 15), (29.4, 25)):
+    prop('jug', x, z1 + 1.5, 0, 0.9)
+    prop('crate', x, z1 + 2.0, 90, 0.9)
+
+# --- Câbles électriques tendus au-dessus des rues étroites, d'une façade à l'autre ---
+def cable(p1, p2, sag, segments=10, width=0.025):
+    """Câble qui pend entre deux points : chaînette approchée, deux rubans croisés par tronçon."""
+    pts = []
+    for k in range(segments + 1):
+        t = k / segments
+        pts.append(tuple(p1[i] + (p2[i] - p1[i]) * t for i in range(3)))
+        pts[-1] = (pts[-1][0], pts[-1][1] - sag * 4 * t * (1 - t), pts[-1][2])
+    for p, q in zip(pts, pts[1:]):
+        d = Vector(q) - Vector(p)
+        side = d.cross(Vector((0, 1, 0))).normalized() * width / 2
+        up = Vector((0, width / 2, 0))
+        for off in (side, up):
+            quad = [tuple(Vector(p) - off), tuple(Vector(q) - off), tuple(Vector(q) + off), tuple(Vector(p) + off)]
+            carte.face(quad, 'cable', [(0, 0), (1, 0), (1, 1), (0, 1)])
+
+
+cable_rng = random.Random('câbles')
+STREETS = [3, 8, 10, 12, 1, 2]  # Longue, Milieu, couloir des Portes CT, Ruelle, cours ouest et est
+for index in STREETS:
+    (x1, z1, x2, z2), _ = ZONES[index]
+    along_z = (z2 - z1) > (x2 - x1)
+    lo, hi = (z1, z2) if along_z else (x1, x2)
+    t = lo + cable_rng.uniform(2, 6)
+    while t < hi - 2:
+        y1, y2 = cable_rng.uniform(4.2, 4.8), cable_rng.uniform(4.2, 4.8)
+        skew = cable_rng.uniform(-1.5, 1.5)
+        if along_z:
+            cable((x1, y1, t), (x2, y2, t + skew), cable_rng.uniform(0.3, 0.7))
+        else:
+            cable((t, y1, z1), (t + skew, y2, z2), cable_rng.uniform(0.3, 0.7))
+        t += cable_rng.uniform(5, 11)
+
 # --- Minaret, au nord derrière l'enceinte : repère visible de toute la carte ---
 for x1, z1, x2, z2, y1, y2, material in (
     (-2, -52, 2, -48, 0, 15.5, 'clayOchre'),
@@ -329,11 +445,13 @@ for x1, z1, x2, z2, y1, y2, material in (
 
 # --- Palmiers ---
 palm.leaf_texture(os.path.join(TEXTURES, 'palmLeaf.png'))
+decals.make_all(TEXTURES)
 for i, (x, z, h) in enumerate(((20.5, -32, 7.5), (38, -31.5, 6.5), (38, 3.5, 7), (-8.5, 44.5, 6.5), (8.5, 44.5, 7.5),
                                (-22, -44.5, 7), (22, -44.5, 6.5), (8.5, 4.5, 6), (-38.5, 41.5, 6.5))):
     palm.add_palm(carte, x, z, h, seed=i)
 
 obj = carte.build('medina')
+props.place(ROOT, PROPS)
 bake.setup_lighting(SUN_DIRECTION, 2.5, os.path.join(ROOT, 'public', 'sky', 'sky.hdr'), sky_irradiance=1.9)
 density = bake.lightmap_uv(obj, SIZE)
 image = bake.bake(obj, SIZE, SAMPLES)
@@ -345,5 +463,5 @@ bake.write_json(os.path.join(OUT, 'medina.json'), {
     'lightmapDensity': density,
     'materials': carte.materials_json(),
     'collisions': carte.collisions(),
-    'props': [],
+    'props': PROPS,
 })

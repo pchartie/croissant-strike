@@ -80,7 +80,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
         type: 'choice',
         options: [
           { value: 'medina', label: 'Médina' },
-          { value: 'dunes', label: 'Dunes' },
+          { value: 'dunes', label: 'Dunes (grise)' },
         ],
       },
       {

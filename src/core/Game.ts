@@ -140,7 +140,9 @@ export class Game {
 
   constructor(container: HTMLElement) {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // Couleurs fidèles et franches (Khronos PBR Neutral), un peu moins exposées : le soleil tape fort.
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.toneMappingExposure = 0.92;
     this.renderer.autoClear = false;
     container.appendChild(this.renderer.domElement);
 

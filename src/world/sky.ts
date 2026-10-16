@@ -12,6 +12,8 @@ export const SUN_DIRECTION = new THREE.Vector3(0.556, 0.742, 0.376).normalize();
 
 /** Couleur moyenne du ciel à l'horizon, pour que le brouillard s'y fonde. */
 const HORIZON = new THREE.Color().setRGB(0.409, 0.443, 0.535, THREE.LinearSRGBColorSpace);
+/** Brume de chaleur : l'horizon tiré vers le sable, qui adoucit et réchauffe les lointains. */
+const HAZE = HORIZON.clone().lerp(new THREE.Color().setRGB(0.62, 0.52, 0.38, THREE.LinearSRGBColorSpace), 0.45);
 
 /** Part de l'éclairage venant du ciel (le reste vient du soleil et de la lumière d'ambiance). */
 const ENVIRONMENT_INTENSITY = 0.35;
@@ -25,7 +27,7 @@ export async function loadSky(world: THREE.Scene, others: THREE.Scene[] = []): P
     const texture = await new HDRLoader().loadAsync(`${import.meta.env.BASE_URL}sky/sky.hdr`);
     texture.mapping = THREE.EquirectangularReflectionMapping;
     world.background = texture;
-    if (world.fog instanceof THREE.Fog) world.fog.color.copy(HORIZON);
+    if (world.fog instanceof THREE.Fog) world.fog.color.copy(HAZE);
     for (const scene of [world, ...others]) {
       scene.environment = texture;
       scene.environmentIntensity = ENVIRONMENT_INTENSITY;

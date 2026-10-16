@@ -1,4 +1,4 @@
-# Objets de la carte
+# Objets des cartes
 
 Modèles de [Poly Haven](https://polyhaven.com), licence **CC0** (domaine public). Version glTF 1k,
 optimisée pour le navigateur par `scripts/optimize-props.mjs` : maillage simplifié, textures réduites
@@ -10,4 +10,12 @@ optimisée pour le navigateur par `scripts/optimize-props.mjs` : maillage simpli
 | `barrel-red.glb` | [Barrel 01](https://polyhaven.com/a/Barrel_01) | Jorge Camacho |
 | `jerrycan.glb` | [Metal Jerrycan](https://polyhaven.com/a/metal_jerrycan) | Sean Buckley |
 | `crate.glb` | [Plastic Crate 02](https://polyhaven.com/a/plastic_crate_02) | Fabi_G |
-| `tree.glb` | [Quiver Tree 02](https://polyhaven.com/a/quiver_tree_02) | Dario Barresi, Rico Cilliers |
+| `covered-car.glb` | [Covered Car](https://polyhaven.com/a/covered_car) | MP |
+| `aircon.glb` | [Exterior Aircon Unit](https://polyhaven.com/a/exterior_aircon_unit) | Monsta3D |
+| `clay-pot.glb` | [Planter Pot Clay](https://polyhaven.com/a/planter_pot_clay) | Amal Kumar |
+| `potted-plant.glb` | [Potted Plant 01](https://polyhaven.com/a/potted_plant_01) | Rico Cilliers |
+| `jug.glb` | [Ceramic Vase 04](https://polyhaven.com/a/ceramic_vase_04) | James Ray Cock |
+| `plastic-chair.glb` | [Plastic Monobloc Chair 01](https://polyhaven.com/a/plastic_monobloc_chair_01) | Kuutti Siitonen |
+| `cafe-table.glb` | [Painted Wooden Table](https://polyhaven.com/a/painted_wooden_table) | Kirill Sannikov |
+| `trash-can.glb` | [Metal Trash Can](https://polyhaven.com/a/metal_trash_can) | GurJas Studios |
+| `lantern.glb` | [Lantern 01](https://polyhaven.com/a/Lantern_01) | Rajil Jose Macatangay |

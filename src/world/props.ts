@@ -3,11 +3,24 @@ import type { Surface } from './surfaces';
 import { sunShade, sunVisibility } from './sunlight';
 import type { World } from './World';
 
-// Objets de la carte (barils, jerricanes, caisses, arbres) : modèles Poly Haven optimisés par
+// Objets posés sur les cartes (barils, voiture bâchée, climatiseurs, jarres, café…) : modèles Poly Haven optimisés par
 // `npm run optimize-props`. Leurs collisions sont posées dès la construction de la carte (pour la
 // navigation des bots) ; les modèles arrivent ensuite, chacun dessiné en un seul appel (instanciation).
 
-export type PropId = 'barrelBlue' | 'barrelRed' | 'jerrycan' | 'crate' | 'tree';
+export type PropId =
+  | 'barrelBlue'
+  | 'barrelRed'
+  | 'jerrycan'
+  | 'crate'
+  | 'coveredCar'
+  | 'aircon'
+  | 'clayPot'
+  | 'pottedPlant'
+  | 'jug'
+  | 'plasticChair'
+  | 'cafeTable'
+  | 'trashCan'
+  | 'lantern';
 
 interface PropSpec {
   file: string;
@@ -24,8 +37,19 @@ const SPECS: Record<PropId, PropSpec> = {
   barrelRed: { file: 'barrel-red', size: [0.58, 0.58, 0.9], surface: 'metal' },
   jerrycan: { file: 'jerrycan', size: [0.35, 0.17, 0.46], surface: 'metal' },
   crate: { file: 'crate', size: [0.51, 0.41, 0.25], surface: 'plaster' },
-  // L'arbre carquois du pack fait 1,5 m : agrandi à 5 m pour en faire un vrai arbre.
-  tree: { file: 'tree', size: [2.97, 2.98, 5], surface: 'wood', trunk: 0.55 },
+  // Médina. Taille réelle des modèles, sauf les pots, la cruche et la lanterne, agrandis (jarres, lanterne
+  // murale). Mêmes hauteurs que dans map/lib/props.py, qui les pose pour l'éclairage précalculé.
+  coveredCar: { file: 'covered-car', size: [1.79, 4.38, 1.41], surface: 'metal' },
+  // Deux appareils côte à côte, posés en hauteur sur les façades.
+  aircon: { file: 'aircon', size: [1.8, 0.38, 0.93], surface: 'metal' },
+  clayPot: { file: 'clay-pot', size: [0.65, 0.65, 0.55], surface: 'stone' },
+  pottedPlant: { file: 'potted-plant', size: [0.59, 0.63, 1.35], surface: 'stone', trunk: 0.45 },
+  jug: { file: 'jug', size: [0.37, 0.37, 0.7], surface: 'stone' },
+  plasticChair: { file: 'plastic-chair', size: [0.64, 0.63, 0.88], surface: 'plaster' },
+  cafeTable: { file: 'cafe-table', size: [1.87, 0.89, 0.75], surface: 'wood' },
+  // Deux poubelles côte à côte (l'une sans couvercle).
+  trashCan: { file: 'trash-can', size: [1.78, 0.56, 0.91], surface: 'metal' },
+  lantern: { file: 'lantern', size: [0.19, 0.16, 0.45], surface: 'metal' },
 };
 
 export interface PropPlacement {
@@ -106,8 +130,17 @@ export async function loadProps(world: World, placements: PropPlacement[]): Prom
     scene.updateMatrixWorld(true);
     scene.traverse((child) => {
       if (!(child instanceof THREE.Mesh)) return;
+      // Verre qui réfracte (lanterne) : three.js redessinerait toute la scène une seconde fois à chaque
+      // image pour voir à travers. Une simple transparence suffit.
+      const material = child.material as THREE.MeshPhysicalMaterial;
+      if (material.transmission > 0) {
+        material.transmission = 0;
+        material.transparent = true;
+        material.opacity = 0.35;
+        material.depthWrite = false;
+      }
       // Un seul appel de dessin pour tous les exemplaires de ce morceau du modèle.
-      const mesh = new THREE.InstancedMesh(child.geometry, child.material, spots.length);
+      const mesh = new THREE.InstancedMesh(child.geometry, material, spots.length);
       spots.forEach((spot, i) => {
         place.makeRotationY(THREE.MathUtils.degToRad(spot.yaw ?? 0)).setPosition(spot.x, spot.y ?? 0, spot.z);
         mesh.setMatrixAt(i, instance.multiplyMatrices(place, fit).multiply(child.matrixWorld));

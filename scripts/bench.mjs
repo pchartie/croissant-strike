@@ -6,7 +6,8 @@
 //               npm run bench -- [nom] [carte]  (captures et résultats dans bench/<nom>/, ignoré par git ;
 //                                               carte : dunes par défaut, ou medina)
 // Options     : BROWSER=/chemin/vers/chrome (par défaut Brave sur macOS), HEADFUL=1 pour voir la fenêtre,
-//               URL=http://localhost:5173/, PREP='<code JS>' exécuté dans la page avant la mesure
+//               URL=http://localhost:5173/, VIEWS='[{"name":"cafe","pos":[0,1.7,4],"yaw":-1.2,"pitch":-0.2}]'
+//               pour d'autres points de vue, PREP='<code JS>' exécuté dans la page avant la mesure
 //               (par exemple PREP='game.bots.bots.forEach(b => b.model.root.visible = false)').
 //
 // Le temps mesuré comprend la synchronisation (lecture d'un pixel) : quelques ms fixes, à comparer
@@ -42,6 +43,7 @@ const VIEWS = {
     { name: 'site-b', pos: [22, 1.7, 2], yaw: -0.5, pitch: -0.05 },
   ],
 }[map];
+if (process.env.VIEWS) VIEWS.splice(0, VIEWS.length, ...JSON.parse(process.env.VIEWS));
 
 const browser = await puppeteer.launch({
   executablePath: process.env.BROWSER ?? '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',

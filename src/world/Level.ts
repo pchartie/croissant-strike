@@ -41,7 +41,8 @@ export function buildLevel(world: World, anisotropy: number): void {
 function setupLighting(scene: THREE.Scene): void {
   const sky = new THREE.Color(0xa9cbe8);
   scene.background = sky;
-  scene.fog = new THREE.Fog(sky, 60, 180);
+  // Brume légère dès 15 m, qui ne cache jamais rien (moins d'un tiers à 80 m) ; couleur réglée par sky.ts.
+  scene.fog = new THREE.Fog(sky, 15, 260);
 
   // Lumière d'ambiance un peu plus faible qu'avant : le ciel HDR (sky.ts) en ajoute.
   scene.add(new THREE.HemisphereLight(0xd6e6ff, 0x9a8460, 1.0));

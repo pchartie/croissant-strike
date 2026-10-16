@@ -14,8 +14,12 @@ export interface MapMaterial {
   texture?: string;
   /** Texture dessinée par le jeu (fonction de textures.ts), ou image public/textures/<canvas>.png si `alpha`. */
   canvas?: string;
-  /** Découpé selon la transparence de l'image, vu des deux côtés (palmes). */
+  /** Découpé net selon la transparence de l'image (palmes, affiches). */
   alpha?: boolean;
+  /** Transparence progressive, posé sur une autre surface (coulures, fissures). */
+  blend?: boolean;
+  /** Vu des deux côtés (palmes). */
+  double?: boolean;
 }
 
 export interface MapLighting {
@@ -80,10 +84,18 @@ export async function loadMapVisuals(scene: THREE.Scene, name: string, lighting:
       // Le shader divise l'éclairage par π (convention de three.js) : on le compense.
       lightMapIntensity: lighting.lightmapScale * Math.PI,
     });
-    if (spec.alpha) {
+    if (spec.blend) {
+      // Posé à 1 cm d'un mur : dessiné par-dessus sans écrire la profondeur, et rapproché pour ne
+      // jamais clignoter avec lui au loin.
+      material.transparent = true;
+      material.depthWrite = false;
+      material.polygonOffset = true;
+      material.polygonOffsetFactor = -1;
+      material.polygonOffsetUnits = -4;
+    } else if (spec.alpha) {
       material.alphaTest = 0.5;
-      material.side = THREE.DoubleSide;
     }
+    if (spec.double) material.side = THREE.DoubleSide;
     let map: Promise<THREE.Texture> | null = null;
     if (spec.texture) map = texture(spec.texture, () => load(`${import.meta.env.BASE_URL}textures/${spec.texture}_diff.webp`, true));
     else if (spec.canvas && spec.alpha) map = texture(spec.canvas, () => load(`${import.meta.env.BASE_URL}textures/${spec.canvas}.png`, true));

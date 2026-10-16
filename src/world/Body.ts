@@ -102,20 +102,33 @@ export class Body {
     }
   }
 
-  /** Monte sur l'obstacle s'il est assez bas et qu'il y a la place au-dessus. */
+  /**
+   * Monte sur l'obstacle s'il est assez bas et qu'il y a la place au-dessus. Des blocs empilés
+   * (une dalle sur son socle) forment une seule marche : on monte sur le plus haut, tant que
+   * l'ensemble reste sous la hauteur d'une marche.
+   */
   private stepUp(obstacle: THREE.Box3, colliders: readonly THREE.Box3[]): boolean {
-    const rise = obstacle.max.y - this.position.y;
-    if (rise <= 0 || rise > MOVE.stepSize) return false;
-
     const startY = this.position.y;
-    this.position.y = obstacle.max.y + SKIN;
-    this.updateBox();
-    for (const other of colliders) {
-      if (other !== this.box && overlaps(this.box, other)) {
+    let top = obstacle.max.y;
+    if (top - startY <= 0 || top - startY > MOVE.stepSize) return false;
+
+    for (;;) {
+      this.position.y = top + SKIN;
+      this.updateBox();
+      let blocker: THREE.Box3 | null = null;
+      for (const other of colliders) {
+        if (other !== this.box && overlaps(this.box, other)) {
+          blocker = other;
+          break;
+        }
+      }
+      if (!blocker) break;
+      if (blocker.max.y <= top || blocker.max.y - startY > MOVE.stepSize) {
         this.position.y = startY;
         this.updateBox();
         return false;
       }
+      top = blocker.max.y;
     }
     this.stepOffset -= this.position.y - startY;
     return true;

@@ -146,15 +146,17 @@ Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebon
 
 ## Cartes
 
-Deux cartes, au choix dans **Partie → Carte** (`src/world/maps.ts` : limites, apparition du joueur, zones de départ en mode manches). Les marches de moins de 46 cm se montent sans sauter, comme dans CS.
+Deux cartes, au choix dans **Partie → Carte** (`src/world/maps.ts` : limites, apparition du joueur, zones de départ en mode manches). Les marches de moins de 46 cm se montent sans sauter, comme dans CS, y compris quand elles sont faites de plusieurs blocs empilés (une dalle sur son socle).
 
 **Médina**, la carte principale : vieille ville du Maghreb de 80 × 92 m, façon de_dust2. Spawn T au sud (le joueur), spawn CT au nord. Trois voies : à l'ouest la **Longue** (rue droite de 50 m fermée par les Portes longues, avec un Coin), au centre le **Milieu** (sous une arche, puis une place avec un puits et les **Portes CT**) d'où la **Passerelle** surélevée mène à A, à l'est le **Souk** couvert de bandes de toile. **Site A** : terrasse surélevée de 1,2 m avec un Plateau ; **site B** : cour avec une fontaine, reliée au Milieu par la **Ruelle** et les Portes B. Trajets : 6 à 9 s pour les CT jusqu'aux sites, 16 à 22 s pour les T, la place du Milieu à égalité. Tout est décrit dans `map/medina/build.py` : une centaine de maisons en crépi de quatre teintes (soubassement, corniche, fenêtres à volets bleus ou verts, portes), rues pavées, places en sable tassé, terrasse A dallée, cour B en tomettes avec une fontaine en zellige, arche en grès, toiles colorées au-dessus du souk, minaret au nord (repère visible de partout) et neuf palmiers modélisés par le script (`map/lib/palm.py`).
 
-**Dunes**, une petite carte façon de_dust de 72 × 72 m : apparition au sud, trois voies vers le nord — la longue voie à l'ouest jusqu'à une plateforme surélevée, le milieu avec sa passerelle et ses portes, le couloir à l'est jusqu'à une seconde plateforme. Les marches de moins de 46 cm se montent sans sauter, comme dans CS.
+Pour la vie des rues : des objets Poly Haven (voiture bâchée en B et au spawn CT, climatiseurs sur les façades, jarres, cruches et plantes en pot, poubelles, café avec tables, chaises en plastique et lanternes sur la place, étals garnis dans le souk), des détails plaqués sur les murs (saleté au pied des murs, coulures sous les corniches, fissures, affiches déchirées : images dessinées par `map/lib/decals.py`) et des câbles électriques qui pendent d'une façade à l'autre au-dessus des rues.
 
-Textures de [Poly Haven](https://polyhaven.com) en CC0, couleur seulement, à leur taille réelle (`public/textures/`, téléchargées et converties en WebP par `npm run fetch-textures`). Dunes garde son habillage façon de_dust : linteaux et poutres au-dessus des passages, battants de porte en bois, auvents sur poteaux, fenêtres, rebords de grès en haut des murs, barils et palettes.
+**Dunes (grise)**, une petite carte « squelette » de 72 × 72 m, façon de_dust : apparition au sud, trois voies vers le nord — la longue voie à l'ouest jusqu'à une plateforme surélevée, le milieu avec sa passerelle et ses portes, le couloir à l'est jusqu'à une seconde plateforme. Sans textures ni objets : quadrillage de 1 m et une couleur par rôle (murs, sol, surélevé, obstacles, linteaux).
 
-**Objets** : barils, jerricanes, caisses en plastique et arbres carquois de [Poly Haven](https://polyhaven.com) (CC0, crédits dans `public/assets/props/CREDITS.md`), posés contre les murs et sous les auvents. Ils sont optimisés pour le navigateur par `npm run optimize-props` (maillages simplifiés, textures WebP de 256 à 512 px, géométrie compressée Meshopt : environ 400 Ko pour les cinq modèles), et chaque modèle est dessiné en un seul appel pour tous ses exemplaires (instanciation).
+Textures de [Poly Haven](https://polyhaven.com) en CC0, couleur seulement, à leur taille réelle (`public/textures/`, téléchargées et converties en WebP par `npm run fetch-textures`).
+
+**Objets** de [Poly Haven](https://polyhaven.com) (CC0, crédits dans `public/assets/props/CREDITS.md`), optimisés pour le navigateur par `npm run optimize-props` (maillages simplifiés, textures WebP de 256 à 512 px, géométrie compressée Meshopt) : chaque modèle est dessiné en un seul appel pour tous ses exemplaires (instanciation). Le verre qui réfracte (lanterne) devient une simple transparence : sinon three.js redessinerait toute la scène une seconde fois à chaque image.
 
 ### Éclairage précalculé (Blender)
 
@@ -166,11 +168,15 @@ npm run build-map -- medina 512 16    # essai rapide (quelques secondes)
 ```
 
 - `map/lib/kit.py` construit le maillage à partir de blocs (et d'outils : escaliers, bâtiments qui remplissent tout ce qui n'est pas une rue, sans toits puisqu'on ne les voit jamais) : faces cachées retirées (contre un autre bloc, sous le sol, hors de la carte), textures alignées sur le monde (elles continuent d'un bloc à l'autre), un seul maillage avec un matériau par matière.
-- `map/lib/bake.py` range les faces dans la carte d'éclairage (même densité partout, ~17 pixels par mètre en 2048), règle le soleil et le ciel HDR comme dans le jeu, lance le calcul (Cycles) et exporte.
+- `map/lib/bake.py` range les faces dans la carte d'éclairage (même densité partout, ~12 pixels par mètre en 2048 sur Médina), règle le soleil et le ciel HDR comme dans le jeu, lance le calcul (Cycles) et exporte.
 - `map/<carte>/build.py` décrit chaque carte : Médina à partir des zones jouables de son plan, Dunes à partir des blocs de l'ancienne version (`map/dunes/layout.json`).
 - Résultat : `public/maps/<carte>/` (maillage .glb compressé, ~50 Ko ; éclairage .webp) et `src/maps/<carte>.json` (collisions en boîtes, objets posés), inclus dans le code du jeu. Les fichiers produits sont versionnés : GitHub Pages n'a pas besoin de Blender.
 
 Ce qui bouge n'a plus d'ombre calculée : les bots ont une ombre ronde au sol, et eux comme les objets posés s'assombrissent à l'ombre des murs (un rayon vers le soleil à travers les collisions, `src/world/sunlight.ts`).
+
+## Ambiance
+
+Rendu des couleurs Khronos PBR Neutral (fidèle et franc, un peu moins exposé que la normale), brume de chaleur légère qui adoucit les lointains (couleur de l'horizon tirée vers le sable) et bords de l'image légèrement assombris (un dégradé en CSS par-dessus l'image). Rien de tout ça ne coûte de passe de rendu en plus.
 
 ## Ciel
 

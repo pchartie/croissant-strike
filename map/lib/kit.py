@@ -22,16 +22,18 @@ from mathutils import Vector
 MAX_PIECE = 6.0
 
 
-def M(texture=None, tint=0xffffff, tile=1.0, per_box=False, canvas=None, alpha=False, shown=None):
+def M(texture=None, tint=0xffffff, tile=1.0, per_box=False, canvas=None, alpha=False, shown=None, blend=False, double=False):
     """
     Un matériau : texture Poly Haven (public/textures/<texture>_diff.webp) ou dessinée par le jeu
     (`canvas` : nom d'une fonction de src/world/textures.ts), teinte sRGB, taille réelle d'un motif (m).
     `per_box` : la texture couvre chaque face de bloc (caisses) au lieu de suivre le monde.
-    `alpha` : découpé selon la transparence de la texture (palmes), vu des deux côtés.
+    `alpha` : image à transparence public/textures/<canvas>.png, découpée net (palmes, affiches).
+    `blend` : transparence progressive, posée sur une autre surface (coulures, fissures).
+    `double` : vu des deux côtés (palmes).
     `shown` : teinte dans le jeu, si elle diffère (texture dessinée déjà en couleur, comme la caisse).
     """
-    return {'texture': texture, 'tint': tint, 'tile': tile, 'per_box': per_box, 'canvas': canvas, 'alpha': alpha,
-            'shown': tint if shown is None else shown}
+    return {'texture': texture, 'tint': tint, 'tile': tile, 'per_box': per_box, 'canvas': canvas, 'alpha': alpha or blend,
+            'blend': blend, 'double': double, 'shown': tint if shown is None else shown}
 
 
 # Matériaux des cartes. Ici, la teinte et la texture servent aux rebonds de lumière pendant le calcul de
@@ -59,7 +61,7 @@ MATERIALS = {
     'cobble': M('cobble', tile=1),
     'packedSand': M('packedSand', tile=1.8),
     'paving': M('paving', tile=2),
-    'terracotta': M('terracotta', tile=2.15),
+    'terracotta': M('terracotta', 0xd9cabd, tile=2.15),  # un peu désaturé : la texture est très orange
     'mosaic': M('mosaic', tile=1),
     'bluePlanks': M('bluePlanks', tile=1),
     'greenPlanks': M('greenPlanks', tile=1.5),
@@ -70,7 +72,13 @@ MATERIALS = {
     'fabricGreen': M(tint=0x4f7a3a, canvas='stripes', tile=2),
     'water': M(tint=0x3f7f86),
     'palmTrunk': M(tint=0x7a6347, canvas='palmTrunk', tile=1),
-    'palmLeaf': M(canvas='palmLeaf', alpha=True),  # couleurs dans l'image (map/lib/palm.py)
+    'palmLeaf': M(canvas='palmLeaf', alpha=True, double=True),  # couleurs dans l'image (map/lib/palm.py)
+    # Détails plaqués (images de map/lib/decals.py) et câbles électriques.
+    'decalStreaks': M(canvas='decalStreaks', blend=True),
+    'decalGrime': M(canvas='decalGrime', blend=True),
+    'decalCracks': M(canvas='decalCracks', blend=True),
+    'decalPosters': M(canvas='decalPosters', alpha=True),
+    'cable': M(tint=0x1c1a18),
 }
 
 
@@ -288,8 +296,9 @@ class Kit:
                 entry['texture'] = m['texture']
             if m['canvas']:
                 entry['canvas'] = m['canvas']
-            if m['alpha']:
-                entry['alpha'] = True
+            for flag in ('alpha', 'blend', 'double'):
+                if m[flag]:
+                    entry[flag] = True
             out[name] = entry
         return out
 

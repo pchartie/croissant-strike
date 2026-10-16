@@ -34,7 +34,7 @@ export interface GameMap {
 export const MAPS: Record<MapId, GameMap> = {
   dunes: {
     id: 'dunes',
-    label: 'Dunes',
+    label: 'Dunes (grise)',
     data: dunes as unknown as MapData,
     bounds: new THREE.Box3(new THREE.Vector3(-36, 0, -36), new THREE.Vector3(36, 7, 36)),
     spawn: { position: new THREE.Vector3(0, 0, 31), yaw: 0 },

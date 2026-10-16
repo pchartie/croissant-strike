@@ -206,6 +206,14 @@ canvas {
   filter: drop-shadow(0 0 2px #f33) sepia(1) saturate(8) hue-rotate(-50deg);
 }
 
+/* Bords de l'image légèrement assombris : gratuit (pas de passe de rendu en plus). */
+#vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(20, 12, 4, 0.32) 100%);
+}
+
 #damage {
   position: fixed;
   inset: 0;
