@@ -26,7 +26,7 @@ const PROPS = [
   // Médina
   { id: 'covered_car', file: 'covered-car', triangles: 3000 },
   // Dessous ouvert : dessiné des deux côtés. Simplifié plus fort, son dessous et ses pattes se déformaient.
-  { id: 'exterior_aircon_unit', file: 'aircon', triangles: 5000, doubleSided: true },
+  { id: 'exterior_aircon_unit', file: 'aircon', triangles: 3000, doubleSided: true },
   { id: 'planter_pot_clay', file: 'clay-pot', triangles: 600 },
   { id: 'potted_plant_01', file: 'potted-plant', triangles: 2000 },
   { id: 'ceramic_vase_04', file: 'jug', triangles: 600 },
