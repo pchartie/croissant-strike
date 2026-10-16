@@ -25,6 +25,7 @@ import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem
 import { buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { loadSky } from '../world/sky';
+import { setSunBlockers } from '../world/sunlight';
 import { surfaceOf, type Surface } from '../world/surfaces';
 import { World } from '../world/World';
 import { absorbDamage, BLAST_ARMOR_RATIO, type DamageZone } from './armor';
@@ -63,7 +64,6 @@ const DOWN = new THREE.Vector3(0, -1, 0);
 const SPOT_INTERVAL_MS = 100;
 const SPOT_MEMORY_MS = 1500;
 /** Taille de la carte d'ombre du soleil selon la qualité choisie (0 = pas d'ombres). */
-const SHADOW_MAP_SIZES = { off: 0, low: 1024, high: 4096 };
 /** Coup dans le dos si le bot regarde à moins de ~65° de la direction opposée au joueur. */
 const BACKSTAB_DOT = 0.4;
 /** Au-delà, on n'éjecte pas les douilles des bots (invisibles d'aussi loin), ni n'entend celles qui tombent. */
@@ -125,7 +125,6 @@ export class Game {
   private remoteStride = 0;
   private readonly botStrides = new Map<Bot, number>();
   private readonly radar: Radar;
-  private readonly sun: THREE.DirectionalLight;
   private fpsFrames = 0;
   private fpsTime = 0;
   private readonly spotted = new Map<Bot, number>();
@@ -141,8 +140,6 @@ export class Game {
 
   constructor(container: HTMLElement) {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.autoClear = false;
     container.appendChild(this.renderer.domElement);
@@ -154,7 +151,8 @@ export class Game {
     });
     this.input.onLockChange((locked) => this.hud.setPaused(!locked));
 
-    this.sun = buildLevel(this.world, this.renderer.capabilities.getMaxAnisotropy());
+    buildLevel(this.world, this.renderer.capabilities.getMaxAnisotropy());
+    setSunBlockers(this.world.colliders);
     void loadSky(this.scene, [this.viewModel.scene]);
     this.scene.add(this.muzzleLight);
     this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
@@ -923,16 +921,8 @@ export class Game {
     if (settings.mode !== this.mode) this.startMode(settings.mode);
   }
 
-  /** Ombres et résolution de rendu (onglet Graphismes). */
+  /** Résolution de rendu et compteur d'images (onglet Graphismes). */
   private applyGraphics(settings: Settings): void {
-    const shadowSize = SHADOW_MAP_SIZES[settings.shadows];
-    this.sun.castShadow = shadowSize > 0;
-    if (shadowSize > 0 && this.sun.shadow.mapSize.x !== shadowSize) {
-      // Changer la taille de la carte d'ombre oblige à la recréer.
-      this.sun.shadow.map?.dispose();
-      this.sun.shadow.map = null;
-      this.sun.shadow.mapSize.set(shadowSize, shadowSize);
-    }
     const pixelRatio = Math.min(window.devicePixelRatio, 2) * (settings.renderScale / 100);
     if (this.renderer.getPixelRatio() !== pixelRatio) {
       this.renderer.setPixelRatio(pixelRatio);

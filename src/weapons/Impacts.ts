@@ -74,7 +74,6 @@ export class Impacts {
     let decal = this.decals[this.nextDecal];
     if (!decal) {
       decal = new THREE.Mesh(this.decalGeometry, this.decalMaterial);
-      decal.receiveShadow = true;
       this.decals.push(decal);
       this.scene.add(decal);
     }

@@ -1,6 +1,6 @@
 # Textures
 
-Textures de [Poly Haven](https://polyhaven.com), licence **CC0** (domaine public). Version 1k (couleur, relief en normal map OpenGL, rugosité).
+Textures de [Poly Haven](https://polyhaven.com), licence **CC0** (domaine public). Version 1k, couleur seulement : le relief et les ombres viennent de l’éclairage précalculé de la carte.
 
 | Fichiers | Texture | Auteur | Taille réelle |
 |---|---|---|---|

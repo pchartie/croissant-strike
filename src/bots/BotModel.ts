@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { flashSprite } from '../weapons/flash';
+import { blobShadow, sunShade, sunVisibility } from '../world/sunlight';
 import type { Team } from './Bot';
 
 export type HitPart = 'head' | 'body' | 'legs';
@@ -10,6 +11,9 @@ export const DAMAGE_MULTIPLIER: Record<HitPart, number> = { head: 4, body: 1, le
 const HIP = 0.88;
 const SHOULDER = 1.42;
 const FLASH_DURATION = 0.05;
+/** Délai entre deux tests d'ensoleillement (s), et vitesse de passage ombre ↔ soleil. */
+const SUN_CHECK = 0.1;
+const SUN_BLEND = 6;
 
 /** Tenues : beige et cagoule noire pour les ennemis, bleu-gris et casque pour les coéquipiers (comme les CT). */
 const OUTFITS = {
@@ -44,6 +48,14 @@ export class BotModel {
   private readonly flash = flashSprite();
   private flashTimer = 0;
   private walkPhase = 0;
+  /** Ombre ronde au sol (la carte n'a pas d'ombres en temps réel). */
+  private readonly shadow = blobShadow(0.9);
+  /** Matériaux propres à ce modèle (copies), assombris quand il passe à l'ombre. */
+  private readonly ownMaterials = new Map<THREE.Material, { material: THREE.MeshStandardMaterial; base: THREE.Color }>();
+  private sun = 1;
+  private sunTarget = 1;
+  private sunTimer = 0;
+  private readonly probe = new THREE.Vector3();
 
   constructor(team: Team = 'enemy') {
     const { shirt, vest, pants, head } = MATERIALS[team];
@@ -74,9 +86,43 @@ export class BotModel {
     this.arms.add(this.muzzle);
     this.root.add(this.arms);
 
-    this.root.traverse((object) => {
-      object.castShadow = true;
+    this.root.add(this.shadow);
+    this.takeMaterials(this.root);
+  }
+
+  /** Remplace les matériaux partagés par des copies, que ce modèle peut assombrir seul. */
+  private takeMaterials(object: THREE.Object3D): void {
+    object.traverse((child) => {
+      if (!(child instanceof THREE.Mesh) || child === this.shadow) return;
+      const take = (material: THREE.Material) => {
+        if (!(material instanceof THREE.MeshStandardMaterial)) return material;
+        let own = this.ownMaterials.get(material);
+        if (!own) {
+          const copy = material.clone();
+          own = { material: copy, base: copy.color.clone() };
+          this.ownMaterials.set(material, own);
+        }
+        return own.material;
+      };
+      child.material = Array.isArray(child.material) ? child.material.map(take) : take(child.material);
     });
+  }
+
+  /** Ensoleillement : testé de temps en temps (rayons vers le soleil), puis transition douce. */
+  private updateSun(position: THREE.Vector3, dt: number): void {
+    this.sunTimer -= dt;
+    if (this.sunTimer <= 0) {
+      this.sunTimer = SUN_CHECK;
+      const head = sunVisibility(this.probe.copy(position).setY(position.y + 1.5));
+      const knees = sunVisibility(this.probe.copy(position).setY(position.y + 0.5));
+      this.sunTarget = (head + knees) / 2;
+    }
+    const sun = this.sun + (this.sunTarget - this.sun) * Math.min(1, dt * SUN_BLEND);
+    if (Math.abs(sun - this.sun) < 1e-3) return;
+    this.sun = sun;
+    const shade = sunShade(sun);
+    for (const { material, base } of this.ownMaterials.values()) material.color.copy(base).multiplyScalar(shade);
+    this.shadow.material.opacity = 0.25 + 0.3 * sun;
   }
 
   private box(
@@ -103,9 +149,7 @@ export class BotModel {
     gun.rotation.y = Math.PI / 2;
     // Poignée dans la main droite, canon à hauteur de l'ancienne arme.
     gun.position.set(0.05, -0.285, -0.25);
-    gun.traverse((object) => {
-      object.castShadow = true;
-    });
+    this.takeMaterials(gun);
     this.arms.add(gun);
   }
 
@@ -122,6 +166,8 @@ export class BotModel {
 
     this.flashTimer -= dt;
     this.flash.visible = this.flashTimer > 0;
+    this.shadow.visible = true;
+    this.updateSun(position, dt);
   }
 
   showFlash(): void {
@@ -136,5 +182,7 @@ export class BotModel {
     this.root.rotation.x = (Math.PI / 2) * t;
     this.arms.rotation.x = -0.6 * t;
     this.flash.visible = false;
+    // Couché, l'ombre ronde basculerait avec le corps.
+    this.shadow.visible = false;
   }
 }

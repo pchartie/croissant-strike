@@ -235,7 +235,6 @@ function casingModels(source: THREE.Object3D): Record<CasingKind, THREE.Object3D
     geometry.scale(mesh.scale.x * CM, mesh.scale.y * CM, mesh.scale.z * CM);
     geometry.center();
     const casing = new THREE.Mesh(geometry, material);
-    casing.castShadow = true;
     return casing;
   };
   return { '556': model('556mm_Shell_Mesh', brass), '9mm': model('9mm_Shell_Mesh', brass), buckshot: model('BuckShot_Shell_Mesh', plastic) };

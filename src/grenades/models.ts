@@ -49,8 +49,5 @@ export function buildGrenadeModel(type: GrenadeType): THREE.Group {
     add(new THREE.CylinderGeometry(0.018, 0.022, 0.025, 10), metal, 0.062);
     add(new THREE.BoxGeometry(0.012, 0.08, 0.008), metal, 0.02, 0.032);
   }
-  group.traverse((object) => {
-    object.castShadow = true;
-  });
   return group;
 }

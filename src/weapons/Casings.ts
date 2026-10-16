@@ -146,6 +146,5 @@ function fallbackModel([radius, length]: [number, number], material: THREE.Mater
   const geometry = new THREE.CylinderGeometry(radius, radius, length, 8);
   geometry.rotateZ(Math.PI / 2);
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.castShadow = true;
   return mesh;
 }

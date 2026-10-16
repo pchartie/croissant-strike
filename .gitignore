@@ -10,3 +10,6 @@ RetroWeaponPack_V1.zip
 
 # Modèles Poly Haven bruts téléchargés par npm run optimize-props
 .props-src/
+
+# Mesures de performance (npm run bench)
+bench/

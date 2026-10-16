@@ -81,7 +81,8 @@ src/
 ├── main.ts        point d'entrée
 ├── config.ts      constantes de jeu (vitesses, gravité, sensibilité, difficulté des bots…)
 ├── core/          boucle de jeu (physique à 128 ticks/s), clavier et souris, sons
-├── world/         carte, collisions (avec marches), grille de navigation des bots, textures
+├── world/         chargement de la carte, collisions (avec marches), grille de navigation des bots, ensoleillement
+├── maps/          données des cartes produites par Blender (collisions, objets)
 ├── player/        déplacements façon CS: Source et caméra
 ├── weapons/       caractéristiques des armes, tir et recul, arme en main, impacts
 ├── grenades/      les 5 grenades : lancer, rebonds, explosion, flash, fumée, feu, leurre
@@ -91,6 +92,12 @@ src/
 ```
 
 Le réticule est fixe, mais les balles se dispersent quand on court, saute ou tire en rafale : comme dans CS, il faut s'arrêter pour être précis.
+
+## Performances
+
+Priorité absolue : le jeu doit rester fluide sur un petit PC. `npm run bench` (avec `npm run dev` lancé à côté) ouvre le jeu dans Brave (ou `BROWSER=…`), se place à six endroits fixes de la carte et mesure le temps par image, les appels de dessin et les triangles, avec une capture de chaque point (dans `bench/`). À lancer avant et après chaque changement qui touche au rendu.
+
+Repère (MacBook Pro 2018, Intel UHD 630, 1280 × 720, 5 bots) : 29 ms par image avec les ombres en temps réel, 15 ms avec l'éclairage précalculé.
 
 ## Interface
 
@@ -103,7 +110,7 @@ Le menu (Échap) range les réglages en rubriques à gauche, avec leurs options 
 - **Partie** : mode, bots activés ou non, passifs (par défaut) ou agressifs, nombre d'ennemis (1 à 10), coéquipiers (0 à 4) et difficulté (facile, normale, difficile).
 - **Contrôles** : sensibilité de la souris (même échelle que CS), axe vertical inversé ou non, champ de vision.
 - **Audio et affichage** : volume, couleur et taille du réticule.
-- **Graphismes** : qualité des ombres (désactivées, basses, hautes), résolution de rendu (50 à 100 %, pour les PC moins puissants), compteur d'images par seconde (affiché par défaut, sous le radar).
+- **Graphismes** : résolution de rendu (50 à 100 %, pour les PC moins puissants), compteur d'images par seconde (affiché par défaut, sous le radar). Plus de réglage des ombres : celles de la carte sont précalculées (voir Carte).
 - **Touches** : toutes les touches se changent (deux par action, clavier ou souris, molette comprise) : on clique sur une case puis on appuie sur la touche voulue. Les lettres s'affichent selon ton clavier (Z, Q, S, D en AZERTY).
 
 Les réglages sont décrits dans `src/core/settings.ts` : le panneau est construit à partir de cette liste, donc ajouter un réglage se fait en quelques lignes. Les préréglages de difficulté sont dans `src/config.ts` (`DIFFICULTY`).
@@ -143,7 +150,23 @@ Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebon
 
 Textures de [Poly Haven](https://polyhaven.com) en CC0 à leur taille réelle (sable, crépi, grès, planches : `public/textures/`), et habillage façon de_dust : linteaux et poutres au-dessus des passages, battants de porte en bois, auvents sur poteaux, fenêtres, rebords de grès en haut des murs, barils et palettes.
 
-**Objets** : barils, jerricanes, caisses en plastique et arbres carquois de [Poly Haven](https://polyhaven.com) (CC0, crédits dans `public/assets/props/CREDITS.md`), posés contre les murs et sous les auvents. Ils sont optimisés pour le navigateur par `npm run optimize-props` (maillages simplifiés, textures WebP de 256 à 512 px, géométrie compressée Meshopt : environ 400 Ko pour les cinq modèles), et chaque modèle est dessiné en un seul appel pour tous ses exemplaires (instanciation). Les petits objets ne projettent pas d'ombre.
+**Objets** : barils, jerricanes, caisses en plastique et arbres carquois de [Poly Haven](https://polyhaven.com) (CC0, crédits dans `public/assets/props/CREDITS.md`), posés contre les murs et sous les auvents. Ils sont optimisés pour le navigateur par `npm run optimize-props` (maillages simplifiés, textures WebP de 256 à 512 px, géométrie compressée Meshopt : environ 400 Ko pour les cinq modèles), et chaque modèle est dessiné en un seul appel pour tous ses exemplaires (instanciation).
+
+### Éclairage précalculé (Blender)
+
+La carte est construite par [Blender](https://www.blender.org) (4.5 ou plus), qui calcule aussi son éclairage une fois pour toutes, comme dans CS : ombres douces du soleil, lumière du ciel et rebonds (le sable éclaire le pied des murs à l'ombre). Le jeu n'a donc plus d'ombres à calculer à chaque image, et les surfaces de la carte se dessinent sans calcul de lumière (couleur de la texture × éclairage) : c'est à la fois plus beau et beaucoup plus rapide.
+
+```sh
+npm run build-map -- dunes            # qualité finale : 2048 px, 256 échantillons (~10 min)
+npm run build-map -- dunes 512 16     # essai rapide (quelques secondes)
+```
+
+- `map/lib/kit.py` construit le maillage à partir de blocs : faces cachées retirées (contre un autre bloc, sous le sol, hors de la carte), textures alignées sur le monde (elles continuent d'un bloc à l'autre), un seul maillage avec un matériau par matière.
+- `map/lib/bake.py` range les faces dans la carte d'éclairage (même densité partout, ~17 pixels par mètre en 2048), règle le soleil et le ciel HDR comme dans le jeu, lance le calcul (Cycles) et exporte.
+- `map/dunes/build.py` décrit la carte (ici, les blocs de l'ancienne version exportés dans `map/dunes/layout.json`).
+- Résultat : `public/maps/dunes/` (maillage .glb compressé, ~60 Ko ; éclairage .webp) et `src/maps/dunes.json` (collisions en boîtes, objets posés), inclus dans le code du jeu. Les fichiers produits sont versionnés : GitHub Pages n'a pas besoin de Blender.
+
+Ce qui bouge n'a plus d'ombre calculée : les bots ont une ombre ronde au sol, et eux comme les objets posés s'assombrissent à l'ombre des murs (un rayon vers le soleil à travers les collisions, `src/world/sunlight.ts`).
 
 ## Ciel
 

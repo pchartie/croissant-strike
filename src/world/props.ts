@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Surface } from './surfaces';
+import { sunShade, sunVisibility } from './sunlight';
 import type { World } from './World';
 
 // Objets de la carte (barils, jerricanes, caisses, arbres) : modèles Poly Haven optimisés par
@@ -15,18 +16,16 @@ interface PropSpec {
   surface: Surface;
   /** Collision : tout l'objet, ou seulement le tronc (les branches ne bloquent ni joueurs ni balles). */
   trunk?: number;
-  /** Projette une ombre : seulement les gros objets (sur les petits, elle doublait le coût pour presque rien). */
-  shadow?: boolean;
 }
 
 const SPECS: Record<PropId, PropSpec> = {
   // Même encombrement que les anciens barils (cylindres de 0,6 × 0,9 m).
-  barrelBlue: { file: 'barrel-blue', size: [0.61, 0.62, 0.9], surface: 'metal', shadow: true },
-  barrelRed: { file: 'barrel-red', size: [0.58, 0.58, 0.9], surface: 'metal', shadow: true },
+  barrelBlue: { file: 'barrel-blue', size: [0.61, 0.62, 0.9], surface: 'metal' },
+  barrelRed: { file: 'barrel-red', size: [0.58, 0.58, 0.9], surface: 'metal' },
   jerrycan: { file: 'jerrycan', size: [0.35, 0.17, 0.46], surface: 'metal' },
   crate: { file: 'crate', size: [0.51, 0.41, 0.25], surface: 'plaster' },
   // L'arbre carquois du pack fait 1,5 m : agrandi à 5 m pour en faire un vrai arbre.
-  tree: { file: 'tree', size: [2.97, 2.98, 5], surface: 'wood', trunk: 0.55, shadow: true },
+  tree: { file: 'tree', size: [2.97, 2.98, 5], surface: 'wood', trunk: 0.55 },
 };
 
 export interface PropPlacement {
@@ -46,26 +45,23 @@ const BASE = `${import.meta.env.BASE_URL}assets/props/`;
  * gardent un cylindre visible en attendant leur modèle (et s'il ne se charge pas).
  */
 export function placeProps(world: World, placements: PropPlacement[], fallbackBarrel: Record<'barrelBlue' | 'barrelRed', THREE.Material>): PropPlacement[] {
-  const hidden = new THREE.MeshBasicMaterial({ visible: false });
   for (const place of placements) {
     const spec = SPECS[place.id];
     const y = place.y ?? 0;
     const [width, depth, height] = spec.size;
-    let proxy: THREE.Mesh;
     if (place.id === 'barrelBlue' || place.id === 'barrelRed') {
-      proxy = world.addCylinder(place.x, y, place.z, width / 2, height, fallbackBarrel[place.id]);
-      proxy.userData.fallback = place.id;
-    } else {
-      // Boîte englobant l'objet tourné (ou son tronc).
-      const yaw = THREE.MathUtils.degToRad(place.yaw ?? 0);
-      const [w, d] = spec.trunk ? [spec.trunk, spec.trunk] : [width, depth];
-      const cos = Math.abs(Math.cos(yaw));
-      const sin = Math.abs(Math.sin(yaw));
-      const size = new THREE.Vector3(w * cos + d * sin, height, w * sin + d * cos);
-      proxy = world.addBox(new THREE.Vector3(place.x, y, place.z), size, hidden, 1);
-      proxy.castShadow = proxy.receiveShadow = false;
+      const barrel = world.addCylinder(place.x, y, place.z, width / 2, height, fallbackBarrel[place.id]);
+      barrel.userData.fallback = place.id;
+      barrel.userData.surface = spec.surface;
+      continue;
     }
-    proxy.userData.surface = spec.surface;
+    // Boîte englobant l'objet tourné (ou son tronc).
+    const yaw = THREE.MathUtils.degToRad(place.yaw ?? 0);
+    const [w, d] = spec.trunk ? [spec.trunk, spec.trunk] : [width, depth];
+    const cos = Math.abs(Math.cos(yaw));
+    const sin = Math.abs(Math.sin(yaw));
+    const half = new THREE.Vector3((w * cos + d * sin) / 2, 0, (w * sin + d * cos) / 2);
+    world.addCollider(new THREE.Vector3(place.x - half.x, y, place.z - half.z), new THREE.Vector3(place.x + half.x, y + height, place.z + half.z), spec.surface);
   }
   return placements;
 }
@@ -92,6 +88,16 @@ export async function loadProps(world: World, placements: PropPlacement[]): Prom
 
   const place = new THREE.Matrix4();
   const instance = new THREE.Matrix4();
+  // Ensoleillement de chaque exemplaire (la carte n'a pas d'ombres en temps réel) : moyenne de
+  // rayons vers le soleil, à mi-hauteur et en haut de l'objet.
+  const probe = new THREE.Vector3();
+  const shade = new THREE.Color();
+  const shadeOf = (spot: PropPlacement): number => {
+    const height = SPECS[spot.id].size[2];
+    const y = spot.y ?? 0;
+    const sun = (sunVisibility(probe.set(spot.x, y + height * 0.5, spot.z)) + sunVisibility(probe.set(spot.x, y + height * 0.95, spot.z))) / 2;
+    return sunShade(sun);
+  };
   for (const model of loaded) {
     if (!model) continue;
     const { id, scene } = model;
@@ -105,9 +111,8 @@ export async function loadProps(world: World, placements: PropPlacement[]): Prom
       spots.forEach((spot, i) => {
         place.makeRotationY(THREE.MathUtils.degToRad(spot.yaw ?? 0)).setPosition(spot.x, spot.y ?? 0, spot.z);
         mesh.setMatrixAt(i, instance.multiplyMatrices(place, fit).multiply(child.matrixWorld));
+        mesh.setColorAt(i, shade.setScalar(shadeOf(spot)));
       });
-      mesh.castShadow = SPECS[id].shadow ?? false;
-      mesh.receiveShadow = true;
       mesh.computeBoundingSphere();
       world.scene.add(mesh);
     });
