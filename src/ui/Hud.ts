@@ -5,9 +5,7 @@ import { weaponIcon } from './weaponIcons';
 
 const KILLFEED_DURATION = 5000;
 const KILLFEED_MAX = 5;
-/** Durée de l'annonce au centre après une élimination (ms), et fenêtre pour enchaîner (série). */
-const NOTICE_DURATION = 1800;
-const STREAK_WINDOW = 4000;
+
 /** Blanc maximal d'une flash, et durée de son fondu final (secondes). */
 const FLASH_MAX_OPACITY = 0.85;
 const FLASH_FADE_TIME = 1.5;
@@ -37,10 +35,6 @@ export class Hud {
   private readonly armorValue = document.getElementById('armor-value')!;
   private readonly armorBar = document.getElementById('armor-bar')!;
   private readonly armorIcon = document.getElementById('armor-icon') as HTMLImageElement;
-  private readonly killNotice = document.getElementById('killnotice')!;
-  private noticeTimer = 0;
-  private streak = 0;
-  private lastKillAt = 0;
   /** Camp de chaque nom, pour colorer le fil des éliminations (coéquipiers sable, ennemis bleus). */
   private teamOf: (name: string) => 'ally' | 'enemy' = () => 'enemy';
   private readonly score = document.getElementById('score')!;
@@ -143,7 +137,7 @@ export class Hud {
     this.teamOf = teamOf;
   }
 
-  /** `mine` : tué par le joueur (encadré rouge, annonce au centre) ; `me` : le joueur est la victime. */
+  /** `mine` : tué par le joueur (encadré rouge) ; `me` : le joueur est la victime. */
   addKill(killer: string, victim: string, weapon: string, headshot: boolean, side: { mine?: boolean; me?: boolean } = {}): void {
     const entry = document.createElement('div');
     entry.className = 'kill';
@@ -161,30 +155,6 @@ export class Hud {
     this.killfeed.prepend(entry);
     while (this.killfeed.children.length > KILLFEED_MAX) this.killfeed.lastElementChild!.remove();
     setTimeout(() => entry.remove(), KILLFEED_DURATION);
-    if (side.mine) this.showKillNotice(base, headshot, backstab);
-  }
-
-  /** Annonce sous le réticule : headshot, coup de couteau, grenade… et la série en cours. */
-  private showKillNotice(weapon: string, headshot: boolean, backstab: boolean): void {
-    const now = performance.now();
-    this.streak = now - this.lastKillAt < STREAK_WINDOW ? this.streak + 1 : 1;
-    this.lastKillAt = now;
-    const knife = weapon === 'Couteau';
-    const grenade = !knife && !weaponIcon(weapon) && itemIcon(weapon);
-    const [icon, label, tone] = backstab
-      ? [HUD_ICONS.knife, 'Dans le dos', 'knife']
-      : knife
-        ? [HUD_ICONS.knife, 'Au couteau', 'knife']
-        : headshot
-          ? [HUD_ICONS.headshot, 'Headshot', 'head']
-          : grenade
-            ? [grenade, weapon, '']
-            : [HUD_ICONS.deaths, 'Élimination', ''];
-    const streak = this.streak > 1 ? `<span class="streak">${STREAK_NAMES[Math.min(this.streak, STREAK_NAMES.length) - 1]}</span>` : '';
-    this.killNotice.innerHTML = `<img src="${icon}" alt=""><span class="label">${label}</span>${streak}`;
-    this.restartAnimation(this.killNotice, `show ${tone}`);
-    clearTimeout(this.noticeTimer);
-    this.noticeTimer = window.setTimeout(() => (this.killNotice.className = ''), NOTICE_DURATION);
   }
 
   /** Affiche l'écran de mort, ou le cache si `message` est null. */
@@ -321,9 +291,6 @@ export class Hud {
     element.className = classes;
   }
 }
-
-/** Noms des séries d'éliminations rapprochées (2, 3, 4, 5 et plus). */
-const STREAK_NAMES = ['', 'Doublé', 'Triplé', 'Quadruplé', 'Carnage'];
 
 /** Image d'une arme (silhouette blanche), avec son nom en texte de remplacement. */
 function iconImage(src: string, name: string, className = 'weapon-icon'): HTMLImageElement {
