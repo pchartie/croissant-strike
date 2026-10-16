@@ -131,7 +131,9 @@ export class BotModel {
 
   private mixer: THREE.AnimationMixer | null = null;
   private readonly actions = new Map<string, THREE.AnimationAction>();
-  private hand: THREE.Object3D | null = null;
+  /** Bras (os du bras, de l'avant-bras, de la main), posés par IK sur le fusil. */
+  private rightArm: Arm | null = null;
+  private leftArm: Arm | null = null;
   /** Os du dos et leur rotation debout (au repos), vers laquelle on les redresse. */
   private readonly spine: { bone: THREE.Object3D; upright: THREE.Quaternion }[] = [];
   private gun: THREE.Object3D | null = null;
@@ -173,7 +175,12 @@ export class BotModel {
     body.rotation.y = Math.PI;
     this.root.add(body);
     this.takeMaterials(body);
-    this.hand = body.getObjectByName('DEF-handR') ?? null;
+    const arm = (side: 'L' | 'R'): Arm | null => {
+      const bones = ['upper_arm', 'forearm', 'hand'].map((name) => body.getObjectByName(`DEF-${name}${side}`));
+      return bones.every(Boolean) ? (bones as Arm) : null;
+    };
+    this.rightArm = arm('R');
+    this.leftArm = arm('L');
     for (const name of SPINE_BONES) {
       const bone = body.getObjectByName(name);
       if (bone) this.spine.push({ bone, upright: bone.quaternion.clone() });
@@ -284,19 +291,29 @@ export class BotModel {
     for (const [name, action] of this.actions) if (name !== 'death') action.setEffectiveWeight(weights[name] ?? 0);
     this.mixer.update(dt);
     for (const { bone, upright } of this.spine) bone.quaternion.slerp(upright, 1 - SPINE_BEND);
-    this.placeGun();
+    this.holdRifle();
   }
 
-  /** L'arme dans la main droite, pointée là où regarde le bot (le modèle ne tient pas de fusil). */
-  private placeGun(): void {
-    if (!this.gun || !this.hand) return;
+  /**
+   * Le fusil épaulé : crosse contre l'épaule droite, pointé là où regarde le bot ; puis les mains posées
+   * dessus par IK, la droite sur la poignée, la gauche sur le garde-main (sauf pendant le rechargement,
+   * où elle va chercher le chargeur). Les animations du pack tiennent un pistolet, pas un fusil.
+   */
+  private holdRifle(): void {
+    if (!this.gun || !this.rightArm) return;
     this.root.updateMatrixWorld(true);
-    const grip = this.hand.getWorldPosition(this.probe);
-    this.root.worldToLocal(grip);
-    this.gun.position.copy(grip).add(GRIP_OFFSET);
     // Canon vers +x dans le modèle : le quart de tour le pointe vers -z (l'avant du bot), puis on
     // l'incline selon le regard.
     this.gun.rotation.set(this.pitch, Math.PI / 2, 0, 'XYZ');
+    this.gun.updateMatrix();
+    const pocket = this.root.worldToLocal(this.rightArm[0].getWorldPosition(ik.a)).add(SHOULDER_POCKET);
+    const stock = ik.b.copy(STOCK).multiplyScalar(0.01).applyQuaternion(this.gun.quaternion);
+    this.gun.position.copy(pocket).sub(stock);
+    this.gun.updateMatrixWorld(true);
+    reach(this.rightArm, this.gun.localToWorld(ik.target.copy(RIGHT_WRIST)), RIGHT_ELBOW_HINT, this.root.quaternion);
+    if (this.leftArm && this.reloadTimer <= 0) {
+      reach(this.leftArm, this.gun.localToWorld(ik.target.copy(LEFT_WRIST)), LEFT_ELBOW_HINT, this.root.quaternion);
+    }
   }
 
   showFlash(): void {
@@ -335,5 +352,71 @@ export class BotModel {
   }
 }
 
-/** Décalage de la poignée par rapport au poignet (repère du bot : x à droite, y en haut, -z devant). */
-const GRIP_OFFSET = new THREE.Vector3(0, -0.02, -0.05);
+/**
+ * Tenue du fusil, dans son repère (cm : canon vers +x, haut +y, gauche du tireur -z) : la crosse contre
+ * l'épaule droite, et les poignets, un peu en retrait des prises (la paume est à quelques cm du poignet).
+ */
+const STOCK = new THREE.Vector3(-21, 13, 0);
+const RIGHT_WRIST = new THREE.Vector3(1, 1, 3);
+const LEFT_WRIST = new THREE.Vector3(27, 6, -5);
+/** La crosse se pose un peu devant et à l'intérieur de l'articulation de l'épaule (repère du bot). */
+const SHOULDER_POCKET = new THREE.Vector3(-0.05, -0.03, -0.1);
+/** Les coudes plient vers le bas et vers l'extérieur (repère du bot). */
+const RIGHT_ELBOW_HINT = new THREE.Vector3(0.25, -0.35, 0);
+const LEFT_ELBOW_HINT = new THREE.Vector3(-0.25, -0.35, 0);
+
+const ik = {
+  shoulder: new THREE.Vector3(),
+  elbow: new THREE.Vector3(),
+  wrist: new THREE.Vector3(),
+  target: new THREE.Vector3(),
+  pole: new THREE.Vector3(),
+  dir: new THREE.Vector3(),
+  side: new THREE.Vector3(),
+  a: new THREE.Vector3(),
+  b: new THREE.Vector3(),
+  q: new THREE.Quaternion(),
+  parent: new THREE.Quaternion(),
+};
+
+type Arm = [THREE.Object3D, THREE.Object3D, THREE.Object3D];
+
+/**
+ * IK à deux os : amène le poignet d'un bras sur `target` (monde). On calcule le coude (longueurs du bras
+ * gardées, plié du côté de `elbowHint`, dans le repère du bot), puis on tourne le bras vers le coude et
+ * l'avant-bras vers la cible. Hors de portée, le bras se tend vers elle.
+ */
+function reach(arm: Arm, target: THREE.Vector3, elbowHint: THREE.Vector3, facing: THREE.Quaternion): void {
+  const [upper, fore, hand] = arm;
+  upper.getWorldPosition(ik.shoulder);
+  fore.getWorldPosition(ik.elbow);
+  hand.getWorldPosition(ik.wrist);
+  const upperLength = ik.shoulder.distanceTo(ik.elbow);
+  const foreLength = ik.elbow.distanceTo(ik.wrist);
+  ik.dir.subVectors(target, ik.shoulder);
+  const distance = Math.min(ik.dir.length(), (upperLength + foreLength) * 0.999);
+  ik.dir.normalize();
+  const goal = ik.target.copy(ik.shoulder).addScaledVector(ik.dir, distance);
+  // Coude : à `along` sur la ligne épaule → poignet, écarté de `out` vers l'indice.
+  const along = (upperLength * upperLength - foreLength * foreLength + distance * distance) / (2 * distance);
+  const out = Math.sqrt(Math.max(upperLength * upperLength - along * along, 0));
+  ik.side.copy(elbowHint).applyQuaternion(facing);
+  ik.side.addScaledVector(ik.dir, -ik.side.dot(ik.dir)).normalize();
+  const elbow = ik.pole.copy(ik.shoulder).addScaledVector(ik.dir, along).addScaledVector(ik.side, out);
+  swing(upper, ik.shoulder, ik.elbow, elbow);
+  fore.getWorldPosition(ik.elbow);
+  hand.getWorldPosition(ik.wrist);
+  swing(fore, ik.elbow, ik.wrist, goal);
+}
+
+/** Tourne un os (dans le monde) pour que son point `from` aille vers `to`, vus depuis `pivot`. */
+function swing(bone: THREE.Object3D, pivot: THREE.Vector3, from: THREE.Vector3, to: THREE.Vector3): void {
+  ik.a.subVectors(from, pivot).normalize();
+  ik.b.subVectors(to, pivot).normalize();
+  ik.q.setFromUnitVectors(ik.a, ik.b);
+  bone.getWorldQuaternion(ik.parent);
+  ik.q.multiply(ik.parent); // rotation voulue dans le monde
+  bone.parent!.getWorldQuaternion(ik.parent);
+  bone.quaternion.copy(ik.parent.invert().multiply(ik.q));
+  bone.updateMatrixWorld(true);
+}
