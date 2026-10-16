@@ -3,7 +3,7 @@ import type { GrenadeType } from '../grenades/definitions';
 import type { WeaponId } from '../weapons/definitions';
 
 /** Change quand le protocole change : deux versions différentes du jeu ne jouent pas ensemble. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export type Vec3 = [number, number, number];
 
@@ -14,7 +14,7 @@ export type Vec3 = [number, number, number];
  */
 export type NetMessage =
   /** Premier message de chaque côté. */
-  | { t: 'hello'; version: number; name: string }
+  | { t: 'hello'; version: number; name: string; map: string }
   /** Position et visée, ~30 fois par seconde. */
   | {
       t: 'state';

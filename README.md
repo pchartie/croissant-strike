@@ -95,7 +95,7 @@ Le réticule est fixe, mais les balles se dispersent quand on court, saute ou ti
 
 ## Performances
 
-Priorité absolue : le jeu doit rester fluide sur un petit PC. `npm run bench` (avec `npm run dev` lancé à côté) ouvre le jeu dans Brave (ou `BROWSER=…`), se place à six endroits fixes de la carte et mesure le temps par image, les appels de dessin et les triangles, avec une capture de chaque point (dans `bench/`). À lancer avant et après chaque changement qui touche au rendu.
+Priorité absolue : le jeu doit rester fluide sur un petit PC. `npm run bench -- <nom> [dunes|medina]` (avec `npm run dev` lancé à côté) ouvre le jeu dans Brave (ou `BROWSER=…`), se place à six endroits fixes de la carte et mesure le temps par image, les appels de dessin et les triangles, avec une capture de chaque point (dans `bench/`). À lancer avant et après chaque changement qui touche au rendu.
 
 Repère (MacBook Pro 2018, Intel UHD 630, 1280 × 720, 5 bots) : 29 ms par image avec les ombres en temps réel, 15 ms avec l'éclairage précalculé.
 
@@ -107,7 +107,7 @@ Repère (MacBook Pro 2018, Intel UHD 630, 1280 × 720, 5 bots) : 29 ms par image
 
 Le menu (Échap) range les réglages en rubriques à gauche, avec leurs options à droite et **Jouer** toujours en bas. Les réglages sont mémorisés dans le navigateur :
 
-- **Partie** : mode, bots activés ou non, passifs (par défaut) ou agressifs, nombre d'ennemis (1 à 10), coéquipiers (0 à 4) et difficulté (facile, normale, difficile).
+- **Partie** : carte (Dunes ou Médina ; en changer recharge la page), mode, bots activés ou non, passifs (par défaut) ou agressifs, nombre d'ennemis (1 à 10), coéquipiers (0 à 4) et difficulté (facile, normale, difficile).
 - **Contrôles** : sensibilité de la souris (même échelle que CS), axe vertical inversé ou non, champ de vision.
 - **Audio et affichage** : volume, couleur et taille du réticule.
 - **Graphismes** : résolution de rendu (50 à 100 %, pour les PC moins puissants), compteur d'images par seconde (affiché par défaut, sous le radar). Plus de réglage des ombres : celles de la carte sont précalculées (voir Carte).
@@ -136,7 +136,7 @@ Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90
 
 ## En ligne (1 contre 1)
 
-Dans le menu (Échap), rubrique **En ligne** : choisis un pseudo (il sert aussi en solo, dans le fil des éliminations et le tableau des scores), puis **Créer une partie** pour recevoir un code de 4 caractères à donner à ton adversaire ; lui l'entre et clique sur **Rejoindre**. C'est un deathmatch à deux (réapparition 3 s après chaque mort, hors de vue de l'autre), sans bots pour l'instant ; armes, gilet, couteau (coups dans le dos compris) et les cinq grenades marchent comme contre les bots. Une grenade vole chez les deux joueurs, et celui qui la lance annonce où elle éclate : HE, flash, fumée et feu sont donc au même endroit sur les deux écrans. **Quitter la partie** (ou le départ de l'autre) ramène au jeu seul, avec tes réglages.
+Dans le menu (Échap), rubrique **En ligne** : choisis un pseudo (il sert aussi en solo, dans le fil des éliminations et le tableau des scores), puis **Créer une partie** pour recevoir un code de 4 caractères à donner à ton adversaire ; lui l'entre et clique sur **Rejoindre**. C'est un deathmatch à deux (réapparition 3 s après chaque mort, hors de vue de l'autre), sans bots pour l'instant ; armes, gilet, couteau (coups dans le dos compris) et les cinq grenades marchent comme contre les bots. Une grenade vole chez les deux joueurs, et celui qui la lance annonce où elle éclate : HE, flash, fumée et feu sont donc au même endroit sur les deux écrans. **Quitter la partie** (ou le départ de l'autre) ramène au jeu seul, avec tes réglages. Les deux joueurs doivent être sur la même carte : sinon, la connexion s'arrête en indiquant celle de l'autre.
 
 La connexion est directe entre les deux navigateurs (WebRTC, avec [PeerJS](https://peerjs.com)) : le serveur public de PeerJS sert seulement à se trouver grâce au code. Ça marche en local comme sur GitHub Pages, chacun chez soi. Sur certains réseaux très fermés (entreprise, certaines box), la connexion directe peut échouer. Chacun fait foi pour ses propres tirs (« je t'ai touché à la tête ») et l'autre applique les dégâts avec son gilet ; l'adversaire est affiché avec 100 ms de retard pour un mouvement fluide. Pour tester seul, ouvre le jeu dans deux fenêtres.
 
@@ -144,9 +144,13 @@ La connexion est directe entre les deux navigateurs (WebRTC, avec [PeerJS](https
 
 Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebonds) : **HE** (jusqu'à 98 de dégâts, arrêtée par les murs), **flash** (aveugle selon l'angle et la distance, toi comme les bots), **fumigène** (18 s, cache la vue des bots et éteint les molotovs), **molotov** (feu de 7 s, 40 dégâts par seconde) et **leurre** (imite des tirs de fusil pendant 15 s et attire les bots). On en reçoit une de chaque, plus une deuxième flash, à chaque manche ou réapparition. Les bots lancent aussi des HE et des flashs (voir Bots).
 
-## Carte
+## Cartes
 
-**Dunes**, une petite carte façon de_dust de 72 × 72 m (`src/world/Level.ts`) : apparition au sud, trois voies vers le nord — la longue voie à l'ouest jusqu'à une plateforme surélevée, le milieu avec sa passerelle et ses portes, le couloir à l'est jusqu'à une seconde plateforme. Les marches de moins de 46 cm se montent sans sauter, comme dans CS.
+Deux cartes, au choix dans **Partie → Carte** (`src/world/maps.ts` : limites, apparition du joueur, zones de départ en mode manches). Les marches de moins de 46 cm se montent sans sauter, comme dans CS.
+
+**Médina** (en version grise pour l'instant : quadrillage de 1 m, couleurs par rôle) : vieille ville du Maghreb de 80 × 92 m, façon de_dust2. Spawn T au sud (le joueur), spawn CT au nord. Trois voies : à l'ouest la **Longue** (rue droite de 50 m fermée par les Portes longues, avec un Coin), au centre le **Milieu** (sous une arche, puis une place avec un puits et les **Portes CT**) d'où la **Passerelle** surélevée mène à A, à l'est le **Souk** couvert de bandes de toile. **Site A** : terrasse surélevée de 1,2 m avec un Plateau ; **site B** : cour avec une fontaine, reliée au Milieu par la **Ruelle** et les Portes B. Trajets : 6 à 9 s pour les CT jusqu'aux sites, 16 à 22 s pour les T, la place du Milieu à égalité. Tout est décrit dans `map/medina/build.py`.
+
+**Dunes**, une petite carte façon de_dust de 72 × 72 m : apparition au sud, trois voies vers le nord — la longue voie à l'ouest jusqu'à une plateforme surélevée, le milieu avec sa passerelle et ses portes, le couloir à l'est jusqu'à une seconde plateforme. Les marches de moins de 46 cm se montent sans sauter, comme dans CS.
 
 Textures de [Poly Haven](https://polyhaven.com) en CC0 à leur taille réelle (sable, crépi, grès, planches : `public/textures/`), et habillage façon de_dust : linteaux et poutres au-dessus des passages, battants de porte en bois, auvents sur poteaux, fenêtres, rebords de grès en haut des murs, barils et palettes.
 
@@ -157,14 +161,14 @@ Textures de [Poly Haven](https://polyhaven.com) en CC0 à leur taille réelle (s
 La carte est construite par [Blender](https://www.blender.org) (4.5 ou plus), qui calcule aussi son éclairage une fois pour toutes, comme dans CS : ombres douces du soleil, lumière du ciel et rebonds (le sable éclaire le pied des murs à l'ombre). Le jeu n'a donc plus d'ombres à calculer à chaque image, et les surfaces de la carte se dessinent sans calcul de lumière (couleur de la texture × éclairage) : c'est à la fois plus beau et beaucoup plus rapide.
 
 ```sh
-npm run build-map -- dunes            # qualité finale : 2048 px, 256 échantillons (~10 min)
-npm run build-map -- dunes 512 16     # essai rapide (quelques secondes)
+npm run build-map -- medina           # qualité finale : 2048 px, 256 échantillons (~10 min)
+npm run build-map -- medina 512 16    # essai rapide (quelques secondes)
 ```
 
-- `map/lib/kit.py` construit le maillage à partir de blocs : faces cachées retirées (contre un autre bloc, sous le sol, hors de la carte), textures alignées sur le monde (elles continuent d'un bloc à l'autre), un seul maillage avec un matériau par matière.
+- `map/lib/kit.py` construit le maillage à partir de blocs (et d'outils : escaliers, bâtiments qui remplissent tout ce qui n'est pas une rue, sans toits puisqu'on ne les voit jamais) : faces cachées retirées (contre un autre bloc, sous le sol, hors de la carte), textures alignées sur le monde (elles continuent d'un bloc à l'autre), un seul maillage avec un matériau par matière.
 - `map/lib/bake.py` range les faces dans la carte d'éclairage (même densité partout, ~17 pixels par mètre en 2048), règle le soleil et le ciel HDR comme dans le jeu, lance le calcul (Cycles) et exporte.
-- `map/dunes/build.py` décrit la carte (ici, les blocs de l'ancienne version exportés dans `map/dunes/layout.json`).
-- Résultat : `public/maps/dunes/` (maillage .glb compressé, ~60 Ko ; éclairage .webp) et `src/maps/dunes.json` (collisions en boîtes, objets posés), inclus dans le code du jeu. Les fichiers produits sont versionnés : GitHub Pages n'a pas besoin de Blender.
+- `map/<carte>/build.py` décrit chaque carte : Médina à partir des zones jouables de son plan, Dunes à partir des blocs de l'ancienne version (`map/dunes/layout.json`).
+- Résultat : `public/maps/<carte>/` (maillage .glb compressé, ~50 Ko ; éclairage .webp) et `src/maps/<carte>.json` (collisions en boîtes, objets posés), inclus dans le code du jeu. Les fichiers produits sont versionnés : GitHub Pages n'a pas besoin de Blender.
 
 Ce qui bouge n'a plus d'ombre calculée : les bots ont une ombre ronde au sol, et eux comme les objets posés s'assombrissent à l'ombre des murs (un rayon vers le soleil à travers les collisions, `src/world/sunlight.ts`).
 

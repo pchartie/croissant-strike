@@ -29,6 +29,12 @@ MATERIALS = {
     'wood': ('wood', 0xd9a66b, False),
     'crate': (None, 0x6b4522, True),  # couleur moyenne de la texture de caisse dessinée par le jeu
     'shadowGap': (None, 0x1b1814, False),
+    # Version grise (quadrillage de 1 m dessiné par le jeu), pour tester un tracé avant de l'habiller.
+    'greyWall': (None, 0xb4b2ac, False),
+    'greyFloor': (None, 0x8c8a84, False),
+    'greyRaised': (None, 0xc49a62, False),
+    'greyCover': (None, 0x8f6a4f, False),
+    'greyOverhead': (None, 0x7d8b98, False),
 }
 
 
@@ -50,13 +56,15 @@ def to_blender(p):
 
 
 class Box:
-    def __init__(self, lo, hi, material, tile, surface, solid):
+    def __init__(self, lo, hi, material, tile, surface, solid, top=True):
         self.lo = tuple(lo)
         self.hi = tuple(hi)
         self.material = material
         self.tile = tile
         self.surface = surface
         self.solid = solid
+        # Face du dessus dessinée ou non (toits trop hauts pour être vus depuis le sol).
+        self.top = top
 
     def contains(self, p, eps=1e-4):
         return all(self.lo[i] + eps < p[i] < self.hi[i] - eps for i in range(3))
@@ -69,9 +77,60 @@ class Kit:
         self.bounds_hi = bounds_hi
         self.boxes = []
 
-    def box(self, lo, hi, material, tile=1.0, surface=None, solid=True):
-        """Bloc de `lo` à `hi`. `material=None` : collision seule (invisible)."""
-        self.boxes.append(Box(lo, hi, material, tile, surface, solid))
+    def box(self, lo, hi, material, tile=1.0, surface=None, solid=True, top=True):
+        """Bloc de `lo` à `hi`. `material=None` : collision seule (invisible). `top=False` : sans dessus."""
+        self.boxes.append(Box(lo, hi, material, tile, surface, solid, top))
+
+    def stairs(self, axis, start, direction, across, steps, material, tile=1.0, surface='stone', base=0.0, rise=0.3, depth=0.6):
+        """
+        Escalier de `steps` marches qui monte dans la direction `direction` (+1 ou -1) le long de l'axe
+        `axis` ('x' ou 'z'), en partant de `start` ; `across` = (début, fin) dans l'autre axe.
+        Chaque marche est un bloc plein, de `base` jusqu'à sa hauteur.
+        """
+        for k in range(1, steps + 1):
+            near = start + direction * (k - 1) * depth
+            far = start + direction * k * depth
+            a, b = min(near, far), max(near, far)
+            top = base + k * rise
+            if axis == 'z':
+                self.box((across[0], 0, a), (across[1], top, b), material, tile, surface)
+            else:
+                self.box((a, 0, across[0]), (b, top, across[1]), material, tile, surface)
+
+    def fill_buildings(self, walkable, height_of, material, tile=1.0, surface='plaster', cell=0.5):
+        """
+        Remplit de bâtiments tout ce qui n'est pas dans une zone `walkable` (rectangles (x1, z1, x2, z2)),
+        à l'intérieur des limites de la carte : grille de `cell` m, regroupée en grands rectangles.
+        `height_of(x1, z1, x2, z2)` donne la hauteur de chaque bâtiment. Les toits ne sont pas dessinés.
+        """
+        x0, z0 = self.bounds_lo[0], self.bounds_lo[2]
+        cols = round((self.bounds_hi[0] - x0) / cell)
+        rows = round((self.bounds_hi[2] - z0) / cell)
+        free = [[False] * cols for _ in range(rows)]
+        for x1, z1, x2, z2 in walkable:
+            for r in range(round((z1 - z0) / cell), round((z2 - z0) / cell)):
+                for c in range(round((x1 - x0) / cell), round((x2 - x0) / cell)):
+                    free[r][c] = True
+        used = [[False] * cols for _ in range(rows)]
+        count = 0
+        for r in range(rows):
+            for c in range(cols):
+                if free[r][c] or used[r][c]:
+                    continue
+                w = 1
+                while c + w < cols and not free[r][c + w] and not used[r][c + w]:
+                    w += 1
+                h = 1
+                while r + h < rows and all(not free[r + h][c + k] and not used[r + h][c + k] for k in range(w)):
+                    h += 1
+                for rr in range(r, r + h):
+                    for cc in range(c, c + w):
+                        used[rr][cc] = True
+                x1, z1 = x0 + c * cell, z0 + r * cell
+                x2, z2 = x1 + w * cell, z1 + h * cell
+                self.box((x1, 0, z1), (x2, height_of(x1, z1, x2, z2), z2), material, tile, surface, top=False)
+                count += 1
+        print(f'[kit] {count} bâtiments')
 
     # --- Faces cachées ---
 
@@ -111,7 +170,7 @@ class Kit:
                 continue
             per_box = MATERIALS[box.material][2]
             for axis, sign in FACES:
-                if self._hidden(box, axis, sign):
+                if (axis == 1 and sign > 0 and not box.top) or self._hidden(box, axis, sign):
                     culled += 1
                     continue
                 kept += 1

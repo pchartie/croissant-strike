@@ -1,4 +1,6 @@
 import type { DataConnection, Peer } from 'peerjs';
+import { ACTIVE_MAP } from '../world/Level';
+import { MAPS, type MapId } from '../world/maps';
 import { isMessage, PROTOCOL_VERSION, type NetMessage } from './protocol';
 
 export type OnlineStatus =
@@ -117,13 +119,18 @@ export class Online {
   private attach(connection: DataConnection, code: string, name: string, attempt: number): void {
     this.connection = connection;
     connection.on('open', () => {
-      if (this.isCurrent(attempt)) connection.send({ t: 'hello', version: PROTOCOL_VERSION, name } satisfies NetMessage);
+      if (this.isCurrent(attempt)) connection.send({ t: 'hello', version: PROTOCOL_VERSION, name, map: ACTIVE_MAP.id } satisfies NetMessage);
     });
     connection.on('data', (data) => {
       if (!this.isCurrent(attempt) || !isMessage(data)) return;
       if (data.t === 'hello') {
         if (data.version !== PROTOCOL_VERSION) {
           this.fail("L'autre joueur n'a pas la même version du jeu (rechargez la page tous les deux)");
+          return;
+        }
+        if (data.map !== ACTIVE_MAP.id) {
+          const theirs = MAPS[data.map as MapId]?.label ?? data.map;
+          this.fail(`L'autre joueur est sur la carte ${theirs} : choisissez la même carte (Partie → Carte)`);
           return;
         }
         window.clearTimeout(this.joinTimer);

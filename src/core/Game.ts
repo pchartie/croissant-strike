@@ -22,7 +22,7 @@ import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
 import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem';
-import { buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
+import { ACTIVE_MAP, buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { loadSky } from '../world/sky';
 import { setSunBlockers } from '../world/sunlight';
@@ -213,8 +213,13 @@ export class Game {
       document.getElementById('settings')!,
       settings,
       (changed) => {
-        this.applySettings(changed);
         saveSettings(changed);
+        // Autre carte : on recharge la page, qui la construit (collisions, navigation des bots…).
+        if (changed.map !== ACTIVE_MAP.id) {
+          location.reload();
+          return;
+        }
+        this.applySettings(changed);
       },
       [{ title: 'En ligne', element: document.getElementById('online')!, index: 1 }],
     );

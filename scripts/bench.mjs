@@ -2,8 +2,9 @@
 // dessine 60 images synchronisées avec la carte graphique à chaque point, et affiche le temps par image,
 // les appels de dessin et les triangles. Prend aussi une capture de chaque point.
 //
-// Utilisation : npm run dev            (dans un autre terminal)
-//               npm run bench -- [nom]  (captures et résultats dans bench/<nom>/, ignoré par git)
+// Utilisation : npm run dev                    (dans un autre terminal)
+//               npm run bench -- [nom] [carte]  (captures et résultats dans bench/<nom>/, ignoré par git ;
+//                                               carte : dunes par défaut, ou medina)
 // Options     : BROWSER=/chemin/vers/chrome (par défaut Brave sur macOS), HEADFUL=1 pour voir la fenêtre,
 //               URL=http://localhost:5173/, PREP='<code JS>' exécuté dans la page avant la mesure
 //               (par exemple PREP='game.bots.bots.forEach(b => b.model.root.visible = false)').
@@ -17,19 +18,30 @@ import puppeteer from 'puppeteer-core';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const label = process.argv[2] ?? 'mesure';
+const map = process.argv[3] ?? 'dunes';
 const url = process.env.URL ?? 'http://localhost:5173/';
 const outDir = path.join(ROOT, 'bench', label);
 fs.mkdirSync(outDir, { recursive: true });
 
-/** Points de vue : position de l'œil, lacet et tangage (radians). */
-const VIEWS = [
-  { name: 'spawn-sud', pos: [0, 1.7, 31], yaw: 0, pitch: 0 },
-  { name: 'milieu', pos: [2, 1.7, 10], yaw: 0, pitch: -0.05 },
-  { name: 'longue-a', pos: [-17, 1.7, 18], yaw: 0, pitch: 0 },
-  { name: 'site-a', pos: [-20, 1.7, -8], yaw: 0.9, pitch: -0.05 },
-  { name: 'site-b', pos: [17, 1.7, 8], yaw: -0.4, pitch: -0.05 },
-  { name: 'vue-large', pos: [30, 6, 30], yaw: 0.78, pitch: -0.15 },
-];
+/** Points de vue de chaque carte : position de l'œil, lacet et tangage (radians ; lacet 0 = vers le nord). */
+const VIEWS = {
+  dunes: [
+    { name: 'spawn-sud', pos: [0, 1.7, 31], yaw: 0, pitch: 0 },
+    { name: 'milieu', pos: [2, 1.7, 10], yaw: 0, pitch: -0.05 },
+    { name: 'longue-a', pos: [-17, 1.7, 18], yaw: 0, pitch: 0 },
+    { name: 'site-a', pos: [-20, 1.7, -8], yaw: 0.9, pitch: -0.05 },
+    { name: 'site-b', pos: [17, 1.7, 8], yaw: -0.4, pitch: -0.05 },
+    { name: 'vue-large', pos: [30, 6, 30], yaw: 0.78, pitch: -0.15 },
+  ],
+  medina: [
+    { name: 'spawn-t', pos: [0, 1.7, 44], yaw: 0, pitch: 0 },
+    { name: 'longue', pos: [-35, 1.7, 28], yaw: 0, pitch: 0 },
+    { name: 'site-a', pos: [-36, 2.9, -10], yaw: -0.6, pitch: -0.08 },
+    { name: 'milieu', pos: [0, 1.7, 30], yaw: 0, pitch: 0 },
+    { name: 'souk', pos: [26, 1.7, 34], yaw: 0, pitch: 0 },
+    { name: 'site-b', pos: [22, 1.7, 2], yaw: -0.5, pitch: -0.05 },
+  ],
+}[map];
 
 const browser = await puppeteer.launch({
   executablePath: process.env.BROWSER ?? '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
@@ -38,6 +50,11 @@ const browser = await puppeteer.launch({
   defaultViewport: { width: 1280, height: 720 },
 });
 const page = await browser.newPage();
+// Choisit la carte avant le chargement (réglages du jeu dans le stockage du navigateur).
+await page.evaluateOnNewDocument((map) => {
+  const settings = JSON.parse(localStorage.getItem('fps1.settings') ?? '{}');
+  localStorage.setItem('fps1.settings', JSON.stringify({ ...settings, map }));
+}, map);
 const logs = [];
 page.on('console', (m) => logs.push(`${m.type()}: ${m.text()}`));
 page.on('pageerror', (e) => logs.push(`pageerror: ${e.message}`));

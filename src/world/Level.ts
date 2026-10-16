@@ -1,44 +1,36 @@
 import * as THREE from 'three';
 import { SUN_DIRECTION } from './sky';
-import { loadProps, placeProps, type PropPlacement } from './props';
+import { loadProps, placeProps } from './props';
 import { loadMapVisuals } from './MapVisuals';
+import { MAPS } from './maps';
+import { loadSettings } from '../core/settings';
 import type { World } from './World';
-import dunes from '../maps/dunes.json';
 
-// « Dunes » : petite carte façon de_dust, vue de dessus (nord = -z) :
-//
-//            ┌──────────────── Apparition nord ────────────────┐
-//            │  Site A (plateforme)  │  Milieu nord  │  Site B │
-//            │      ▲ escaliers      ├─ portes ──────┤ (plate- │
-//            │ Longue A   │passerelle│  Milieu sud   ├─portes B┤
-//            │ (couloir)  │ (2,1 m)  │               │Couloir B│
-//            └──────────────── Apparition sud (joueur) ────────┘
-//
-// Elle est construite par Blender (map/dunes/build.py, `npm run build-map`) : maillage et éclairage
-// précalculé dans public/maps/dunes/, collisions et objets dans src/maps/dunes.json.
+// La carte choisie dans les réglages (changer de carte recharge la page). Chaque carte est construite
+// par Blender (map/<id>/build.py, `npm run build-map -- <id>`) : maillage et éclairage précalculé dans
+// public/maps/<id>/, collisions et objets dans src/maps/<id>.json ; le reste est dans maps.ts.
 //
 // Règle pour la navigation des bots : un élément au-dessus de la tête (linteau,
 // auvent) laisse passer dessous, mais pas de sol au-dessus d'un autre sol (pont, tunnel).
 
-const HALF = 36;
-const OUTER_WALL = 7;
-
-export const LEVEL_BOUNDS = new THREE.Box3(new THREE.Vector3(-HALF, 0, -HALF), new THREE.Vector3(HALF, OUTER_WALL, HALF));
+export const ACTIVE_MAP = MAPS[loadSettings().map];
+export const LEVEL_BOUNDS = ACTIVE_MAP.bounds;
 /** Apparition du joueur : au sud, face au nord. */
-export const PLAYER_SPAWN = { position: new THREE.Vector3(0, 0, 31), yaw: 0 };
+export const PLAYER_SPAWN = ACTIVE_MAP.spawn;
 
 /** Construit la carte. */
 export function buildLevel(world: World, anisotropy: number): void {
   setupLighting(world.scene);
+  const { data } = ACTIVE_MAP;
 
   // Collisions tout de suite (déplacements, navigation des bots) ; le maillage arrive ensuite.
-  for (const box of dunes.collisions) {
+  for (const box of data.collisions) {
     world.addCollider(new THREE.Vector3(...box.min), new THREE.Vector3(...box.max), box.surface);
   }
-  void loadMapVisuals(world.scene, 'dunes', dunes, anisotropy);
+  void loadMapVisuals(world.scene, ACTIVE_MAP.id, data, anisotropy);
 
   // Objets (modèles Poly Haven, voir props.ts) ; leurs ombres sont dans l'éclairage de la carte.
-  const placements = dunes.props as PropPlacement[];
+  const placements = data.props;
   const barrelBlue = new THREE.MeshStandardMaterial({ color: 0x3f5f72, roughness: 0.6, metalness: 0.4 });
   const barrelRust = new THREE.MeshStandardMaterial({ color: 0x7a4a2a, roughness: 0.75, metalness: 0.3 });
   placeProps(world, placements, { barrelBlue, barrelRed: barrelRust });

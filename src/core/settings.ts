@@ -1,4 +1,5 @@
 import { DEFAULT_BINDINGS, validateBindings, type Bindings } from './bindings';
+import type { MapId } from '../world/maps';
 
 export type GameMode = 'deathmatch' | 'rounds';
 export type Difficulty = 'easy' | 'normal' | 'hard';
@@ -7,6 +8,8 @@ export type CrosshairSize = 'small' | 'medium' | 'large';
 
 export interface Settings {
   // Jeu
+  /** Carte (en changer recharge la page). */
+  map: MapId;
   /** Deathmatch : réapparition en continu. Manches : une vie par manche, comme dans CS. */
   mode: GameMode;
   botsEnabled: boolean;
@@ -34,6 +37,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  map: 'dunes',
   mode: 'deathmatch',
   botsEnabled: true,
   // Passifs par défaut : on découvre la carte et on s'entraîne à viser sans se faire tirer dessus.
@@ -70,6 +74,15 @@ export const SETTINGS_TABS: SettingsTab[] = [
   {
     title: 'Partie',
     fields: [
+      {
+        key: 'map',
+        label: 'Carte',
+        type: 'choice',
+        options: [
+          { value: 'dunes', label: 'Dunes' },
+          { value: 'medina', label: 'Médina (grise)' },
+        ],
+      },
       {
         key: 'mode',
         label: 'Mode',

@@ -14,6 +14,12 @@ const MATERIALS: Record<string, { texture?: string; canvas?: (anisotropy: number
   wood: { texture: 'wood', color: 0xd9a66b },
   crate: { canvas: textures.crate },
   shadowGap: { color: 0x1b1814 },
+  // Version grise (mêmes teintes que map/lib/kit.py).
+  greyWall: { canvas: textures.grid, color: 0xb4b2ac },
+  greyFloor: { canvas: textures.grid, color: 0x8c8a84 },
+  greyRaised: { canvas: textures.grid, color: 0xc49a62 },
+  greyCover: { canvas: textures.grid, color: 0x8f6a4f },
+  greyOverhead: { canvas: textures.grid, color: 0x7d8b98 },
 };
 
 export interface MapLighting {
@@ -44,6 +50,7 @@ export async function loadMapVisuals(scene: THREE.Scene, name: string, lighting:
   lightMap.channel = 1;
 
   const materials = new Map<string, THREE.MeshBasicMaterial>();
+  const canvases = new Map<(anisotropy: number) => THREE.Texture, THREE.Texture>();
   const materialFor = (key: string): THREE.MeshBasicMaterial => {
     let material = materials.get(key);
     if (material) return material;
@@ -55,8 +62,14 @@ export async function loadMapVisuals(scene: THREE.Scene, name: string, lighting:
       lightMapIntensity: lighting.lightmapScale * Math.PI,
     });
     if (spec.canvas) {
-      const map = spec.canvas(anisotropy);
-      map.flipY = false;
+      // Une seule texture par dessin (le quadrillage sert à cinq matériaux).
+      let map = canvases.get(spec.canvas);
+      if (!map) {
+        map = spec.canvas(anisotropy);
+        map.flipY = false;
+        map.wrapS = map.wrapT = THREE.RepeatWrapping;
+        canvases.set(spec.canvas, map);
+      }
       material.map = map;
     } else if (spec.texture) {
       const target = material;

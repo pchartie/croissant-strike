@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
-// Texture de caisse dessinée par le code (les autres matériaux de la carte sont des textures Poly Haven).
+// Textures dessinées par le code : caisse, et quadrillage des cartes en version grise (les autres
+// matériaux des cartes sont des textures Poly Haven).
 
 const SIZE = 256;
 
@@ -61,5 +62,24 @@ export function crate(anisotropy: number): THREE.CanvasTexture {
     ctx.lineWidth = 3;
     ctx.strokeRect(1, 1, SIZE - 2, SIZE - 2);
     ctx.strokeRect(frame, frame, SIZE - frame * 2, SIZE - frame * 2);
+  });
+}
+
+/** Quadrillage de la version grise d'une carte : un carreau par mètre, une ligne fine tous les 50 cm. */
+export function grid(anisotropy: number): THREE.CanvasTexture {
+  return makeTexture(anisotropy, (ctx) => {
+    ctx.fillStyle = '#ebebeb';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(SIZE / 2, 0);
+    ctx.lineTo(SIZE / 2, SIZE);
+    ctx.moveTo(0, SIZE / 2);
+    ctx.lineTo(SIZE, SIZE / 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(0, 0, SIZE, SIZE);
   });
 }

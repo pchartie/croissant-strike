@@ -7,6 +7,7 @@ import type { Player } from '../player/Player';
 import { RIFLE } from '../weapons/definitions';
 import type { NavGrid } from '../world/NavGrid';
 import type { World } from '../world/World';
+import { ACTIVE_MAP } from '../world/Level';
 import { Bot, type BotContext, type Target, type Team } from './Bot';
 import { DAMAGE_MULTIPLIER, type HitPart } from './BotModel';
 
@@ -16,8 +17,6 @@ const NAMES: Record<Team, string[]> = {
 };
 /** Distance minimale entre le joueur et un bot ennemi qui réapparaît. */
 const MIN_SPAWN_DISTANCE = 25;
-/** Zones d'apparition en mode manches : les ennemis au nord, l'équipe du joueur au sud. */
-const ROUND_SPAWN_Z = { enemy: -26, ally: 24 };
 /** Distance maximale entre le joueur et ses coéquipiers au début d'une manche. */
 const ALLY_SPAWN_RADIUS = 9;
 
@@ -207,9 +206,10 @@ export class BotManager {
         bot.disable();
         continue;
       }
-      // Les coéquipiers apparaissent groupés autour du joueur.
+      // Mode manches : les ennemis au nord, l'équipe du joueur au sud (zones propres à chaque carte),
+      // et les coéquipiers groupés autour du joueur.
       const inZone = (point: THREE.Vector3) =>
-        bot.team === 'enemy' ? point.z < ROUND_SPAWN_Z.enemy : point.z > ROUND_SPAWN_Z.ally && point.distanceTo(this.player.position) < ALLY_SPAWN_RADIUS;
+        bot.team === 'enemy' ? point.z < ACTIVE_MAP.roundSpawnZ.enemy : point.z > ACTIVE_MAP.roundSpawnZ.ally && point.distanceTo(this.player.position) < ALLY_SPAWN_RADIUS;
       let point = this.nav.randomWalkablePoint();
       for (let i = 0; i < 400; i++) {
         const candidate = this.nav.randomWalkablePoint();
