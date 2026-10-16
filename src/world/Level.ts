@@ -278,6 +278,7 @@ export function buildLevel(world: World, anisotropy: number): THREE.DirectionalL
   ]);
   // (Les objets de props.ts ont déjà la leur.)
   for (const mesh of world.meshes) mesh.userData.surface ??= surfaces.get(mesh.material as THREE.Material) ?? 'stone';
+  world.mergeStatic();
   return sun;
 }
 
