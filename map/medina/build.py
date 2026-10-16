@@ -208,7 +208,7 @@ def dress(x1, z1, x2, z2, height, seed):
                 relief(side, at, c - 0.6, c + 0.6, y - 0.75, y + 0.75, 0.06, 'stone')
                 relief(side, at, c - 0.45, c + 0.45, y - 0.6, y + 0.6, 0.1, planks)
         # Climatiseur au-dessus des fenêtres, tourné vers la rue (le modèle regarde vers +z).
-        if zone != SOUK and length >= 4.0 and height - base >= 5.9 and rng.random() < 0.25:
+        if zone != SOUK and length >= 4.0 and height - base >= 5.9 and rng.random() < 0.17:
             c = a + rng.uniform(1.0, length - 1.0)
             yaw, offset = {'x+': (90, 0.21), 'x-': (-90, -0.21), 'z+': (0, 0.21), 'z-': (180, -0.21)}[side]
             x, z = (at + offset, c) if side[0] == 'x' else (c, at + offset)
@@ -385,6 +385,20 @@ for x, z in ((-9.3, 35), (9.3, 35), (-13, -45.3), (13, -45.3), (39.4, -33.3)):
     prop('pottedPlant', x, z)
 for x, z, yaw in ((9.6, 37.4, 90), (-14, 43.6, 0), (-39.6, 6, 90), (39.6, -1, 90)):
     prop('trashCan', x, z, yaw)
+# Barils (et quelques jerricanes) contre les murs des couloirs qui mènent des spawns à la place du puits :
+# de quoi se couvrir sans boucher le passage.
+for x, z, pid, yaw in (
+    (-4.6, 13.0, 'barrelBlue', 20), (-4.6, 13.7, 'barrelRed', 140), (4.6, 23.0, 'barrelRed', 60),
+    (4.6, 23.7, 'barrelBlue', 300), (4.0, 23.35, 'barrelBlue', 200), (-4.6, 30.5, 'barrelRed', 10),
+    (4.6, 9.0, 'barrelBlue', 90),
+    (-5.6, -14.5, 'barrelRed', 30), (-5.6, -15.2, 'barrelBlue', 250), (5.6, -21.5, 'barrelBlue', 120),
+    (5.6, -22.2, 'barrelRed', 330), (5.0, -21.85, 'barrelRed', 80), (-5.6, -28.0, 'barrelBlue', 45),
+    (-13.5, 5.5, 'barrelRed', 15), (-12.8, 5.5, 'barrelBlue', 200),
+    (10.6, -5.5, 'barrelBlue', 70), (11.3, -5.5, 'barrelRed', 160),
+):
+    prop(pid, x, z, yaw)
+for x, z, yaw in ((-4.0, 13.3, 90), (5.0, -14.9, 0), (-12.2, 5.6, 30)):
+    prop('jerrycan', x, z, yaw)
 prop('coveredCar', 37.6, -20, 0)
 prop('coveredCar', -15, -44.6, 90)
 for x, z in ((-11.3, -45.4), (-10.6, -45.4)):

@@ -114,13 +114,18 @@ def posters(path, cell_w=256, cell_h=384, seed=4):
             y0 = 270 + line * 18
             length = rng.uniform(0.5, 0.85) * (cell_w - 48)
             cell[y0:y0 + 7, 24:24 + int(length)] = paper * 0.3
-        # Délavé par le soleil, bords et coins déchirés.
+        # Délavé par le soleil. Bord irrégulier mais continu (bruit doux le long du contour, pas des pixels
+        # isolés qui scintilleraient), et une affiche sur deux déchirée en biais dans un coin.
         cell = cell * 0.8 + 0.2 * np.array([0.9, 0.85, 0.75], dtype=np.float32)
         cell *= (1 + rng.normal(0, 0.04, (cell_h, cell_w, 1))).astype(np.float32)
         edge = np.minimum.reduce([xx, cell_w - 1 - xx, yy, cell_h - 1 - yy]).astype(np.float32)
-        ragged = edge > 4 + rng.uniform(0, 10, (cell_h, cell_w)) * (rng.random((cell_h, cell_w)) < 0.15)
-        tear = (yy > cell_h * rng.uniform(0.6, 0.9)) & (xx > cell_w * rng.uniform(0.5, 0.8)) & (k % 2 == 0)
-        alpha = (ragged & ~tear).astype(np.float32)
+        wobble = 6 + 3 * np.sin(xx * 0.11 + k) * np.cos(yy * 0.07 + 2 * k) + 2 * np.sin((xx + yy) * 0.31)
+        alpha = (edge > wobble).astype(np.float32)
+        if k % 2 == 0:
+            # Coin bas-droit arraché le long d'une diagonale dentelée.
+            cut = (cell_w - xx) + (cell_h - yy) - rng.uniform(70, 110)
+            cut += 6 * np.sin(xx * 0.4) + 4 * np.sin(yy * 0.9)
+            alpha *= (cut > 0).astype(np.float32)
         rgba[:, k * cell_w:(k + 1) * cell_w, :3] = cell
         rgba[:, k * cell_w:(k + 1) * cell_w, 3] = alpha
     _save(path, rgba)
