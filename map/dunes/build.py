@@ -79,7 +79,7 @@ for place in layout['props']:
         copy.hide_render = False
         bpy.context.scene.collection.objects.link(copy)
 
-bake.setup_lighting(SUN_DIRECTION, 2.8, os.path.join(ROOT, 'public', 'sky', 'sky.hdr'), sky_irradiance=1.2)
+bake.setup_lighting(SUN_DIRECTION, 2.5, os.path.join(ROOT, 'public', 'sky', 'sky.hdr'), sky_irradiance=1.9)
 density = bake.lightmap_uv(obj, SIZE)
 image = bake.bake(obj, SIZE, SAMPLES)
 os.makedirs(OUT, exist_ok=True)

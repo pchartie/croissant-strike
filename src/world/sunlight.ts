@@ -6,7 +6,7 @@ import { SUN_DIRECTION } from './sky';
 // collisions de la carte, et s'assombrit à l'ombre.
 
 /** Part de l'éclairage qui reste à l'ombre (lumière du ciel et des rebonds, sans le soleil). */
-export const SHADE = 0.45;
+export const SHADE = 0.55;
 
 let blockers: readonly THREE.Box3[] = [];
 const ray = new THREE.Ray();
