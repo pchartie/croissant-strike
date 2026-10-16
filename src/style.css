@@ -447,13 +447,6 @@ canvas {
   color: #f2b84b;
 }
 
-.tagline {
-  margin-top: 6px;
-  color: #9aa0a8;
-  font-size: 14px;
-  text-align: center;
-}
-
 .menu-body {
   display: grid;
   grid-template-columns: 190px 1fr;
@@ -505,9 +498,19 @@ canvas {
   display: none !important;
 }
 
-/* Sur petit écran, le menu défile au lieu de tasser ses parties les unes sur les autres. */
+/* L'en-tête et le bouton Jouer restent visibles : seul le contenu des rubriques défile. */
+.panel.menu {
+  overflow: hidden;
+}
+
 .panel.menu > * {
   flex-shrink: 0;
+}
+
+.panel.menu > .menu-body {
+  flex-shrink: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* La page « En ligne » est rangée parmi les rubriques : pas de cadre en plus. */
@@ -766,20 +769,6 @@ canvas {
   font-variant-numeric: tabular-nums;
 }
 
-.reset {
-  align-self: flex-end;
-  padding: 6px 12px;
-  border: 1px solid #555;
-  border-radius: 5px;
-  background: none;
-  font-size: 13px !important;
-  opacity: 0.75;
-}
-
-.reset:hover {
-  opacity: 1;
-}
-
 .controls {
   list-style: none;
   line-height: 2;
@@ -866,9 +855,11 @@ kbd {
 
 #buy-menu {
   position: absolute;
-  left: 32px;
-  top: 50%;
-  transform: translateY(-50%);
+  /* Sous la minimap (180 px + marge), sans jamais dépasser du bas de l'écran. */
+  left: 16px;
+  top: 212px;
+  max-height: calc(100% - 228px);
+  overflow-y: auto;
   min-width: 300px;
   padding: 14px 18px;
   border-radius: 8px;
@@ -889,8 +880,9 @@ kbd {
 
 #buy-menu .item {
   display: flex;
-  gap: 10px;
-  padding: 3px 0;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 0;
 }
 
 #buy-menu .item .key {
@@ -899,11 +891,28 @@ kbd {
   font-weight: 700;
 }
 
-#buy-menu .item .icon {
-  width: 52px;
-  height: 18px;
+/* Miniature de chaque article : silhouette blanche dans une case sombre. */
+#buy-menu .item .thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 30px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+#buy-menu .item .thumb img {
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
-  object-position: left center;
+}
+
+#buy-menu .item .price {
+  min-width: 56px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 #buy-menu .item .name {
@@ -1014,73 +1023,104 @@ kbd {
   opacity: 0.75;
 }
 
-/* Encart « En ligne » du menu. */
+/* Page « En ligne » : le pseudo, puis deux cartes (créer, rejoindre), puis l'état de la connexion. */
 #online {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  gap: 18px;
 }
 
 #online h2 {
-  font-size: 16px;
+  font-size: 18px;
   letter-spacing: 1px;
 }
 
+#online h3 {
+  font-size: 15px;
+  color: #fff;
+}
+
 #online input {
-  padding: 7px 9px;
+  padding: 9px 11px;
   border: 1px solid #444;
-  border-radius: 4px;
+  border-radius: 5px;
   background: #111;
   color: #eee;
   font: inherit;
 }
 
+#online input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 #online button {
-  padding: 7px 12px;
+  padding: 9px 16px;
   border: 1px solid #555;
-  border-radius: 4px;
+  border-radius: 5px;
   background: #2a2d33;
 }
 
 #online button:hover {
+  border-color: var(--accent-light);
   background: #353941;
 }
 
 .online-name {
   display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.online-name input {
-  flex: 1;
-  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+  color: #9aa0a8;
+  font-size: 13px;
 }
 
 .online-idle {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.online-card {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #3a3d44;
+  border-radius: 8px;
+  background: #23262c;
+}
+
+.online-card p {
+  flex: 1;
+  color: #9aa0a8;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.online-card .online-host {
+  align-self: flex-start;
+}
+
+.online-join-row {
+  display: flex;
   gap: 8px;
 }
 
 .online-code {
-  width: 6.5em;
+  width: 7em;
   text-transform: uppercase;
-  letter-spacing: 3px;
+  letter-spacing: 4px;
   text-align: center;
 }
 
-.online-or {
-  color: #999;
+.online-busy button {
+  align-self: flex-start;
 }
 
 .online-status {
-  color: #bbb;
-  font-size: 14px;
+  color: #9aa0a8;
+  font-size: 13px;
 }
 
 .online-status.error {
@@ -1089,8 +1129,8 @@ kbd {
 
 .online-code-value {
   color: var(--accent);
-  font-size: 18px;
-  letter-spacing: 3px;
+  font-size: 20px;
+  letter-spacing: 4px;
   user-select: all;
 }
 

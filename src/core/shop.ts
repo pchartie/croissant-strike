@@ -8,7 +8,7 @@ export type ShopItem =
   | { code: string; key: string; label: string; price: number; kind: 'grenade'; grenade: GrenadeType };
 
 /** Prix des grenades et du gilet (CS:GO). */
-const GRENADE_PRICES: Record<GrenadeType, number> = { he: 300, flash: 200, smoke: 300, molotov: 400, decoy: 50 };
+const GRENADE_PRICES: Record<GrenadeType, number> = { he: 300, flash: 200, smoke: 300, molotov: 400 };
 export const ARMOR_PRICE = 650;
 export const ARMOR_HELMET_PRICE = 1000;
 /** Prix du casque seul quand on a déjà un gilet neuf. */
@@ -26,5 +26,4 @@ export const SHOP_ITEMS: ShopItem[] = [
     price: GRENADE_PRICES[grenade],
     grenade,
   })),
-  { kind: 'grenade' as const, label: GRENADES.decoy.name, price: GRENADE_PRICES.decoy, grenade: 'decoy' as GrenadeType },
 ].map((item, i) => ({ ...item, key: DIGITS[i], code: `Digit${DIGITS[i]}` })) as ShopItem[];

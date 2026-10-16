@@ -1,7 +1,7 @@
 # Croissant Strike 🥐
 
 Jeu de tir à la première personne, inspiré de Counter-Strike: Source : bots, manches avec économie,
-cinq grenades et 1 contre 1 en ligne, directement dans le navigateur.
+quatre grenades et 1 contre 1 en ligne, directement dans le navigateur.
 
 Projet commencé par [Leochartrain](https://github.com/Leochartrain) sous le nom **FPS1**, dans son dépôt
 [projets](https://github.com/Leochartrain/projets) ; l'historique de ses commits est conservé ici.
@@ -85,7 +85,7 @@ src/
 ├── maps/          données des cartes produites par Blender (collisions, objets)
 ├── player/        déplacements façon CS: Source et caméra
 ├── weapons/       caractéristiques des armes, tir et recul, arme en main, impacts
-├── grenades/      les 5 grenades : lancer, rebonds, explosion, flash, fumée, feu, leurre
+├── grenades/      les 4 grenades : lancer, rebonds, explosion, flash, fumée, feu
 ├── net/           jeu en ligne : connexion PeerJS, messages, adversaire affiché
 ├── bots/          ennemis et coéquipiers : soldats animés, IA (patrouille, combat, recherche), apparitions
 └── ui/            HUD, fil des éliminations, écrans de pause et de mort
@@ -105,10 +105,10 @@ Repère (MacBook Pro 2018, Intel UHD 630, 1280 × 720, 5 bots) : 29 ms par image
 
 ## Réglages
 
-Le menu (Échap) range les réglages en rubriques à gauche, avec leurs options à droite et **Jouer** toujours en bas. Les réglages sont mémorisés dans le navigateur :
+Le titre de l'onglet et l'icône du site sont un croissant 🥐. Le menu (Échap) range les réglages en rubriques à gauche, avec leurs options à droite et **Jouer** toujours en bas (les options défilent si l'écran est peu haut). Les réglages sont mémorisés dans le navigateur :
 
 - **Partie** : carte (choisie sur de grandes vignettes avec une capture ; Dunes, la carte grise, par défaut, ou Médina ; en changer recharge la page), mode, bots activés ou non, passifs (par défaut) ou agressifs, nombre d'ennemis (1 à 10), coéquipiers (0 à 4) et difficulté (facile, normale, difficile).
-- **Contrôles** : sensibilité de la souris (même échelle que CS), axe vertical inversé ou non, champ de vision.
+- **Contrôles** : sensibilité de la souris (même échelle que CS), axe vertical inversé ou non. Le champ de vision est fixé à 75°.
 - **Audio et affichage** : volume, couleur et taille du réticule.
 - **Graphismes** : résolution de rendu (50 à 100 %, pour les PC moins puissants), compteur d'images par seconde (affiché par défaut, sous le radar). Plus de réglage des ombres : celles de la carte sont précalculées (voir Carte).
 - **Touches** : toutes les touches se changent (deux par action, clavier ou souris, molette comprise) : on clique sur une case puis on appuie sur la touche voulue. Les lettres s'affichent selon ton clavier (Z, Q, S, D en AZERTY).
@@ -121,7 +121,7 @@ Armes principales (touche 1, une seule à la fois) : **M4A1**, **MP5-SD** (SMG s
 
 À chaque tir, la **douille** est éjectée à droite de l'arme (5,56 pour la M4A1, 9 mm pour la MP5 et le pistolet, cartouche rouge au coup de pompe de la Nova) : elle rebondit en tintant et reste 10 s au sol. Les douilles des bots aussi, quand ils tirent près de toi.
 
-Les armes à feu sont représentées par leur **silhouette** dans le fil des éliminations (avec « tête » pour un headshot), au-dessus des munitions et dans le menu d'achat ; le couteau et les grenades gardent leur nom.
+Les armes à feu sont représentées par leur **silhouette** dans le fil des éliminations (avec « tête » pour un headshot), au-dessus des munitions et dans le menu d'achat ; le couteau et les grenades gardent leur nom dans le fil des éliminations. Dans le menu d'achat (sous le radar), chaque article a sa miniature : silhouette de l'arme, ou dessin du gilet, du casque et de chaque grenade (`src/ui/shopIcons.ts`).
 
 ## Couteau
 
@@ -136,13 +136,13 @@ Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90
 
 ## En ligne (1 contre 1)
 
-Dans le menu (Échap), rubrique **En ligne** : choisis un pseudo (il sert aussi en solo, dans le fil des éliminations et le tableau des scores), puis **Créer une partie** pour recevoir un code de 4 caractères à donner à ton adversaire ; lui l'entre et clique sur **Rejoindre**. C'est un deathmatch à deux (réapparition 3 s après chaque mort, hors de vue de l'autre), sans bots pour l'instant ; armes, gilet, couteau (coups dans le dos compris) et les cinq grenades marchent comme contre les bots. Une grenade vole chez les deux joueurs, et celui qui la lance annonce où elle éclate : HE, flash, fumée et feu sont donc au même endroit sur les deux écrans. **Quitter la partie** (ou le départ de l'autre) ramène au jeu seul, avec tes réglages. Les deux joueurs doivent être sur la même carte : sinon, la connexion s'arrête en indiquant celle de l'autre.
+Dans le menu (Échap), rubrique **En ligne** (le pseudo en haut, puis deux cadres : créer ou rejoindre) : choisis un pseudo (il sert aussi en solo, dans le fil des éliminations et le tableau des scores), puis **Créer une partie** pour recevoir un code de 4 caractères à donner à ton adversaire ; lui l'entre et clique sur **Rejoindre**. C'est un deathmatch à deux (réapparition 3 s après chaque mort, hors de vue de l'autre), sans bots pour l'instant ; armes, gilet, couteau (coups dans le dos compris) et les quatre grenades marchent comme contre les bots. Une grenade vole chez les deux joueurs, et celui qui la lance annonce où elle éclate : HE, flash, fumée et feu sont donc au même endroit sur les deux écrans. **Quitter la partie** (ou le départ de l'autre) ramène au jeu seul, avec tes réglages. Les deux joueurs doivent être sur la même carte : sinon, la connexion s'arrête en indiquant celle de l'autre.
 
 La connexion est directe entre les deux navigateurs (WebRTC, avec [PeerJS](https://peerjs.com)) : le serveur public de PeerJS sert seulement à se trouver grâce au code. Ça marche en local comme sur GitHub Pages, chacun chez soi. Sur certains réseaux très fermés (entreprise, certaines box), la connexion directe peut échouer. Chacun fait foi pour ses propres tirs (« je t'ai touché à la tête ») et l'autre applique les dégâts avec son gilet ; l'adversaire est affiché avec 100 ms de retard pour un mouvement fluide. Pour tester seul, ouvre le jeu dans deux fenêtres.
 
 ## Grenades
 
-Les cinq grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebonds) : **HE** (jusqu'à 98 de dégâts, arrêtée par les murs), **flash** (aveugle selon l'angle et la distance, toi comme les bots), **fumigène** (18 s, cache la vue des bots et éteint les molotovs), **molotov** (feu de 7 s, 40 dégâts par seconde) et **leurre** (imite des tirs de fusil pendant 15 s et attire les bots). On en reçoit une de chaque, plus une deuxième flash, à chaque manche ou réapparition. Les bots lancent aussi des HE et des flashs (voir Bots).
+Quatre grenades de CS:GO, avec ses valeurs (vitesse de lancer, gravité, rebonds) : **HE** (jusqu'à 98 de dégâts, arrêtée par les murs), **flash** (aveugle selon l'angle et la distance, toi comme les bots), **fumigène** (18 s, cache la vue des bots et éteint les molotovs) et **molotov** (feu de 7 s, 40 dégâts par seconde). On en reçoit une de chaque, plus une deuxième flash, à chaque manche ou réapparition. Les bots lancent aussi des HE et des flashs (voir Bots).
 
 ## Cartes
 
@@ -192,11 +192,11 @@ Vrais enregistrements d'armes (AR-15 et 1911) et de rechargements, en CC0 : voir
 
 Les bots patrouillent sur toute la carte (escaliers et plateformes compris), t'attaquent dès qu'ils te voient et vont voir quand ils t'entendent tirer ou courir. Ils tirent en rafales en s'arrêtant, puis se décalent sur le côté entre deux rafales (en sautant parfois). Chacun a une HE et une flash par vie : quand tu te caches, il peut lancer une flash avant d'aller te chercher, ou une HE sur ta cachette (lancer en cloche calculé pour exploser sur place). Une balle dans la tête fait ×4 de dégâts, dans les jambes ×0,75, pour eux comme pour toi.
 
-**Soldats** : le mannequin CC0 de l'[Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html) de Quaternius, habillé par `characters/build.py` (`npm run build-characters`, avec Blender) : corps coloré selon l'os qui porte chaque partie (peau, chemise, gants, pantalon, bottes), gilet à poches et ceinture, cagoule pour tous (le mannequin n'a pas de visage), casque et lunettes pour les CT. Deux tenues sur le même squelette : les ennemis en CT (bleu marine, casque), les coéquipiers en T (kaki, cagoule). Grain de tissu sur les tenues (sergé, toile épaisse pour les gilets, cuir pour les gants et les bottes), projeté selon les trois axes sur la pose de repos par un ajout au shader : le motif suit le corps sans coordonnées de texture. Un seul maillage animé par soldat (un appel de dessin), environ 7 700 triangles, 510 Ko pour les deux tenues et leurs animations, 20 Ko pour les tissus.
+**Soldats** : le mannequin CC0 de l'[Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html) de Quaternius, habillé par `characters/build.py` (`npm run build-characters`, avec Blender) : corps coloré selon l'os qui porte chaque partie (peau, chemise, gants, pantalon, bottes), gilet à poches et ceinture, cagoule pour tous (le mannequin n'a pas de visage), casque et lunettes pour les CT. Deux tenues sur le même squelette : les ennemis en CT (bleu marine, casque), les coéquipiers en T (sable clair, cagoule) : clarté et teinte opposées, pour distinguer les camps d'un coup d'œil, au soleil comme à l'ombre. Grain de tissu sur les tenues (sergé, toile épaisse pour les gilets, cuir pour les gants et les bottes), projeté selon les trois axes sur la pose de repos par un ajout au shader : le motif suit le corps sans coordonnées de texture. Un seul maillage animé par soldat (un appel de dessin), environ 7 700 triangles, 510 Ko pour les deux tenues et leurs animations, 20 Ko pour les tissus.
 
 Animations mélangées en deux moitiés (`src/bots/BotModel.ts`) : le bas du corps marche, court ou s'accroupit selon la vitesse ; le haut vise et suit le regard en combat, arme basse sinon, avec par-dessus le tir et le rechargement ; mort animée. Le pack gratuit n'ayant pas d'animations au fusil, le fusil est épaulé par le code (crosse contre l'épaule droite, pointé où regarde le bot) et les mains y sont posées par IK à deux os : la droite sur la poignée, la gauche sur le garde-main (sauf au rechargement, où elle va chercher le chargeur). Les poses de visée du pack penchent le dos : il est redressé, et le bassin rebondit moins dans la course. Les zones de touche restent des boîtes fixes (tête, corps, bras tendus, jambes), comme dans CS.
 
-**Coéquipiers** : jusqu'à 4 bots dans ton camp (réglage « Coéquipiers », 0 par défaut), en tenue bleu-gris. Ils combattent les ennemis avec la même IA, s'entendent tirer entre camps, et apparaissent groupés autour de toi en mode manches ; la manche continue tant qu'un membre de ton équipe est en vie. Pas de tir ami : tes balles les traversent, tes grenades et ton feu ne les blessent pas, et inversement. Ils sont toujours visibles sur le radar (en bleu) et ont leur ligne dans le tableau des scores.
+**Coéquipiers** : jusqu'à 4 bots dans ton camp (réglage « Coéquipiers », 0 par défaut), en tenue T sable clair. Ils combattent les ennemis avec la même IA, s'entendent tirer entre camps, et apparaissent groupés autour de toi en mode manches ; la manche continue tant qu'un membre de ton équipe est en vie. Pas de tir ami : tes balles les traversent, tes grenades et ton feu ne les blessent pas, et inversement. Ils sont toujours visibles sur le radar (en bleu) et ont leur ligne dans le tableau des scores.
 
 En mode **passif** (le réglage par défaut ; « Agressifs » dans les réglages pour qu'ils attaquent), ils se promènent sans attaquer ni réagir aux tirs : pratique pour s'entraîner à viser.
 

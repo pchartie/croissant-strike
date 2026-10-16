@@ -1,5 +1,4 @@
 import {
-  DEFAULT_SETTINGS,
   isFieldEnabled,
   SETTINGS_TABS,
   type SettingField,
@@ -8,8 +7,6 @@ import {
 import {
   ACTIONS,
   BINDING_SLOTS,
-  cloneBindings,
-  DEFAULT_BINDINGS,
   keyName,
   RESERVED_CODES,
   type Action,
@@ -63,27 +60,9 @@ export class SettingsPanel {
     };
     select(0);
 
-    const reset = document.createElement('button');
-    reset.type = 'button';
-    reset.className = 'reset';
-    reset.textContent = 'Réglages par défaut';
-    reset.addEventListener('click', () => {
-      this.stopListening();
-      for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
-        if (key === 'bindings') {
-          this.settings.bindings = cloneBindings(DEFAULT_BINDINGS);
-        } else {
-          if (this.settings[key] === DEFAULT_SETTINGS[key]) continue;
-          (this.settings as Record<keyof Settings, unknown>)[key] = DEFAULT_SETTINGS[key];
-        }
-        this.onChange(this.settings, key);
-      }
-      this.refresh();
-    });
-
     const content = document.createElement('div');
     content.className = 'menu-content';
-    content.append(pages, reset);
+    content.append(pages);
     container.replaceChildren(tabs, content);
     this.refresh();
   }

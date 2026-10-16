@@ -16,13 +16,22 @@ export class OnlinePanel {
 
   constructor(container: HTMLElement, online: Online) {
     container.innerHTML = `
-      <h2>En ligne · 1 contre 1</h2>
-      <label class="online-name">Pseudo <input type="text" maxlength="16" placeholder="Ton pseudo" /></label>
+      <h2>1 contre 1 en ligne</h2>
+      <label class="online-name"><span>Ton pseudo</span><input type="text" maxlength="16" placeholder="Joueur" /></label>
       <div class="online-idle">
-        <button type="button" class="online-host">Créer une partie</button>
-        <span class="online-or">ou</span>
-        <input type="text" class="online-code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" />
-        <button type="button" class="online-join">Rejoindre</button>
+        <section class="online-card">
+          <h3>Créer une partie</h3>
+          <p>Tu reçois un code de 4 caractères à donner à ton adversaire.</p>
+          <button type="button" class="online-host">Créer une partie</button>
+        </section>
+        <section class="online-card">
+          <h3>Rejoindre une partie</h3>
+          <p>Entre le code que ton adversaire t'a donné.</p>
+          <div class="online-join-row">
+            <input type="text" class="online-code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" />
+            <button type="button" class="online-join">Rejoindre</button>
+          </div>
+        </section>
       </div>
       <div class="online-busy"><button type="button" class="online-leave"></button></div>
       <p class="online-status"></p>`;
@@ -62,7 +71,7 @@ export class OnlinePanel {
     this.status.classList.toggle('error', status.kind === 'error');
     switch (status.kind) {
       case 'idle':
-        this.status.textContent = 'Crée une partie et donne le code à ton adversaire, ou entre le sien.';
+        this.status.textContent = 'Les deux joueurs doivent être sur la même carte (Partie → Carte).';
         break;
       case 'hosting':
         this.status.innerHTML = `Code de la partie : <strong class="online-code-value">${status.code}</strong> — en attente de l'adversaire…`;

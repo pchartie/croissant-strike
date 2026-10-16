@@ -278,11 +278,6 @@ export class Audio {
     }
   }
 
-  /** Petit éclatement du leurre à la fin. */
-  decoyPop(loudness: number, pan: number): void {
-    this.noiseBurst('lowpass', 1200, 0.7, 0.7 * loudness, 0.3, 0, pan);
-  }
-
   private async loadSamples(ctx: AudioContext): Promise<void> {
     const names = new Set(Object.values(SAMPLES).flat());
     await Promise.all(

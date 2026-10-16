@@ -44,7 +44,7 @@ export function buildGrenadeModel(type: GrenadeType): THREE.Group {
     add(new THREE.CylinderGeometry(0.015, 0.018, 0.03, 10), metal, 0.05);
     add(new THREE.BoxGeometry(0.012, 0.07, 0.008), metal, 0.03, 0.03);
   } else {
-    // Cylindre (flash, fumigène, leurre) avec tête métallique.
+    // Cylindre (flash, fumigène) avec tête métallique.
     add(new THREE.CylinderGeometry(0.03, 0.03, 0.1, 14), bodyMaterial(type), 0);
     add(new THREE.CylinderGeometry(0.018, 0.022, 0.025, 10), metal, 0.062);
     add(new THREE.BoxGeometry(0.012, 0.08, 0.008), metal, 0.02, 0.032);

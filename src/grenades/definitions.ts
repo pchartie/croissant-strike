@@ -1,6 +1,6 @@
 import { UNIT } from '../config';
 
-export type GrenadeType = 'he' | 'flash' | 'smoke' | 'molotov' | 'decoy';
+export type GrenadeType = 'he' | 'flash' | 'smoke' | 'molotov';
 
 export interface GrenadeDef {
   type: GrenadeType;
@@ -8,8 +8,8 @@ export interface GrenadeDef {
   /** Nom court pour le HUD. */
   short: string;
   /**
-   * Explosion au bout de ce temps (secondes). Fumigène et leurre : temps
-   * minimal, ils attendent en plus d'être immobiles. Molotov : explose au
+   * Explosion au bout de ce temps (secondes). Fumigène : temps minimal, il
+   * attend en plus d'être immobile. Molotov : explose au
    * premier contact avec le sol, sinon au bout de ce temps.
    */
   fuse: number;
@@ -22,20 +22,19 @@ export const GRENADES: Record<GrenadeType, GrenadeDef> = {
   flash: { type: 'flash', name: 'Flash', short: 'Flash', fuse: 1.5, color: 0x9aa0a6 },
   smoke: { type: 'smoke', name: 'Fumigène', short: 'Fumi', fuse: 1.5, color: 0x6f8a94 },
   molotov: { type: 'molotov', name: 'Molotov', short: 'Molotov', fuse: 2, color: 0x7a4a1c },
-  decoy: { type: 'decoy', name: 'Leurre', short: 'Leurre', fuse: 2, color: 0x3a3c40 },
 };
 
 /** Ordre de défilement avec la touche 4, comme dans CS:GO. */
-export const GRENADE_ORDER: GrenadeType[] = ['he', 'flash', 'smoke', 'molotov', 'decoy'];
+export const GRENADE_ORDER: GrenadeType[] = ['he', 'flash', 'smoke', 'molotov'];
 
 /** Ce qu'on peut porter au plus quand on achète (CS:GO) : une par type, deux flashs, quatre en tout. */
 export const GRENADE_CARRY = {
-  perType: { he: 1, flash: 2, smoke: 1, molotov: 1, decoy: 1 } as Record<GrenadeType, number>,
+  perType: { he: 1, flash: 2, smoke: 1, molotov: 1 } as Record<GrenadeType, number>,
   total: 4,
 };
 
 /** Grenades offertes à chaque réapparition en deathmatch (la limite d'achat ne s'y applique pas). */
-export const GRENADE_LOADOUT: Record<GrenadeType, number> = { he: 1, flash: 2, smoke: 1, molotov: 1, decoy: 1 };
+export const GRENADE_LOADOUT: Record<GrenadeType, number> = { he: 1, flash: 2, smoke: 1, molotov: 1 };
 
 /** Valeurs reprises de CS:GO (unités Source converties en mètres). */
 export const GRENADE_PHYSICS = {
@@ -76,11 +75,4 @@ export const MOLOTOV = {
   radius: 3,
   duration: 7,
   damagePerSecond: 40,
-};
-
-export const DECOY = {
-  duration: 15,
-  /** Petite explosion finale. */
-  damage: 5,
-  radius: 2,
 };

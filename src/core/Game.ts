@@ -4,7 +4,7 @@ import type { Bot } from '../bots/Bot';
 import { BotManager, type BotShot } from '../bots/BotManager';
 import { DAMAGE_MULTIPLIER, type HitPart } from '../bots/BotModel';
 import { CAMERA, ECONOMY, MOVE, PLAYER, TICK, UNIT } from '../config';
-import { DECOY, GRENADE_ORDER, GRENADES, HE, MOLOTOV } from '../grenades/definitions';
+import { GRENADE_ORDER, GRENADES, HE, MOLOTOV } from '../grenades/definitions';
 import { throwVelocity } from '../grenades/ballistics';
 import { flashDuration } from '../grenades/flashbang';
 import { GrenadeSystem } from '../grenades/GrenadeSystem';
@@ -13,6 +13,7 @@ import { BuyMenu } from '../ui/BuyMenu';
 import { Radar } from '../ui/Radar';
 import { Hud } from '../ui/Hud';
 import { loadPlayerName } from '../ui/OnlinePanel';
+import { shopIcon } from '../ui/shopIcons';
 import { weaponIcon } from '../ui/weaponIcons';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { Duel } from '../net/Duel';
@@ -774,18 +775,6 @@ export class Game {
         const { loudness, pan } = this.hearing(position);
         this.audio.molotov(loudness, pan, fizzled, MOLOTOV.duration);
       },
-      decoyShot: (position) => {
-        // Le leurre imite un fusil : même son qu'un bot, et les bots viennent voir.
-        const { loudness, pan, distance } = this.hearing(position);
-        this.audio.shot(RIFLE, { distant: distance > CLOSE_SHOT_DISTANCE, loudness: Math.min(loudness, 0.8), pan });
-        this.bots.playerFired(position);
-      },
-      decoyEnded: (position, owner) => {
-        const { loudness, pan } = this.hearing(position);
-        this.audio.decoyPop(loudness, pan);
-        if (owner && owner === this.duel.remote) this.remoteAreaDamage(position, DECOY.radius, DECOY.damage, GRENADES.decoy.name);
-        else this.applyAreaDamage(position, DECOY.radius, DECOY.damage, GRENADES.decoy.name);
-      },
       // En ligne : l'adversaire voit nos grenades voler, puis éclater au même endroit que chez nous.
       launched: (type, origin, velocity, id) => this.duel.active && this.duel.sendGrenade(type, id, origin, velocity),
       detonated: (id, position) => this.duel.active && this.duel.sendDetonate(id, position),
@@ -1121,7 +1110,7 @@ export class Game {
         label: item.label,
         price: this.priceOf(item),
         state: this.itemState(item),
-        icon: item.kind === 'weapon' ? weaponIcon(item.weapon.id) : null,
+        icon: item.kind === 'weapon' ? weaponIcon(item.weapon.id) : shopIcon(item.kind === 'grenade' ? item.grenade : item.kind),
       })),
       this.roundBased ? this.economy.money : null,
       this.buyTimeLeft,

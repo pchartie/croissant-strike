@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { Input } from '../core/Input';
 import type { Player } from '../player/Player';
 import {
-  DECOY,
   GRENADE_CARRY,
   GRENADE_LOADOUT,
   GRENADE_ORDER,
@@ -48,15 +47,6 @@ export interface GrenadeHooks {
   flashbang(position: THREE.Vector3, owner: GrenadeOwner | null): void;
   smoke(position: THREE.Vector3): void;
   fire(position: THREE.Vector3, fizzled: boolean): void;
-  decoyShot(position: THREE.Vector3): void;
-  decoyEnded(position: THREE.Vector3, owner: GrenadeOwner | null): void;
-}
-
-interface Decoy {
-  projectile: Projectile;
-  time: number;
-  burstLeft: number;
-  nextShot: number;
 }
 
 /**
@@ -74,7 +64,6 @@ export class GrenadeSystem {
   private nextId = 1;
 
   private readonly projectiles: Projectile[] = [];
-  private readonly decoys: Decoy[] = [];
   private readonly smokes: SmokeCloud[] = [];
   private readonly fires: FireArea[] = [];
   private readonly explosions: Explosion[] = [];
@@ -137,10 +126,9 @@ export class GrenadeSystem {
   /** Retire toutes les grenades et leurs effets (nouvelle manche). */
   clear(): void {
     for (const p of this.projectiles) this.scene.remove(p.mesh);
-    for (const d of this.decoys) this.scene.remove(d.projectile.mesh);
     for (const e of [...this.smokes, ...this.fires, ...this.explosions, ...this.scorches]) this.scene.remove(e.group);
     this.scorches.length = 0;
-    this.projectiles.length = this.decoys.length = this.smokes.length = this.fires.length = this.explosions.length = 0;
+    this.projectiles.length = this.smokes.length = this.fires.length = this.explosions.length = 0;
     this.current = null;
   }
 
@@ -239,7 +227,6 @@ export class GrenadeSystem {
       if (this.projectiles.includes(projectile)) this.checkFuse(projectile);
     }
 
-    for (const decoy of [...this.decoys]) this.updateDecoy(decoy, dt);
     for (const smoke of this.smokes) smoke.update(dt);
     for (const fire of this.fires) fire.update(dt);
     for (const explosion of this.explosions) explosion.update(dt);
@@ -324,8 +311,7 @@ export class GrenadeSystem {
         this.detonate(projectile);
         break;
       case 'smoke':
-      case 'decoy':
-        // Fumigène et leurre attendent d'être immobiles.
+        // Le fumigène attend d'être immobile.
         if (projectile.resting) this.detonate(projectile);
         break;
     }
@@ -334,8 +320,7 @@ export class GrenadeSystem {
   private detonate(projectile: Projectile): void {
     this.projectiles.splice(this.projectiles.indexOf(projectile), 1);
     const position = projectile.position.clone();
-    const keepMesh = projectile.type === 'decoy';
-    if (!keepMesh) this.scene.remove(projectile.mesh);
+    this.scene.remove(projectile.mesh);
     // Nos grenades (pas celles des bots) : on annonce où elles éclatent.
     if (!projectile.remote && !projectile.owner && projectile.netId) this.hooks.detonated?.(projectile.netId, position);
 
@@ -376,28 +361,9 @@ export class GrenadeSystem {
         this.hooks.fire(floor, fizzled);
         break;
       }
-      case 'decoy':
-        this.decoys.push({ projectile, time: 0, burstLeft: 0, nextShot: 0.3 });
-        break;
     }
   }
 
-  /** Le leurre imite des rafales de fusil pendant 15 s, puis éclate. */
-  private updateDecoy(decoy: Decoy, dt: number): void {
-    decoy.time += dt;
-    decoy.nextShot -= dt;
-    if (decoy.time >= DECOY.duration) {
-      this.decoys.splice(this.decoys.indexOf(decoy), 1);
-      this.scene.remove(decoy.projectile.mesh);
-      this.hooks.decoyEnded(decoy.projectile.position, decoy.projectile.owner);
-      return;
-    }
-    if (decoy.nextShot > 0) return;
-    if (decoy.burstLeft === 0) decoy.burstLeft = 1 + Math.floor(Math.random() * 5);
-    this.hooks.decoyShot(decoy.projectile.position);
-    decoy.burstLeft--;
-    decoy.nextShot = decoy.burstLeft > 0 ? 0.1 : 0.6 + Math.random() * 1.4;
-  }
 
   private addEffect<T extends { group: THREE.Group }>(list: T[], effect: T): void {
     list.push(effect);

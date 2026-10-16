@@ -32,8 +32,8 @@ export class BuyMenu {
     const rows = items
       .map((item) => {
         const price = money === null ? 'gratuit' : `${item.price} $`;
-        const icon = item.icon ? `<img class="icon" src="${item.icon}" alt="">` : '<span class="icon"></span>';
-        return `<div class="item ${item.state}"><span class="key">${item.key}</span>${icon}<span class="name">${escape(item.label)}</span><span>${price}</span></div>`;
+        const icon = item.icon ? `<img src="${item.icon}" alt="">` : '';
+        return `<div class="item ${item.state}"><span class="key">${item.key}</span><span class="thumb">${icon}</span><span class="name">${escape(item.label)}</span><span class="price">${price}</span></div>`;
       })
       .join('');
     const footer = [
@@ -42,7 +42,7 @@ export class BuyMenu {
     ]
       .filter(Boolean)
       .join(' · ');
-    const html = `<h2>ACHAT</h2>${rows}<div class="footer">${footer} · B pour fermer</div><div class="message">${escape(this.message)}</div>`;
+    const html = `<h2>ACHAT</h2>${rows}<div class="footer">${footer}</div><div class="message">${escape(this.message)}</div>`;
     if (html === this.lastHtml) return;
     this.lastHtml = html;
     this.element.innerHTML = html;

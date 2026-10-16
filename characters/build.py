@@ -35,10 +35,12 @@ ANIMATIONS = {
 
 # Tenues : couleur de chaque partie du corps (sRGB).
 OUTFITS = {
-    'T': {'head': 0x1d1c1a, 'skin': 0xb48a68, 'shirt': 0x8c7b58, 'gloves': 0x2a2622, 'pants': 0x4b4636,
-          'boots': 0x241f1a, 'vest': 0x4a4a36, 'pouch': 0x3c3c2b, 'belt': 0x2b2720},
-    'CT': {'head': 0x22262b, 'skin': 0xb48a68, 'shirt': 0x3b4a5c, 'gloves': 0x1f2226, 'pants': 0x2d333d,
-           'boots': 0x16171a, 'vest': 0x252c34, 'pouch': 0x1e242b, 'belt': 0x16181b, 'helmet': 0x2c3530},
+    # T (coéquipiers) : tenue sable clair ; CT (ennemis) : bleu marine sombre. Les deux camps doivent se
+    # distinguer d'un coup d'œil, au soleil comme à l'ombre : clarté opposée autant que teinte.
+    'T': {'head': 0x2b2622, 'skin': 0xb48a68, 'shirt': 0xcdb07c, 'gloves': 0x3a3128, 'pants': 0xa98f63,
+          'boots': 0x3b2f24, 'vest': 0x8a7650, 'pouch': 0x75633f, 'belt': 0x4d3f2c},
+    'CT': {'head': 0x1c2027, 'skin': 0xb48a68, 'shirt': 0x2a3b57, 'gloves': 0x15181c, 'pants': 0x1f2a3d,
+           'boots': 0x111316, 'vest': 0x161d29, 'pouch': 0x111720, 'belt': 0x0e1014, 'helmet': 0x1d2530},
 }
 
 # Os → partie du corps (le premier préfixe qui correspond).

@@ -21,7 +21,7 @@ export interface Settings {
   /** Sensibilité façon CS : degrés par point de souris = 0,022 × sensibilité. */
   sensitivity: number;
   invertY: boolean;
-  /** Champ de vision vertical, en degrés. */
+  /** Champ de vision vertical, en degrés (plus de réglage : toujours 75). */
   fov: number;
   // Audio et affichage
   /** Volume général, de 0 à 100. */
@@ -82,8 +82,8 @@ export const SETTINGS_TABS: SettingsTab[] = [
         type: 'cards',
         hint: 'Changer de carte relance la partie.',
         options: [
-          { value: 'dunes', label: 'Dunes', description: 'Carte grise « squelette », 72 × 72 m', image: 'maps/dunes/preview.webp' },
-          { value: 'medina', label: 'Médina', description: 'Vieille ville du Maghreb, 80 × 92 m', image: 'maps/medina/preview.webp' },
+          { value: 'dunes', label: 'Dunes', description: 'Carte grise « squelette »', image: 'maps/dunes/preview.webp' },
+          { value: 'medina', label: 'Médina', description: 'Vieille ville du Maghreb', image: 'maps/medina/preview.webp' },
         ],
       },
       {
@@ -116,7 +116,6 @@ export const SETTINGS_TABS: SettingsTab[] = [
     fields: [
       { key: 'sensitivity', label: 'Sensibilité', type: 'range', min: 0.2, max: 8, step: 0.1 },
       { key: 'invertY', label: 'Axe vertical', type: 'toggle', on: 'Inversé', off: 'Normal' },
-      { key: 'fov', label: 'Champ de vision', type: 'range', min: 60, max: 100, step: 1, unit: '°' },
     ],
   },
   {
@@ -163,6 +162,9 @@ export function isFieldEnabled(key: Key, settings: Settings): boolean {
 }
 
 const STORAGE_KEY = 'fps1.settings';
+/** Révision des réglages : un réglage listé ici reprend une fois sa valeur par défaut quand elle a changé. */
+const REVISION = 2;
+const RESET_AT: Partial<Record<Key, number>> = { showFps: 2 };
 
 /** Réglages mémorisés dans le navigateur ; toute valeur absente ou invalide reprend sa valeur par défaut. */
 export function loadSettings(): Settings {
@@ -173,7 +175,9 @@ export function loadSettings(): Settings {
     // Stockage illisible ou bloqué : réglages par défaut.
   }
   const settings: Settings = { ...DEFAULT_SETTINGS, bindings: validateBindings(stored.bindings) };
+  const revision = typeof stored.revision === 'number' ? stored.revision : 1;
   for (const field of SETTINGS_TABS.flatMap((tab) => tab.fields)) {
+    if (revision < (RESET_AT[field.key] ?? 0)) continue;
     const value = validate(field, stored[field.key]);
     if (value !== undefined) (settings as Record<Key, unknown>)[field.key] = value;
   }
@@ -182,7 +186,7 @@ export function loadSettings(): Settings {
 
 export function saveSettings(settings: Settings): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...settings, revision: REVISION }));
   } catch {
     // Navigation privée ou stockage bloqué : les réglages ne dureront que cette partie.
   }
