@@ -22,15 +22,20 @@
       <div id="banner" class="hidden"><div id="banner-title"></div><div id="banner-text"></div></div>
       <div id="killfeed"></div>
       <div id="money"></div>
-      <div id="health"><span class="cross">+</span> <span id="health-value">100</span><span id="armor"></span></div>
+      <!-- Vie et gilet : icône, valeur, jauge. -->
+      <div id="health" class="hud-panel">
+        <div class="vital"><img id="health-icon" class="vital-icon" alt="" /><span id="health-value">100</span><span class="bar"><i id="health-bar"></i></span></div>
+        <div id="armor" class="vital"><img id="armor-icon" class="vital-icon" alt="" /><span id="armor-value">0</span><span class="bar"><i id="armor-bar"></i></span></div>
+      </div>
+      <div id="killnotice"></div>
       <div id="buy-menu" class="hidden"></div>
       <div id="scoreboard" class="hidden"></div>
       <canvas id="radar" width="180" height="180"></canvas>
       <div id="fps"></div>
       <div id="grenades"></div>
-      <div id="ammo">
+      <div id="ammo" class="hud-panel">
         <div id="weapon-name"></div>
-        <div><span id="ammo-count">0</span> <span class="sep">/</span> <span id="ammo-reserve">0</span></div>
+        <div class="ammo-numbers"><span id="ammo-count">0</span><span class="sep">/</span><span id="ammo-reserve">0</span></div>
       </div>
     </div>
 

@@ -209,10 +209,10 @@ export class BotManager {
       // Mode manches : les ennemis au nord, l'équipe du joueur au sud (zones propres à chaque carte),
       // et les coéquipiers groupés autour du joueur.
       const inZone = (point: THREE.Vector3) =>
-        bot.team === 'enemy' ? point.z < ACTIVE_MAP.roundSpawnZ.enemy : point.z > ACTIVE_MAP.roundSpawnZ.ally && point.distanceTo(this.player.position) < ALLY_SPAWN_RADIUS;
-      let point = this.nav.randomWalkablePoint();
+        this.inBase(bot.team, point) && (bot.team === 'enemy' || point.distanceTo(this.player.position) < ALLY_SPAWN_RADIUS);
+      let point = this.basePoint(bot.team);
       for (let i = 0; i < 400; i++) {
-        const candidate = this.nav.randomWalkablePoint();
+        const candidate = this.basePoint(bot.team);
         // Loin du point d'apparition du joueur aussi, pour ne pas apparaître dans lui.
         const clear = taken.every((other) => other.distanceTo(candidate) > 2) && candidate.distanceTo(this.player.position) > 2;
         if (inZone(candidate) && clear) {
@@ -341,15 +341,15 @@ export class BotManager {
     this.events.shot({ ...base, end, worldHit, part: null, headshot: false });
   }
 
-  /** Point de réapparition du joueur : hors de vue des ennemis et le plus loin possible d'eux. */
+  /** Point de réapparition du joueur : dans la base de son camp, hors de vue des ennemis et loin d'eux. */
   playerSpawnPoint(): THREE.Vector3 {
     const alive = this.enemies.filter((bot) => bot.alive);
     const eye = new THREE.Vector3();
     const target = new THREE.Vector3();
-    let best = this.nav.randomWalkablePoint();
+    let best = this.basePoint('ally');
     let bestScore = -Infinity;
     for (let i = 0; i < 40; i++) {
-      const candidate = this.nav.randomWalkablePoint();
+      const candidate = this.basePoint('ally');
       target.copy(candidate).setY(candidate.y + PLAYER.eyeHeight);
       let nearest = Infinity;
       let seen = false;
@@ -366,20 +366,36 @@ export class BotManager {
     return best;
   }
 
-  /** Un point libre ; pour un ennemi, loin du joueur (choisi parmi les plus éloignés). */
+  /** Un point libre dans la base de son camp (ennemis au nord, coéquipiers au sud), loin du joueur pour un ennemi. */
   private spawnPoint(team: Team): THREE.Vector3 {
     // Jamais sur un autre bot : deux corps superposés, la collision en pose un sur la tête de l'autre.
     const free = (point: THREE.Vector3) =>
       this.bots.every((bot) => !bot.alive || bot.body.position.distanceTo(point) > 2) && point.distanceTo(this.player.position) > 2;
     let best: THREE.Vector3 | null = null;
     for (let i = 0; i < 40; i++) {
-      const candidate = this.nav.randomWalkablePoint();
+      const candidate = this.basePoint(team);
       if (!free(candidate)) continue;
       if (team === 'ally') return candidate;
       const distance = candidate.distanceTo(this.player.position);
       if (distance > MIN_SPAWN_DISTANCE) return candidate;
       if (!best || distance > best.distanceTo(this.player.position)) best = candidate;
     }
-    return best ?? this.nav.randomWalkablePoint();
+    return best ?? this.basePoint(team);
+  }
+
+  /** Vrai si le point est dans la base du camp (zones d'apparition propres à chaque carte). */
+  private inBase(team: Team, point: THREE.Vector3): boolean {
+    return team === 'enemy' ? point.z < ACTIVE_MAP.roundSpawnZ.enemy : point.z > ACTIVE_MAP.roundSpawnZ.ally;
+  }
+
+  /** Point praticable au hasard dans la base du camp (à défaut, le plus proche trouvé). */
+  private basePoint(team: Team): THREE.Vector3 {
+    const sign = team === 'enemy' ? 1 : -1;
+    let best = this.nav.randomWalkablePoint();
+    for (let i = 0; i < 300 && !this.inBase(team, best); i++) {
+      const candidate = this.nav.randomWalkablePoint();
+      if (sign * candidate.z < sign * best.z) best = candidate;
+    }
+    return best;
   }
 }

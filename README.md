@@ -101,7 +101,9 @@ Repère (MacBook Pro 2018, Intel UHD 630, 1280 × 720, 5 bots) : 29 ms par image
 
 ## Interface
 
-**Tab** (maintenu) : tableau des scores, avec éliminations, morts, headshots et précision. **Radar** en haut à gauche : la carte tourne avec le regard, et les ennemis apparaissent en rouge quand on les voit (ils s'effacent 1,5 s après). En fin de match (mode manches) : bilan avec éliminations, morts, précision, headshots et dégâts.
+**Tab** (maintenu) : tableau des scores, avec éliminations, morts, headshots et précision. **Radar** en haut à gauche, carré arrondi comme dans CS2 : la carte tourne avec le regard (cône de vision devant la flèche, nord indiqué sur le bord), les coéquipiers en sable, et les ennemis en rouge quand on les voit (ils s'effacent 1,5 s après).
+
+**HUD** façon CS2, en bandes sombres qui s'effacent vers le centre : en bas à gauche la vie et le gilet (icône, valeur et jauge ; l'icône devient un casque quand on en porte un, et la croix bat en rouge sous 25 de vie), en bas à droite la silhouette de l'arme (ou du couteau, de la grenade) et les munitions, avec les grenades en silhouettes au-dessus (celle en main soulignée d'orange). En haut au centre, éliminations et morts (deathmatch). Chaque élimination du joueur s'annonce sous le réticule : **Headshot**, **Au couteau**, **Dans le dos**, la grenade, ou **Élimination**, et la série si on enchaîne en moins de 4 s (doublé, triplé, quadruplé, carnage). Icônes dessinées en SVG (`src/ui/hudIcons.ts`). En fin de match (mode manches) : bilan avec éliminations, morts, précision, headshots et dégâts.
 
 ## Réglages
 
@@ -121,7 +123,7 @@ Armes principales (touche 1, une seule à la fois) : **M4A1**, **MP5-SD** (SMG s
 
 À chaque tir, la **douille** est éjectée à droite de l'arme (5,56 pour la M4A1, 9 mm pour la MP5 et le pistolet, cartouche rouge au coup de pompe de la Nova) : elle rebondit en tintant et reste 10 s au sol. Les douilles des bots aussi, quand ils tirent près de toi.
 
-Les armes à feu sont représentées par leur **silhouette** dans le fil des éliminations (avec « tête » pour un headshot), au-dessus des munitions et dans le menu d'achat ; le couteau et les grenades gardent leur nom dans le fil des éliminations. Dans le menu d'achat (sous le radar), chaque article a sa miniature : silhouette de l'arme, ou dessin du gilet, du casque et de chaque grenade (`src/ui/shopIcons.ts`).
+Les armes à feu sont représentées par leur **silhouette** dans le fil des éliminations, au-dessus des munitions et dans le menu d'achat ; le couteau et les grenades aussi. Dans le fil, une tête trouée marque un headshot et une flèche un coup dans le dos ; les noms ont la couleur de leur camp (sable pour toi et tes coéquipiers, bleu pour les ennemis), tes éliminations sont encadrées de rouge et ta mort sur fond rouge. Dans le menu d'achat (sous le radar), chaque article a sa miniature : silhouette de l'arme, ou dessin du gilet, du casque et de chaque grenade (`src/ui/shopIcons.ts`).
 
 ## Couteau
 
@@ -131,7 +133,7 @@ Comme dans CS:GO (touche 3) : clic gauche rapide (40, puis 25 en enchaînant, 90
 
 À choisir dans les réglages :
 
-- **Deathmatch** : on réapparaît 3 s après chaque mort (avec gilet, casque et grenades), les bots aussi. Le menu d'achat (B) est gratuit : on y choisit son arme principale.
+- **Deathmatch** : on réapparaît 3 s après chaque mort (avec gilet, casque et grenades), les bots aussi, chaque camp dans sa base : toi et tes coéquipiers au sud, les ennemis au nord (zones `roundSpawnZ` de chaque carte, dans `src/world/maps.ts`). Le menu d'achat (B) est gratuit : on y choisit son arme principale.
 - **Manches** : comme dans CS, une vie par manche, avec l'économie de CS:GO (800 $ au départ, primes d'élimination selon l'arme, 3 250 $ par manche gagnée, bonus de défaite de 1 400 à 3 400 $). On achète avec B pendant le gel et les 20 premières secondes (le menu se ferme dès qu'on achète une arme ; il reste ouvert pour enchaîner grenades et protections) ; en survivant on garde son équipement, en mourant il ne reste que le pistolet. Tu pars du sud, les bots du nord. 3 s de gel au départ, 1:55 de chrono ; on gagne la manche en éliminant l'autre camp, et les bots la gagnent si le temps s'écoule. Le premier à 5 manches remporte le match. Réglages dans `src/config.ts`, section `ROUNDS`.
 
 ## En ligne (1 contre 1)
@@ -196,7 +198,7 @@ Les bots patrouillent sur toute la carte (escaliers et plateformes compris), t'a
 
 Animations mélangées en deux moitiés (`src/bots/BotModel.ts`) : le bas du corps marche, court ou s'accroupit selon la vitesse ; le haut vise et suit le regard en combat, arme basse sinon, avec par-dessus le tir et le rechargement ; mort animée. Le pack gratuit n'ayant pas d'animations au fusil, le fusil est épaulé par le code (crosse contre l'épaule droite, pointé où regarde le bot) et les mains y sont posées par IK à deux os : la droite sur la poignée, la gauche sur le garde-main (sauf au rechargement, où elle va chercher le chargeur). Les poses de visée du pack penchent le dos : il est redressé, et le bassin rebondit moins dans la course. Les zones de touche restent des boîtes fixes (tête, corps, bras tendus, jambes), comme dans CS.
 
-**Coéquipiers** : jusqu'à 4 bots dans ton camp (réglage « Coéquipiers », 0 par défaut), en tenue T sable clair. Ils combattent les ennemis avec la même IA, s'entendent tirer entre camps, et apparaissent groupés autour de toi en mode manches ; la manche continue tant qu'un membre de ton équipe est en vie. Pas de tir ami : tes balles les traversent, tes grenades et ton feu ne les blessent pas, et inversement. Ils sont toujours visibles sur le radar (en bleu) et ont leur ligne dans le tableau des scores.
+**Coéquipiers** : jusqu'à 4 bots dans ton camp (réglage « Coéquipiers », 0 par défaut), en tenue T sable clair. Ils combattent les ennemis avec la même IA, s'entendent tirer entre camps, et apparaissent groupés autour de toi en mode manches ; la manche continue tant qu'un membre de ton équipe est en vie. Pas de tir ami : tes balles les traversent, tes grenades et ton feu ne les blessent pas, et inversement. Ils sont toujours visibles sur le radar (en sable) et ont leur ligne dans le tableau des scores.
 
 En mode **passif** (le réglage par défaut ; « Agressifs » dans les réglages pour qu'ils attaquent), ils se promènent sans attaquer ni réagir aux tirs : pratique pour s'entraîner à viser.
 

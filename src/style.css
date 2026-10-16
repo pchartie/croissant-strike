@@ -78,30 +78,126 @@ canvas {
   left: var(--gap);
 }
 
+/* Cadres du HUD, façon CS2 : bande sombre qui s'efface vers l'intérieur de l'écran, chiffres nets. */
+.hud-panel {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+#health {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  background: linear-gradient(to right, rgba(10, 12, 15, 0.7), rgba(10, 12, 15, 0.15));
+}
+
 #ammo {
   position: absolute;
-  right: 32px;
-  bottom: 24px;
-  color: #fff;
-  text-align: right;
-  text-shadow: 0 1px 3px #000;
-  font-variant-numeric: tabular-nums;
+  right: 16px;
+  bottom: 16px;
+  background: linear-gradient(to left, rgba(10, 12, 15, 0.7), rgba(10, 12, 15, 0.15));
+}
+
+/* Une jauge : icône et valeur, barre fine dessous. */
+.vital {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 4px;
+}
+
+.vital-icon {
+  width: 22px;
+  height: 22px;
+  opacity: 0.9;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+
+.vital > span:not(.bar) {
+  min-width: 2.2ch;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.vital .bar {
+  grid-column: 1 / -1;
+  width: 96px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.vital .bar i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  transition: width 0.2s ease-out;
+}
+
+#armor .bar i {
+  background: #9fc3e6;
+}
+
+#armor.empty {
+  opacity: 0.35;
+}
+
+/* Peu de vie : la valeur et la jauge passent au rouge, l'icône bat. */
+#health.low #health-value {
+  color: #ff5a4d;
+}
+
+#health.low #health-bar {
+  background: #ff5a4d;
+}
+
+#health.low #health-icon {
+  animation: pulse 0.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px #ff3b30);
+}
+
+@keyframes pulse {
+  50% {
+    transform: scale(1.18);
+  }
 }
 
 #weapon-name {
   font-size: 14px;
-  letter-spacing: 2px;
-  opacity: 0.75;
+  letter-spacing: 1px;
+  opacity: 0.85;
 }
 
 #weapon-name .weapon-icon {
-  height: 26px;
+  display: block;
+  height: 30px;
+  max-width: 120px;
+  object-fit: contain;
   filter: drop-shadow(0 1px 2px #000);
 }
 
+.ammo-numbers {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
 #ammo-count {
+  min-width: 2ch;
   font-size: 40px;
   font-weight: 700;
+  line-height: 1;
+  text-align: right;
 }
 
 #ammo-count.low {
@@ -110,38 +206,47 @@ canvas {
 
 #ammo .sep,
 #ammo-reserve {
-  font-size: 22px;
-  opacity: 0.75;
+  font-size: 20px;
+  opacity: 0.6;
 }
 
-#health {
-  position: absolute;
-  left: 32px;
-  bottom: 24px;
-  color: #fff;
-  font-size: 40px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 3px #000;
-}
-
-#health .cross {
-  opacity: 0.75;
-}
-
-#health-value.low {
-  color: #ff5a4d;
-}
-
+/* Éliminations et morts (deathmatch), en haut au centre. */
 #score {
   position: absolute;
-  top: 16px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
   color: #fff;
-  font-size: 15px;
-  white-space: pre;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 2px #000;
+}
+
+#score .stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 76px;
+  padding: 5px 14px;
+  background: rgba(10, 12, 15, 0.55);
+}
+
+#score .stat:first-child {
+  justify-content: flex-end;
+  border-radius: 6px 0 0 6px;
+}
+
+#score .stat:last-child {
+  border-radius: 0 6px 6px 0;
+  color: #ffb3aa;
+}
+
+#score img {
+  width: 18px;
+  height: 18px;
   opacity: 0.85;
 }
 
@@ -157,37 +262,114 @@ canvas {
 
 .kill {
   display: flex;
+  align-items: center;
   gap: 8px;
   padding: 4px 10px;
-  border-radius: 3px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #e8c27a;
+  border-radius: 4px;
+  background: rgba(10, 12, 15, 0.6);
   font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px #000;
 }
 
+/* Coéquipiers (et soi) en sable, ennemis en bleu : les couleurs des tenues. */
+.kill .name.ally {
+  color: #f0cb85;
+}
+
+.kill .name.enemy {
+  color: #8fb8ff;
+}
+
+/* Ses propres éliminations encadrées de rouge, comme dans CS ; sa mort sur fond rouge. */
 .kill.mine {
-  outline: 1px solid #d33;
+  box-shadow: inset 0 0 0 2px #d83a2e;
 }
 
 .kill.me {
-  color: #9fc8ff;
+  background: rgba(120, 20, 14, 0.7);
 }
 
 .kill .weapon {
   color: #ddd;
+  font-weight: 400;
   opacity: 0.8;
 }
 
 .kill .weapon-icon {
   height: 18px;
-  align-self: center;
-  opacity: 0.9;
+  max-width: 72px;
+  object-fit: contain;
+  opacity: 0.95;
 }
 
-.kill .headshot {
-  color: #ff6b5b;
+.kill .kill-flag {
+  height: 17px;
+}
+
+/* Annonce sous le réticule après une élimination du joueur. */
+#killnotice {
+  position: absolute;
+  top: calc(50% + 70px);
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #fff;
+  opacity: 0;
+  transform: translateX(-50%);
+  text-shadow: 0 1px 3px #000;
+}
+
+#killnotice img {
+  height: 34px;
+  filter: drop-shadow(0 1px 3px #000);
+}
+
+#killnotice .label {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+#killnotice .streak {
   font-size: 12px;
-  align-self: center;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+#killnotice.head .label {
+  color: #ff6b5b;
+}
+
+#killnotice.knife .label {
+  color: var(--accent);
+}
+
+#killnotice.show {
+  animation: notice 1.8s ease-out forwards;
+}
+
+@keyframes notice {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1.5);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
 }
 
 /* Croix de touche : 4 traits en diagonale autour du réticule. */
@@ -327,28 +509,36 @@ canvas {
   opacity: 0.85;
 }
 
+/* Grenades : leurs silhouettes au-dessus des munitions, celle en main soulignée d'orange. */
 #grenades {
   position: absolute;
-  right: 32px;
-  /* Au-dessus du bloc des munitions, silhouette de l'arme comprise. */
-  bottom: 106px;
+  right: 16px;
+  bottom: 84px;
   display: flex;
-  gap: 6px;
+  gap: 4px;
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 700;
   text-shadow: 0 1px 2px #000;
 }
 
 #grenades span {
-  padding: 2px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
   border-radius: 4px;
-  opacity: 0.7;
+  border-bottom: 2px solid transparent;
+  background: rgba(10, 12, 15, 0.45);
+  opacity: 0.6;
+}
+
+#grenades .grenade-icon {
+  height: 20px;
 }
 
 #grenades span.current {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-bottom-color: var(--accent);
   opacity: 1;
 }
 
@@ -836,8 +1026,8 @@ kbd {
 
 #money {
   position: absolute;
-  left: 32px;
-  bottom: 78px;
+  left: 20px;
+  bottom: 90px;
   color: #8dff8d;
   font-size: 22px;
   font-weight: 700;
@@ -1007,9 +1197,8 @@ kbd {
   left: 16px;
   width: 180px;
   height: 180px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
 #fps {

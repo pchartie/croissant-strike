@@ -32,7 +32,8 @@ export class Impacts {
     this.sand = new Particles(scene, 300, 0xc9ad7f, 0.045);
     this.chips = new Particles(scene, 200, 0x6b4526, 0.03);
     this.sparks = new Particles(scene, 200, 0xffc46b, 0.03, true);
-    this.blood = new Particles(scene, 300, 0x8a0f0a, 0.05);
+    // Gouttes fines (2,5 cm), nombreuses : une giclée, pas des confettis.
+    this.blood = new Particles(scene, 600, 0x7d0d08, 0.025);
   }
 
   /** Balle dans un mur ou un objet : trou, et éclats selon la matière (renvoyée pour le son). */
@@ -63,7 +64,7 @@ export class Impacts {
 
   /** Balle dans un bot : giclée de sang dans le sens du tir. */
   addBlood(point: THREE.Vector3, direction: THREE.Vector3, amount = 10): void {
-    this.blood.burst(point, direction, amount, 0.5, 2, 0.5);
+    this.blood.burst(point, direction, Math.round(amount * 1.8), 0.5, 2.2, 0.5);
   }
 
   update(dt: number): void {

@@ -169,6 +169,10 @@ export class Game {
       shot: (shot) => this.onBotShot(shot),
       grenade: (bot, type, target) => this.onBotGrenade(bot, type, target),
     });
+    // Fil des éliminations : le joueur et ses coéquipiers en sable, les ennemis (et l'adversaire en ligne) en bleu.
+    this.hud.setTeamResolver((name) =>
+      name === this.playerName || this.bots.bots.some((bot) => bot.team === 'ally' && bot.name === name) ? 'ally' : 'enemy',
+    );
 
     this.weapons = new WeaponSystem(this.player, () => [...this.world.meshes, ...this.bots.hitboxes, ...(this.duel?.remote.hitboxes ?? [])], {
       fired: (def, shots) => this.onPlayerShot(def, shots),
@@ -1125,7 +1129,8 @@ export class Game {
     }
     this.hud.setGrenades(
       GRENADE_ORDER.map((type) => ({
-        label: GRENADES[type].short,
+        label: GRENADES[type].name,
+        icon: shopIcon(type),
         count: this.grenades.counts[type],
         current: type === this.grenades.current,
       })),
