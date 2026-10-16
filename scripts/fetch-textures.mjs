@@ -22,7 +22,7 @@ const TEXTURES = {
   cobble: 'cobblestone_floor_01',
   packedSand: 'dense_sand',
   paving: 'rectangular_paving',
-  terracotta: 'patterned_terracotta_tiling',
+  stoneTiles: 'floor_tiles_08',
   mosaic: 'marble_mosaic_tiles',
   bluePlanks: 'blue_painted_planks',
   greenPlanks: 'green_rough_planks',

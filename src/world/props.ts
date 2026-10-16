@@ -156,9 +156,12 @@ export async function loadProps(world: World, placements: PropPlacement[]): Prom
   for (const mesh of world.meshes) if (shown.has(mesh.userData.fallback)) mesh.visible = false;
 }
 
-/** Recentre le modèle (base au sol, centré en x et z) et le met à la hauteur voulue. */
+/**
+ * Recentre le modèle (base au sol, centré en x et z) et le met à la hauteur voulue. Boîte calculée sur
+ * les sommets (`precise`) : celle des morceaux tournés serait trop grande (poubelles réduites et en l'air).
+ */
 function fitMatrix(scene: THREE.Object3D, height: number): THREE.Matrix4 {
-  const box = new THREE.Box3().setFromObject(scene);
+  const box = new THREE.Box3().setFromObject(scene, true);
   const scale = height / (box.max.y - box.min.y);
   const center = box.getCenter(new THREE.Vector3());
   return new THREE.Matrix4().makeScale(scale, scale, scale).multiply(new THREE.Matrix4().makeTranslation(-center.x, -box.min.y, -center.z));

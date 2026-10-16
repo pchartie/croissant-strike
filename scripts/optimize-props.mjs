@@ -25,13 +25,15 @@ const PROPS = [
   { id: 'plastic_crate_02', file: 'crate', triangles: 1600, doubleSided: true },
   // Médina
   { id: 'covered_car', file: 'covered-car', triangles: 3000 },
-  { id: 'exterior_aircon_unit', file: 'aircon', triangles: 1200 },
+  // Dessous ouvert : dessiné des deux côtés, sinon on voit au travers d'en bas.
+  { id: 'exterior_aircon_unit', file: 'aircon', triangles: 1200, doubleSided: true },
   { id: 'planter_pot_clay', file: 'clay-pot', triangles: 600 },
   { id: 'potted_plant_01', file: 'potted-plant', triangles: 2000 },
   { id: 'ceramic_vase_04', file: 'jug', triangles: 600 },
   { id: 'plastic_monobloc_chair_01', file: 'plastic-chair', triangles: 1200, doubleSided: true },
   { id: 'painted_wooden_table', file: 'cafe-table', triangles: 800 },
-  { id: 'metal_trash_can', file: 'trash-can', triangles: 1000 },
+  // Simplifiée plus fort, elle perdait son rebord du bas.
+  { id: 'metal_trash_can', file: 'trash-can', triangles: 3000 },
   { id: 'Lantern_01', file: 'lantern', triangles: 800 },
 ];
 const ERROR = 0.02;

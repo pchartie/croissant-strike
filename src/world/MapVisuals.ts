@@ -94,8 +94,18 @@ export async function loadMapVisuals(scene: THREE.Scene, name: string, lighting:
       material.polygonOffsetUnits = -4;
     } else if (spec.alpha) {
       material.alphaTest = 0.5;
+      // Affiches à 2 cm d'un mur : toujours devant lui et devant les autres détails, même au loin.
+      if (!spec.double) {
+        material.polygonOffset = true;
+        material.polygonOffsetFactor = -2;
+        material.polygonOffsetUnits = -8;
+      }
     }
-    if (spec.double) material.side = THREE.DoubleSide;
+    if (spec.double) {
+      material.side = THREE.DoubleSide;
+      // Feuillage : bords découpés lissés par l'anticrénelage, il reste plein même au loin.
+      material.alphaToCoverage = true;
+    }
     let map: Promise<THREE.Texture> | null = null;
     if (spec.texture) map = texture(spec.texture, () => load(`${import.meta.env.BASE_URL}textures/${spec.texture}_diff.webp`, true));
     else if (spec.canvas && spec.alpha) map = texture(spec.canvas, () => load(`${import.meta.env.BASE_URL}textures/${spec.canvas}.png`, true));

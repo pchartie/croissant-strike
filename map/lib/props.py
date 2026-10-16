@@ -34,7 +34,8 @@ def _load(root, source, height):
     bpy.ops.import_scene.gltf(filepath=os.path.join(root, '.props-src', source, f'{source}.gltf'))
     meshes = [o for o in set(bpy.data.objects) - before if o.type == 'MESH']
     bpy.context.view_layer.update()
-    corners = [o.matrix_world @ Vector(c) for o in meshes for c in o.bound_box]
+    # Sur les sommets : la boîte d'un morceau tourné serait trop grande (comme fitMatrix dans props.ts).
+    corners = [o.matrix_world @ v.co for o in meshes for v in o.data.vertices]
     lo = Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
     hi = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
     scale = height / (hi.z - lo.z)

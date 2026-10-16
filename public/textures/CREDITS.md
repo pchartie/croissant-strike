@@ -13,7 +13,7 @@ Textures de [Poly Haven](https://polyhaven.com), licence **CC0** (domaine public
 | `cobble_diff.webp` | [Cobblestone Floor 01](https://polyhaven.com/a/cobblestone_floor_01) | Rob Tuytel | 1 m |
 | `packedSand_diff.webp` | [Dense Sand](https://polyhaven.com/a/dense_sand) | Dimitrios Savva | 1,8 m |
 | `paving_diff.webp` | [Rectangular Paving](https://polyhaven.com/a/rectangular_paving) | Dimitrios Savva | 2 m |
-| `terracotta_diff.webp` | [Patterned Terracotta Tiling](https://polyhaven.com/a/patterned_terracotta_tiling) | Amal Kumar | 2,15 m |
+| `stoneTiles_diff.webp` | [Floor Tiles 08](https://polyhaven.com/a/floor_tiles_08) | Rob Tuytel | 1,5 m |
 | `mosaic_diff.webp` | [Marble Mosaic Tiles](https://polyhaven.com/a/marble_mosaic_tiles) | Amal Kumar | 2 m |
 | `bluePlanks_diff.webp` | [Blue Painted Planks](https://polyhaven.com/a/blue_painted_planks) | Rob Tuytel | 1 m |
 | `greenPlanks_diff.webp` | [Green Rough Planks](https://polyhaven.com/a/green_rough_planks) | Rob Tuytel | 1,5 m |

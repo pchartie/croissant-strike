@@ -20,12 +20,12 @@ def leaf_texture(path, width=256, length=1024):
     dx = np.abs(x - width / 2) / (width / 2)  # 0 sur la nervure, 1 au bord
     # Longueur des folioles : courte à la base, longue au milieu, nulle à la pointe.
     reach = np.clip(np.sin(np.pi * np.clip(t * 1.05, 0, 1)) ** 0.7, 0, 1) * np.where(t < 0.08, t / 0.08, 1)
-    spacing = 22.0
+    spacing = 18.0
     phase = (y - dx * width * 0.9) / spacing  # folioles inclinées vers la pointe
     frac = phase - np.floor(phase)
-    leaflet = (np.abs(frac - 0.5) < 0.26) & (dx < reach)
+    leaflet = (np.abs(frac - 0.5) < 0.36) & (dx < reach)
     # Folioles un peu effilées au bout.
-    leaflet &= np.abs(frac - 0.5) < 0.26 * (1.15 - dx / np.maximum(reach, 1e-3) * 0.6)
+    leaflet &= np.abs(frac - 0.5) < 0.36 * (1.15 - dx / np.maximum(reach, 1e-3) * 0.5)
     rib = dx < 0.025 * (1.2 - t)
     alpha = (leaflet | rib).astype(np.float32)
 
@@ -50,8 +50,11 @@ def leaf_texture(path, width=256, length=1024):
     bpy.data.images.remove(image)
 
 
-def add_palm(kit, x, z, height=7.0, seed=0, fronds=11, surface='wood'):
-    """Palmier posé en (x, z) : tronc jusqu'à `height`, couronne de `fronds` palmes, collision du tronc."""
+def add_palm(kit, x, z, height=7.0, seed=0, fronds=14, surface='wood'):
+    """
+    Palmier posé en (x, z) : tronc jusqu'à `height`, collision du tronc, couronne touffue de deux étages
+    de `fronds` palmes : en haut, dressées ; en dessous, décalées d'un demi-pas et qui retombent.
+    """
     rng = random.Random(seed)
     lean_angle = rng.uniform(0, 2 * math.pi)
     lean = rng.uniform(0.3, 0.9)
@@ -78,12 +81,15 @@ def add_palm(kit, x, z, height=7.0, seed=0, fronds=11, surface='wood'):
     kit.collision((x - 0.25, 0, z - 0.25), (x + 0.25, 2.6, z + 0.25), surface)
 
     top = center(1.0)
-    for i in range(fronds):
-        yaw = 2 * math.pi * i / fronds + rng.uniform(-0.2, 0.2)
-        length = rng.uniform(2.4, 3.2)
-        width = rng.uniform(0.75, 0.95)
-        lift = rng.uniform(15, 35)
-        _frond(kit, top, yaw, length, width, [lift, lift - 30, lift - 65], rng.uniform(15, 28))
+    below = center(0.97)
+    for tier, (base, lifts, droop) in enumerate(((top, (25, 50), (30, 60)), (below, (0, 18), (40, 80)))):
+        for i in range(fronds):
+            yaw = 2 * math.pi * (i + 0.5 * tier) / fronds + rng.uniform(-0.15, 0.15)
+            length = rng.uniform(2.6, 3.4)
+            width = rng.uniform(0.9, 1.15)
+            lift = rng.uniform(*lifts)
+            fall = rng.uniform(*droop)
+            _frond(kit, base, yaw, length, width, [lift, lift - fall * 0.45, lift - fall], rng.uniform(15, 30))
 
 
 def _frond(kit, base, yaw, length, width, pitches, fold):

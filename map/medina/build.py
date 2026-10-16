@@ -58,13 +58,13 @@ ZONES = [
     ((-6, -34, 6, -10), 'cobble'),  # couloir des Portes CT
     ((-24, -46, 24, -34), 'paving'),  # spawn CT (esplanade)
     ((10, -6, 18, -1), 'cobble'),  # Ruelle
-    ((18, -34, 40, 6), 'terracotta'),  # site B (cour de la fontaine)
+    ((18, -34, 40, 6), 'stoneTiles'),  # site B (cour de la fontaine)
     ((22, 6, 30, 36), 'packedSand'),  # Souk
 ]
 WALKABLE = [rect for rect, _ in ZONES]
 RAISED = {5, 6}  # terrasse A et passerelle
 SOUK = 14
-SURFACE = {'packedSand': 'sand', 'cobble': 'stone', 'paving': 'stone', 'terracotta': 'stone'}
+SURFACE = {'packedSand': 'sand', 'cobble': 'stone', 'paving': 'stone', 'stoneTiles': 'stone'}
 # Objets posés (src/world/props.ts) : {id, x, z, y?, yaw?}. Le jeu les dessine ; ici, ils font leurs ombres.
 PROPS = []
 
@@ -198,11 +198,6 @@ def dress(x1, z1, x2, z2, height, seed):
             w = rng.uniform(1.2, min(3.0, length))
             c = a + rng.uniform(w / 2, length - w / 2)
             decal(side, at, c - w / 2, c + w / 2, height - 0.3 - rng.uniform(1.5, 3.0), height - 0.3, 'decalStreaks')
-        if rng.random() < 0.3:
-            c = a + rng.uniform(0.8, max(0.8, length - 0.8))
-            size = rng.uniform(1.0, 1.8)
-            y = base + rng.uniform(1.0, 2.6)
-            decal(side, at, c - size / 2, c + size / 2, y, y + size, 'decalCracks', offset=0.012)
         if zone != SOUK and height - base >= 5.0:
             count = int((length - 0.6) // 3.2)
             for i in range(count):
@@ -223,13 +218,22 @@ def dress(x1, z1, x2, z2, height, seed):
             door = c = a + length * rng.uniform(0.3, 0.7)
             relief(side, at, c - 0.75, c + 0.75, base, base + 2.6, 0.06, 'stone')
             relief(side, at, c - 0.55, c + 0.55, base, base + 2.3, 0.1, planks)
-        # Affiche, à hauteur d'yeux, loin de la porte.
+        # Affiche au-dessus de la saleté du bas des murs (1,6 m), loin de la porte.
+        poster = None
         if length >= 2.0 and rng.random() < 0.18:
             c = a + rng.uniform(0.6, length - 0.6)
             if door is None or abs(c - door) > 1.5:
+                poster = c
                 k = rng.randrange(decals.POSTERS)
-                y = base + rng.uniform(1.2, 1.5)
-                decal(side, at, c - 0.4, c + 0.4, y, y + 1.1, 'decalPosters', (k / decals.POSTERS, (k + 1) / decals.POSTERS), offset=0.015)
+                y = base + rng.uniform(1.65, 1.8)
+                decal(side, at, c - 0.4, c + 0.4, y, y + 1.1, 'decalPosters', (k / decals.POSTERS, (k + 1) / decals.POSTERS), offset=0.02)
+        # Fissure, jamais sur l'affiche.
+        if rng.random() < 0.3:
+            c = a + rng.uniform(0.8, max(0.8, length - 0.8))
+            size = rng.uniform(1.0, 1.8)
+            if poster is None or abs(c - poster) > 0.4 + size / 2:
+                y = base + rng.uniform(1.0, 2.6)
+                decal(side, at, c - size / 2, c + size / 2, y, y + size, 'decalCracks', offset=0.012)
 
 
 for facade in FACADES:
@@ -386,14 +390,22 @@ prop('coveredCar', -15, -44.6, 90)
 for x, z in ((-11.3, -45.4), (-10.6, -45.4)):
     prop('barrelBlue', x, z)
 prop('jerrycan', -11, -44.8, 15)
-# Café : deux tables le long des façades est de la place, chaises de part et d'autre.
-for tz in (-0.5, -6.5):
-    prop('cafeTable', 7.2, tz, 90)
-    prop('lantern', 7.2, tz + 0.4, 0, 0.75)
+# Café : deux tables le long des façades est de la place et trois autour du puits, chaises de part et
+# d'autre. Les chaises regardent vers +z : 90 les tourne vers l'est, -90 vers l'ouest.
+def cafe_table(x, z, lantern=True):
+    prop('cafeTable', x, z, 90)
+    if lantern:
+        prop('lantern', x, z + 0.4, 0, 0.75)
     for dz in (-0.5, 0.5):
-        # Le modèle regarde vers +z : -90 le tourne vers l'est (vers la table), 90 vers l'ouest.
-        prop('plasticChair', 6.0, tz + dz, -90)
-        prop('plasticChair', 8.4, tz + dz, 90)
+        prop('plasticChair', x - 0.85, z + dz, 90)
+        prop('plasticChair', x + 0.85, z + dz, -90)
+
+
+for tz in (-0.5, -6.5):
+    cafe_table(7.2, tz)
+for x, z in ((-4.2, -2), (-1.8, 2.8), (2.6, -6.6)):
+    cafe_table(x, z, lantern=False)
+
 # Étals du souk : jarres et caisses en plastique dessus.
 for x, z1 in ((22.6, 10), (22.6, 20), (22.6, 28), (29.4, 15), (29.4, 25)):
     prop('jug', x, z1 + 1.5, 0, 0.9)
