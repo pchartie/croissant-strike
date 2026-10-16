@@ -82,7 +82,10 @@ export class Game {
   private readonly hud: Hud;
   private readonly audio = new Audio();
   private readonly viewModel = new ViewModel();
-  private readonly impacts = new Impacts(this.scene);
+  private readonly impacts = new Impacts(this.scene, {
+    floorBelow: (point) => this.floorBelow(point),
+    viewer: () => this.camera.position,
+  });
   private readonly tracers = new Tracers(this.scene);
   private readonly casings: Casings;
   /** Douilles en attente d'éjection (fusil à pompe : au coup de pompe, après le tir). */
@@ -240,6 +243,7 @@ export class Game {
       // L'adversaire en ligne tient le même fusil que les bots.
       this.duel?.remote.model.setGun(cloneSkinned(weapons.botRifle));
       if (weapons.casings) this.casings.setModels(weapons.casings);
+      if (weapons.debris) this.impacts.setDebrisModel(weapons.debris);
     });
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -1076,8 +1080,10 @@ export class Game {
 
   private updateEffects(dt: number, mouse: { dx: number; dy: number }): void {
     this.viewModel.update(dt, {
-      speed: Math.min(this.player.horizontalSpeed / MOVE.maxSpeed, 1),
+      // Accroupi, on avance moins vite : la marche accroupie est jouée en entier à sa vitesse maximale.
+      speed: Math.min(this.player.horizontalSpeed / (MOVE.maxSpeed * (this.player.crouched ? MOVE.duckSpeedScale : 1)), 1),
       onGround: this.player.onGround,
+      crouched: this.player.crouched,
       mouseDX: mouse.dx,
       mouseDY: mouse.dy,
       reload: this.weapons.reloadProgress,

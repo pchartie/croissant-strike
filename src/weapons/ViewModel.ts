@@ -11,11 +11,18 @@ const FLASH_DURATION = 0.05;
 /** Durée des animations de coup de couteau (secondes). */
 const LIGHT_SWING_TIME = 0.38;
 const HEAVY_SWING_TIME = 0.8;
+/**
+ * Rangement de l'arme précédente au changement d'arme (secondes) : pris sur le temps de sortie de la
+ * nouvelle, pour que l'arme soit prête au même moment qu'avant (comme dans CS, pas de délai en plus).
+ */
+const HIDE_TIME = 0.14;
 
 export interface ViewModelState {
   /** Vitesse horizontale entre 0 (arrêt) et 1 (course). */
   speed: number;
   onGround: boolean;
+  /** Accroupi : les bras prennent la pose basse du pack. */
+  crouched: boolean;
   mouseDX: number;
   mouseDY: number;
   reload: number | null;
@@ -38,6 +45,8 @@ export class ViewModel {
   private readonly blocks = {} as Record<WeaponId, WeaponModel>;
   private animated: Record<WeaponId, AnimatedWeapon> | null = null;
   private currentId: WeaponId = 'rifle';
+  /** Arme en train d'être rangée, et celle qui sortira ensuite. */
+  private hiding: { id: WeaponId; next: WeaponDef; time: number } | null = null;
   private readonly grenades = {} as Record<GrenadeType, THREE.Group>;
   /** Grenade en main, ou null si on tient une arme à feu. */
   private grenadeType: GrenadeType | null = null;
@@ -84,6 +93,24 @@ export class ViewModel {
   }
 
   show(def: WeaponDef): void {
+    // Arme animée visible : on la range d'abord (la suivante sort à la fin, voir update).
+    const previous = this.animated?.[this.hiding?.id ?? this.currentId];
+    if (previous && !this.grenadeType && previous.root.visible && previous.has('hide') && def.id !== this.currentId) {
+      if (!this.hiding) {
+        this.hiding = { id: this.currentId, next: def, time: 0 };
+        previous.play('hide', HIDE_TIME);
+      } else {
+        this.hiding.next = def;
+      }
+      this.kickBack = this.kickPitch = 0;
+      this.knifeSwing = null;
+      return;
+    }
+    this.finishShow(def, def.drawTime);
+  }
+
+  private finishShow(def: WeaponDef, drawTime: number): void {
+    this.hiding = null;
     this.hideGrenade();
     if (this.animated) {
       this.animated[this.currentId].stop();
@@ -98,7 +125,7 @@ export class ViewModel {
     if (this.animated) {
       const weapon = this.animated[def.id];
       weapon.root.visible = true;
-      weapon.play('draw', def.drawTime);
+      weapon.play('draw', drawTime);
     } else {
       this.blocks[def.id].root.visible = true;
     }
@@ -106,6 +133,8 @@ export class ViewModel {
 
   /** Sort une grenade : l'arme à feu disparaît. */
   showGrenade(type: GrenadeType): void {
+    if (this.hiding) this.animated![this.hiding.id].root.visible = false;
+    this.hiding = null;
     this.hideGrenade();
     if (this.animated) this.animated[this.currentId].root.visible = false;
     else this.blocks[this.currentId].root.visible = false;
@@ -178,12 +207,24 @@ export class ViewModel {
     this.kickBack *= recover;
     this.kickPitch *= recover;
 
+    if (this.animated && this.hiding) {
+      // Fin du rangement : l'arme suivante sort, dans le temps qui reste.
+      const hiding = this.hiding;
+      hiding.time += dt;
+      if (hiding.time >= HIDE_TIME) {
+        this.animated[hiding.id].stop();
+        this.animated[hiding.id].root.visible = false;
+        this.currentId = hiding.id;
+        this.finishShow(hiding.next, Math.max(0.1, hiding.next.drawTime - HIDE_TIME));
+      }
+    }
+
     if (this.animated) {
-      const weapon = this.animated[this.currentId];
+      const weapon = this.animated[this.hiding?.id ?? this.currentId];
       weapon.root.position.set(this.swayX, this.swayY, this.kickBack);
       weapon.root.rotation.set(this.kickPitch, 0, 0);
       this.applySwing(weapon.root);
-      weapon.update(dt, state.speed, state.onGround);
+      weapon.update(dt, state.speed, state.onGround, state.crouched);
       this.updateFlash(dt, weapon.muzzle);
       return;
     }

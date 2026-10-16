@@ -48,7 +48,10 @@ const KNIFE_GRIP = { position: new THREE.Vector3(0.8, 4.5, 0), blade: new THREE.
 /** Décalage des bras (mètres) pour que la main reste bien visible en bas à droite. */
 const KNIFE_POSE = { pitch: 0, offset: new THREE.Vector3(0.06, 0.07, 0) };
 
-/** Animations jouées une fois : fire, reload, draw, et reloadStart/Step/End pour le fusil à pompe. */
+/** Animations en boucle, mélangées selon la vitesse et l'accroupissement. */
+const CYCLES = ['idle', 'walk', 'run', 'crouchIdle', 'crouchWalk'];
+
+/** Animations jouées une fois : fire, reload, draw, hide, et reloadStart/Step/End pour le fusil à pompe. */
 type OneShot = string;
 
 /** Bras + arme animés, pour une arme. */
@@ -64,6 +67,7 @@ export class AnimatedWeapon {
   /** 0 = animation de base (repos/marche), 1 = animation ponctuelle (tir, rechargement…). */
   private override = 0;
   private walk = 0;
+  private crouch = 0;
 
   constructor(
     readonly root: THREE.Group,
@@ -80,9 +84,9 @@ export class AnimatedWeapon {
     for (const clip of armsClips) this.arms[clip.name] = this.armsMixer.clipAction(clip);
     for (const clip of gunClips) this.gun[clip.name] = this.gunMixer.clipAction(clip);
 
-    for (const name of ['idle', 'walk']) this.arms[name].play();
+    for (const name of ['idle', 'walk', 'crouchIdle', 'crouchWalk']) this.arms[name]?.play();
     for (const [name, action] of Object.entries(this.arms)) {
-      if (name === 'idle' || name === 'walk' || name === 'run') continue;
+      if (CYCLES.includes(name)) continue;
       action.setLoop(THREE.LoopOnce, 1);
       action.clampWhenFinished = true;
     }
@@ -107,7 +111,8 @@ export class AnimatedWeapon {
       action.reset();
       action.timeScale = duration ? action.getClip().duration / duration : 1;
       action.play();
-      if (name === 'draw') this.override = 1;
+      // Sortie et rangement partent tout de suite, sans fondu depuis la pose de repos.
+      if (name === 'draw' || name === 'hide') this.override = 1;
     }
 
     const gunAction = this.gun[name];
@@ -118,6 +123,16 @@ export class AnimatedWeapon {
     }
   }
 
+  /** Vrai si l'animation ponctuelle `name` est en cours. */
+  playing(name: OneShot): boolean {
+    return this.oneShot === name && this.arms[name]?.isRunning() === true;
+  }
+
+  /** Vrai si l'arme a une animation `name`. */
+  has(name: OneShot): boolean {
+    return name in this.arms;
+  }
+
   /** Arrête tout (changement d'arme). */
   stop(): void {
     if (this.oneShot) this.arms[this.oneShot].stop();
@@ -125,11 +140,15 @@ export class AnimatedWeapon {
     this.gunMixer.stopAllAction();
   }
 
-  update(dt: number, speed: number, onGround: boolean): void {
-    // Repos ↔ marche selon la vitesse du joueur.
+  /** `speed` : 0 (arrêt) à 1 (pleine vitesse, debout ou accroupi) ; `crouched` : accroupi. */
+  update(dt: number, speed: number, onGround: boolean, crouched = false): void {
+    // Repos ↔ marche selon la vitesse du joueur, debout ↔ accroupi.
     const targetWalk = onGround ? speed : 0;
-    this.walk += (targetWalk - this.walk) * Math.min(1, dt * 8);
+    const blend = Math.min(1, dt * 8);
+    this.walk += (targetWalk - this.walk) * blend;
+    this.crouch += ((crouched && this.arms.crouchIdle ? 1 : 0) - this.crouch) * blend;
     this.arms.walk.timeScale = 0.6 + 0.6 * this.walk;
+    if (this.arms.crouchWalk) this.arms.crouchWalk.timeScale = 0.6 + 0.6 * this.walk;
 
     // Une fois l'animation ponctuelle finie, elle reste figée sur sa dernière
     // image pendant qu'on revient en fondu vers l'animation de base.
@@ -143,8 +162,12 @@ export class AnimatedWeapon {
 
     const weight = THREE.MathUtils.smoothstep(this.override, 0, 1);
     const base = 1 - weight;
-    this.arms.idle.setEffectiveWeight(base * (1 - this.walk));
-    this.arms.walk.setEffectiveWeight(base * this.walk);
+    const standing = base * (1 - this.crouch);
+    const crouching = base * this.crouch;
+    this.arms.idle.setEffectiveWeight(standing * (1 - this.walk));
+    this.arms.walk.setEffectiveWeight(standing * this.walk);
+    this.arms.crouchIdle?.setEffectiveWeight(crouching * (1 - this.walk));
+    this.arms.crouchWalk?.setEffectiveWeight(crouching * this.walk);
     current?.setEffectiveWeight(weight);
 
     this.armsMixer.update(dt);
@@ -161,6 +184,8 @@ export interface RetroWeapons {
   botRifle: THREE.Object3D;
   /** Douilles éjectées (null si projectiles.fbx manque : cylindres de secours). */
   casings: Record<CasingKind, THREE.Object3D> | null;
+  /** Éclats de mur (null si debris.fbx manque). */
+  debris: THREE.Object3D | null;
 }
 
 export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
@@ -172,11 +197,12 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
     const fbx = new FBXLoader(manager);
     const textures = new THREE.TextureLoader();
 
-    const [armsSource, armsTexture, projectilesTexture, projectiles] = await Promise.all([
+    const [armsSource, armsTexture, projectilesTexture, projectiles, debris] = await Promise.all([
       fbx.loadAsync(`${BASE}arms.fbx`),
       textures.loadAsync(`${BASE}arms.png`),
       textures.loadAsync(`${BASE}projectiles.png`),
       fbx.loadAsync(`${BASE}projectiles.fbx`).catch(() => null),
+      fbx.loadAsync(`${BASE}debris.fbx`).catch(() => null),
     ]);
 
     const viewModels = {} as Record<WeaponId, AnimatedWeapon>;
@@ -215,7 +241,7 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
     }
     viewModels.knife = buildKnifeArms(armsSource, pistolClips, { arms: armsTexture, gun: armsTexture, projectiles: projectilesTexture });
     const casings = projectiles ? casingModels(projectiles) : null;
-    return { viewModels, botRifle: botRifle!, casings };
+    return { viewModels, botRifle: botRifle!, casings, debris };
   } catch (error) {
     console.info('Armes animées absentes, modèles simples utilisés. Lancer `npm run import-weapons`.', error);
     return null;

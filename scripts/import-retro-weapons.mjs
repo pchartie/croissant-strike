@@ -43,6 +43,7 @@ const COPIES = [
   ['Guns/AdditionalMeshes/Projectiles/FbxFile/Projectiles.fbx', 'projectiles.fbx'],
   ['Guns/AdditionalMeshes/Projectiles/Texture/Projectiles_Albedo.png', 'projectiles.png'],
   ['FX/Textures/MuzzleFlash.png', 'muzzleflash.png'],
+  ['FX/Meshes/Wallhit_Debris.fbx', 'debris.fbx'],
 ];
 
 /** Animations regroupées par fichier de sortie : nom du clip → chemin dans le pack. */
@@ -57,6 +58,9 @@ function armsClips(gun, extra = {}) {
     fire: `${dir}OneTimeAnimations/FP_Arms_${gun}_Fire.fbx`,
     ...(extra.reloadStart ? {} : { reload: one('Reload') }),
     draw: `${dir}TransitionAnimations/FP_Arms_${gun}_Draw.fbx`,
+    hide: `${dir}TransitionAnimations/FP_Arms_${gun}_Hide.fbx`,
+    crouchIdle: `${dir}Cycles/FP_Arms_${gun}_Breathing_Crouching.fbx`,
+    crouchWalk: `${dir}Cycles/FP_Arms_${gun}_Walk_Crouching.fbx`,
   };
 }
 

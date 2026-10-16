@@ -4,6 +4,11 @@ import { surfaceOf, type Surface } from '../world/surfaces';
 const MAX_DECALS = 120;
 const GRAVITY = 9.8;
 const HIDDEN_Y = -1000;
+/** Éclats du pack (Wallhit_Debris) : nombre maximal par forme, distance au-delà de laquelle on n'en lance pas. */
+const DEBRIS_MAX = 48;
+const DEBRIS_RANGE = 25;
+/** Couleur des éclats selon la matière touchée (pas d'éclats sur le métal ni le sable). */
+const DEBRIS_COLORS: Partial<Record<Surface, number>> = { stone: 0xa8977a, plaster: 0xb9a184, wood: 0x6b4526 };
 
 /** Impacts de balles : trous dans les surfaces, poussière et sang. */
 export class Impacts {
@@ -24,10 +29,16 @@ export class Impacts {
   private readonly chips: Particles;
   private readonly sparks: Particles;
   private readonly blood: Particles;
+  private debris: Debris | null = null;
   private readonly normal = new THREE.Vector3();
+  private readonly probe = new THREE.Vector3();
   private static readonly FORWARD = new THREE.Vector3(0, 0, 1);
 
-  constructor(private readonly scene: THREE.Scene) {
+  constructor(
+    private readonly scene: THREE.Scene,
+    /** Hauteur du sol sous un point, et position de la caméra (les éclats ne sont lancés que près d'elle). */
+    private readonly world: { floorBelow: (point: THREE.Vector3) => number; viewer: () => THREE.Vector3 },
+  ) {
     this.dust = new Particles(scene, 400, 0xbcae92, 0.035);
     this.sand = new Particles(scene, 300, 0xc9ad7f, 0.045);
     this.chips = new Particles(scene, 200, 0x6b4526, 0.03);
@@ -42,6 +53,7 @@ export class Impacts {
     if (!hit.face) return surface;
     this.normal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
     this.addDecal(hit.point, this.normal);
+    this.addDebris(hit.point, this.normal, surface);
     switch (surface) {
       case 'metal':
         // Étincelles rapides et brèves.
@@ -62,6 +74,19 @@ export class Impacts {
     return surface;
   }
 
+  /** Éclats en 3D du pack (une fois chargés) : sinon, seulement la poussière. */
+  setDebrisModel(source: THREE.Object3D): void {
+    this.debris = new Debris(this.scene, source);
+  }
+
+  private addDebris(point: THREE.Vector3, normal: THREE.Vector3, surface: Surface): void {
+    const color = DEBRIS_COLORS[surface];
+    if (!this.debris || color === undefined || point.distanceTo(this.world.viewer()) > DEBRIS_RANGE) return;
+    // Sol touché : il est là ; mur : on le cherche juste dessous (un seul rayon par impact).
+    const floor = normal.y > 0.7 ? point.y : this.world.floorBelow(this.probe.copy(point).addScaledVector(normal, 0.05));
+    this.debris.burst(point, normal, color, surface === 'wood' ? 3 : 4, floor);
+  }
+
   /** Balle dans un bot : giclée de sang dans le sens du tir. */
   addBlood(point: THREE.Vector3, direction: THREE.Vector3, amount = 10): void {
     this.blood.burst(point, direction, Math.round(amount * 1.8), 0.5, 2.2, 0.5);
@@ -69,6 +94,7 @@ export class Impacts {
 
   update(dt: number): void {
     for (const particles of [this.dust, this.sand, this.chips, this.sparks, this.blood]) particles.update(dt);
+    this.debris?.update(dt);
   }
 
   private addDecal(point: THREE.Vector3, normal: THREE.Vector3): void {
@@ -84,6 +110,132 @@ export class Impacts {
     decal.quaternion.setFromUnitVectors(Impacts.FORWARD, normal);
     decal.rotateZ(Math.random() * Math.PI * 2);
     decal.scale.setScalar(0.8 + Math.random() * 0.4);
+  }
+}
+
+/**
+ * Éclats de mur : trois formes du pack, chacune dessinée en une fois (InstancedMesh), cachées
+ * quand aucun éclat ne vole. Ils jaillissent du mur, tournent, rebondissent au sol puis rétrécissent.
+ */
+class Debris {
+  private readonly meshes: THREE.InstancedMesh[] = [];
+  private readonly position: Float32Array;
+  private readonly velocity: Float32Array;
+  private readonly spin: Float32Array;
+  private readonly rotation: THREE.Quaternion[] = [];
+  private readonly size: Float32Array;
+  private readonly floor: Float32Array;
+  private readonly life: Float32Array;
+  private next = 0;
+  private alive = 0;
+  private readonly matrix = new THREE.Matrix4();
+  private readonly scale = new THREE.Vector3();
+  private readonly step = new THREE.Quaternion();
+  private readonly axis = new THREE.Vector3();
+  private readonly color = new THREE.Color();
+  private readonly point = new THREE.Vector3();
+
+  constructor(scene: THREE.Scene, source: THREE.Object3D) {
+    const material = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 });
+    source.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const geometry = (child.geometry as THREE.BufferGeometry).clone();
+      geometry.center();
+      // Ramenés à 1 m de côté : la taille de chaque éclat est donnée à son lancement.
+      geometry.computeBoundingBox();
+      const extent = geometry.boundingBox!.getSize(new THREE.Vector3());
+      const unit = 1 / Math.max(extent.x, extent.y, extent.z);
+      geometry.scale(unit, unit, unit);
+      const mesh = new THREE.InstancedMesh(geometry, material, DEBRIS_MAX);
+      // Tous repliés à zéro au départ (une instance vaut sinon un éclat de 1 m à l'origine).
+      for (let i = 0; i < DEBRIS_MAX; i++) mesh.setMatrixAt(i, this.matrix.makeScale(0, 0, 0));
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.setColorAt(0, this.color.set(0xffffff));
+      mesh.frustumCulled = false;
+      mesh.visible = false;
+      scene.add(mesh);
+      this.meshes.push(mesh);
+    });
+    const count = DEBRIS_MAX * this.meshes.length;
+    this.position = new Float32Array(count * 3);
+    this.velocity = new Float32Array(count * 3);
+    this.spin = new Float32Array(count * 3);
+    this.size = new Float32Array(count);
+    this.floor = new Float32Array(count);
+    this.life = new Float32Array(count);
+    for (let i = 0; i < count; i++) this.rotation.push(new THREE.Quaternion());
+  }
+
+  burst(point: THREE.Vector3, normal: THREE.Vector3, color: number, count: number, floor: number): void {
+    const total = this.life.length;
+    for (let n = 0; n < count; n++) {
+      const i = this.next;
+      this.next = (this.next + 1) % total;
+      if (this.life[i] <= 0) this.alive++;
+      const speed = 1.2 + Math.random() * 2;
+      this.position.set([point.x + normal.x * 0.02, point.y + normal.y * 0.02, point.z + normal.z * 0.02], i * 3);
+      this.velocity.set(
+        [
+          (normal.x + (Math.random() - 0.5) * 1.4) * speed,
+          (normal.y + (Math.random() - 0.5) * 1.4) * speed + 1.2,
+          (normal.z + (Math.random() - 0.5) * 1.4) * speed,
+        ],
+        i * 3,
+      );
+      this.spin.set([(Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30], i * 3);
+      this.rotation[i].random();
+      this.size[i] = 0.018 + Math.random() * 0.025;
+      this.floor[i] = floor;
+      this.life[i] = 0.7 + Math.random() * 0.5;
+      // Teinte légèrement variée d'un éclat à l'autre.
+      const mesh = this.meshes[i % this.meshes.length];
+      mesh.setColorAt(Math.floor(i / this.meshes.length), this.color.set(color).multiplyScalar(0.8 + Math.random() * 0.35));
+      mesh.instanceColor!.needsUpdate = true;
+    }
+  }
+
+  update(dt: number): void {
+    if (this.alive === 0) return;
+    const forms = this.meshes.length;
+    for (let i = 0; i < this.life.length; i++) {
+      if (this.life[i] <= 0) continue;
+      const mesh = this.meshes[i % forms];
+      const slot = Math.floor(i / forms);
+      this.life[i] -= dt;
+      if (this.life[i] <= 0) {
+        this.alive--;
+        mesh.setMatrixAt(slot, this.matrix.makeScale(0, 0, 0));
+        continue;
+      }
+      const p = i * 3;
+      const v = this.velocity;
+      v[p + 1] -= GRAVITY * dt;
+      this.position[p] += v[p] * dt;
+      this.position[p + 1] += v[p + 1] * dt;
+      this.position[p + 2] += v[p + 2] * dt;
+      // Rebond amorti sur le sol, puis l'éclat glisse et s'arrête.
+      const ground = this.floor[i] + this.size[i] * 0.5;
+      if (this.position[p + 1] < ground) {
+        this.position[p + 1] = ground;
+        v[p + 1] = Math.abs(v[p + 1]) * 0.3;
+        v[p] *= 0.5;
+        v[p + 2] *= 0.5;
+        for (let k = 0; k < 3; k++) this.spin[p + k] *= 0.5;
+      }
+      const angular = Math.hypot(this.spin[p], this.spin[p + 1], this.spin[p + 2]);
+      if (angular > 1e-3) {
+        this.axis.set(this.spin[p], this.spin[p + 1], this.spin[p + 2]).divideScalar(angular);
+        this.rotation[i].premultiply(this.step.setFromAxisAngle(this.axis, angular * dt));
+      }
+      // Rétrécit sur ses 0,2 dernières secondes.
+      const scale = this.size[i] * Math.min(1, this.life[i] / 0.2);
+      this.matrix.compose(this.point.fromArray(this.position, p), this.rotation[i], this.scale.setScalar(scale));
+      mesh.setMatrixAt(slot, this.matrix);
+    }
+    for (const mesh of this.meshes) {
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.visible = this.alive > 0;
+    }
   }
 }
 
