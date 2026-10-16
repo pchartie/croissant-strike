@@ -37,7 +37,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  map: 'dunes',
+  map: 'medina',
   mode: 'deathmatch',
   botsEnabled: true,
   // Passifs par défaut : on découvre la carte et on s'entraîne à viser sans se faire tirer dessus.
@@ -79,8 +79,8 @@ export const SETTINGS_TABS: SettingsTab[] = [
         label: 'Carte',
         type: 'choice',
         options: [
+          { value: 'medina', label: 'Médina' },
           { value: 'dunes', label: 'Dunes' },
-          { value: 'medina', label: 'Médina (grise)' },
         ],
       },
       {

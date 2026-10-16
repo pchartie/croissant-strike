@@ -10,7 +10,8 @@
     "import-weapons": "node scripts/import-retro-weapons.mjs",
     "optimize-props": "node scripts/optimize-props.mjs",
     "build-map": "node scripts/build-map.mjs",
-    "bench": "node scripts/bench.mjs"
+    "bench": "node scripts/bench.mjs",
+    "fetch-textures": "node scripts/fetch-textures.mjs"
   },
   "dependencies": {
     "peerjs": "^1.5.5",

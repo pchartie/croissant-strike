@@ -18,19 +18,27 @@ from kit import to_blender
 
 # --- Coordonnées de la carte d'éclairage ---
 
-def lightmap_uv(obj, size, padding=3):
+def lightmap_uv(obj, size, padding=2):
     """
-    Range chaque face (des rectangles : la carte est faite de blocs) dans l'image, toutes avec la
+    Range chaque face (rectangle ou polygone plan) dans l'image, toutes avec la
     même densité de pixels par mètre, la plus grande possible. Les rectangles sont alignés sur les
     pixels et entourés de `padding` pixels, que le calcul remplit en débordant (margin).
     Renvoie la densité obtenue (pixels par mètre).
     """
     mesh = obj.data
     layer = mesh.uv_layers.new(name='lightmap')
-    rects = []
+    # Chaque face (rectangle ou polygone plan) est projetée dans son plan : axe u le long de son premier
+    # côté, axe v perpendiculaire ; on range le rectangle qui l'englobe.
+    rects, frames = [], {}
     for poly in mesh.polygons:
         v = [mesh.vertices[mesh.loops[i].vertex_index].co for i in poly.loop_indices]
-        rects.append((poly.index, (v[1] - v[0]).length, (v[3] - v[0]).length))
+        u_axis = (v[1] - v[0]).normalized()
+        v_axis = poly.normal.cross(u_axis).normalized()
+        coords = [((p - v[0]).dot(u_axis), (p - v[0]).dot(v_axis)) for p in v]
+        a0, b0 = min(c[0] for c in coords), min(c[1] for c in coords)
+        w, h = max(c[0] for c in coords) - a0, max(c[1] for c in coords) - b0
+        frames[poly.index] = ([(a - a0, b - b0) for a, b in coords], max(w, 1e-4), max(h, 1e-4))
+        rects.append((poly.index, max(w, 1e-4), max(h, 1e-4)))
 
     def pack(density):
         """Rangement par étagères ; None si ça ne rentre pas."""
@@ -67,14 +75,13 @@ def lightmap_uv(obj, size, padding=3):
     density = lo
     for poly in mesh.polygons:
         x, y, pw, ph, rotated = best[poly.index]
-        # Coins dans l'ordre des sommets : (0,0), (1,0), (1,1), (0,1) le long des côtés de la face.
-        corners = [(0, 0), (1, 0), (1, 1), (0, 1)]
-        for k, loop in enumerate(poly.loop_indices):
-            a, b = corners[k]
+        coords, w, h = frames[poly.index]
+        for (a, b), loop in zip(coords, poly.loop_indices):
+            fa, fb = a / w, b / h
             if rotated:
-                a, b = b, a
-            u = (x + padding + a * (pw - 2 * padding)) / size
-            v = (y + padding + b * (ph - 2 * padding)) / size
+                fa, fb = fb, fa
+            u = (x + padding + fa * (pw - 2 * padding)) / size
+            v = (y + padding + fb * (ph - 2 * padding)) / size
             layer.data[loop].uv = (u, v)
     fill = sum(pw * ph for _, _, pw, ph, _ in best.values()) / size**2
     print(f'[bake] carte d\'éclairage {size}² : {density:.1f} pixels par mètre, remplie à {fill:.0%}')
@@ -138,7 +145,7 @@ def bake(obj, size, samples, bounces=4):
     scene.cycles.diffuse_bounces = bounces
     scene.cycles.glossy_bounces = 0
     scene.cycles.transparent_max_bounces = 8
-    scene.render.bake.margin = 4
+    scene.render.bake.margin = 3
     scene.render.bake.margin_type = 'EXTEND'
 
     image = bpy.data.images.new('lightmap', size, size, float_buffer=True, alpha=False)
@@ -151,7 +158,7 @@ def bake(obj, size, samples, bounces=4):
     bpy.ops.object.select_all(action='DESELECT')
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
-    bpy.ops.object.bake(type='DIFFUSE', pass_filter={'DIRECT', 'INDIRECT'}, use_clear=True, margin=4)
+    bpy.ops.object.bake(type='DIFFUSE', pass_filter={'DIRECT', 'INDIRECT'}, use_clear=True, margin=3)
 
     # Les nœuds de calcul ne doivent pas partir dans l'export.
     for mat in obj.data.materials:

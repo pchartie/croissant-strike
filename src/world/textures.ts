@@ -83,3 +83,34 @@ export function grid(anisotropy: number): THREE.CanvasTexture {
     ctx.strokeRect(0, 0, SIZE, SIZE);
   });
 }
+
+/** Toile rayée du souk (teintée par le matériau) : larges bandes claires et fines bandes sombres. */
+export function stripes(anisotropy: number): THREE.CanvasTexture {
+  return makeTexture(anisotropy, (ctx) => {
+    ctx.fillStyle = '#f2f2f2';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    for (let x = 0; x < SIZE; x += 64) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+      ctx.fillRect(x + 40, 0, 10, SIZE);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.fillRect(x + 54, 0, 4, SIZE);
+    }
+  });
+}
+
+/** Écorce de palmier (teintée par le matériau) : anneaux irréguliers des anciennes palmes. */
+export function palmTrunk(anisotropy: number): THREE.CanvasTexture {
+  return makeTexture(anisotropy, (ctx) => {
+    ctx.fillStyle = '#d8d8d8';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    for (let y = 0; y < SIZE; y += 32) {
+      for (let x = 0; x < SIZE; x += 16) {
+        const dy = Math.sin(x * 0.05 + y) * 4;
+        ctx.fillStyle = 'rgba(40, 30, 20, 0.45)';
+        ctx.fillRect(x, y + dy, 16, 7);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.fillRect(x, y + dy + 7, 16, 3);
+      }
+    }
+  });
+}

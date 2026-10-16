@@ -1,13 +1,15 @@
 """Construction d'une carte dans Blender, en coordonnées du jeu (mètres, y vers le haut).
 
-On déclare des blocs (`Kit.box`), puis `Kit.build()` crée le maillage :
-- les faces cachées (contre un autre bloc, sous le sol, hors de la carte) ne sont pas créées :
+On déclare des blocs (`Kit.box`) et des faces libres (`Kit.face`, `Kit.prism`), puis `Kit.build()`
+crée le maillage :
+- les faces de blocs cachées (contre un autre bloc, sous le sol, hors de la carte) ne sont pas créées :
   moins de triangles, et toute la place de la carte d'éclairage va aux faces visibles ;
 - coordonnées de texture (UV 0) en mètres / taille du motif, alignées sur le monde : la texture
   continue d'un bloc à l'autre (sauf les matériaux « par bloc », comme les caisses) ;
 - un seul objet, une case de matériau par matériau du jeu (un appel de dessin chacun).
 
-Chaque bloc solide est aussi une collision (boîte), exportée à part pour le jeu.
+Chaque bloc solide est aussi une collision (boîte), exportée à part pour le jeu. Les matériaux
+utilisés sont exportés eux aussi (`Kit.materials_json`) : le jeu les recrée à partir de cette liste.
 """
 
 import math
@@ -19,22 +21,56 @@ from mathutils import Vector
 # Taille maximale d'une face (m) : les grandes faces sont découpées, la carte d'éclairage se range mieux.
 MAX_PIECE = 6.0
 
-# Matériaux du jeu : nom → (fichier de texture dans public/textures, teinte sRGB, plaqué par bloc).
-# La teinte et la texture ne servent ici qu'aux rebonds de lumière pendant le calcul de l'éclairage :
-# dans le jeu, chaque matériau est recréé à partir de son nom (src/world/MapVisuals.ts, mêmes teintes).
+
+def M(texture=None, tint=0xffffff, tile=1.0, per_box=False, canvas=None, alpha=False, shown=None):
+    """
+    Un matériau : texture Poly Haven (public/textures/<texture>_diff.webp) ou dessinée par le jeu
+    (`canvas` : nom d'une fonction de src/world/textures.ts), teinte sRGB, taille réelle d'un motif (m).
+    `per_box` : la texture couvre chaque face de bloc (caisses) au lieu de suivre le monde.
+    `alpha` : découpé selon la transparence de la texture (palmes), vu des deux côtés.
+    `shown` : teinte dans le jeu, si elle diffère (texture dessinée déjà en couleur, comme la caisse).
+    """
+    return {'texture': texture, 'tint': tint, 'tile': tile, 'per_box': per_box, 'canvas': canvas, 'alpha': alpha,
+            'shown': tint if shown is None else shown}
+
+
+# Matériaux des cartes. Ici, la teinte et la texture servent aux rebonds de lumière pendant le calcul de
+# l'éclairage ; pour les textures dessinées par le jeu, `tint` est aussi leur couleur moyenne.
 MATERIALS = {
-    'sand': ('ground', 0xffffff, False),
-    'plaster': ('plaster', 0xffffff, False),
-    'sandstone': ('sandstone', 0xffffff, False),
-    'wood': ('wood', 0xd9a66b, False),
-    'crate': (None, 0x6b4522, True),  # couleur moyenne de la texture de caisse dessinée par le jeu
-    'shadowGap': (None, 0x1b1814, False),
-    # Version grise (quadrillage de 1 m dessiné par le jeu), pour tester un tracé avant de l'habiller.
-    'greyWall': (None, 0xb4b2ac, False),
-    'greyFloor': (None, 0x8c8a84, False),
-    'greyRaised': (None, 0xc49a62, False),
-    'greyCover': (None, 0x8f6a4f, False),
-    'greyOverhead': (None, 0x7d8b98, False),
+    # Dunes
+    'sand': M('ground', tile=2.48),
+    'plaster': M('plaster', tile=2),
+    'sandstone': M('sandstone', tile=3),
+    'wood': M('wood', 0xd9a66b, tile=1),
+    'crate': M(tint=0x6b4522, per_box=True, canvas='crate', shown=0xffffff),
+    'shadowGap': M(tint=0x1b1814),
+    # Version grise (quadrillage de 1 m), pour tester un tracé avant de l'habiller.
+    'greyWall': M(tint=0xb4b2ac, canvas='grid'),
+    'greyFloor': M(tint=0x8c8a84, canvas='grid'),
+    'greyRaised': M(tint=0xc49a62, canvas='grid'),
+    'greyCover': M(tint=0x8f6a4f, canvas='grid'),
+    'greyOverhead': M(tint=0x7d8b98, canvas='grid'),
+    # Médina : crépis de plusieurs teintes, sols, bois peint, tissus, fontaine, palmiers.
+    'clayOchre': M('clay', 0xf2dcb8, tile=2),
+    'clayWhite': M('clay', 0xffffff, tile=2),
+    'clayPink': M('clay', 0xf5cdb8, tile=2),
+    'clayRed': M('redPlaster', 0xffffff, tile=2),
+    'stone': M('sandstone', 0xf0e4d0, tile=3),
+    'cobble': M('cobble', tile=1),
+    'packedSand': M('packedSand', tile=1.8),
+    'paving': M('paving', tile=2),
+    'terracotta': M('terracotta', tile=2.15),
+    'mosaic': M('mosaic', tile=1),
+    'bluePlanks': M('bluePlanks', tile=1),
+    'greenPlanks': M('greenPlanks', tile=1.5),
+    'beam': M('wood', 0xb98a5a, tile=1),
+    'fabricRed': M(tint=0xb23a2a, canvas='stripes', tile=2),
+    'fabricOrange': M(tint=0xd9822b, canvas='stripes', tile=2),
+    'fabricBlue': M(tint=0x2f5f8f, canvas='stripes', tile=2),
+    'fabricGreen': M(tint=0x4f7a3a, canvas='stripes', tile=2),
+    'water': M(tint=0x3f7f86),
+    'palmTrunk': M(tint=0x7a6347, canvas='palmTrunk', tile=1),
+    'palmLeaf': M(canvas='palmLeaf', alpha=True),  # couleurs dans l'image (map/lib/palm.py)
 }
 
 
@@ -44,6 +80,7 @@ def linear(hex_color):
         c /= 255
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
     return tuple(channel((hex_color >> shift) & 0xff) for shift in (16, 8, 0))
+
 
 # Sens des 6 faces d'une boîte : (axe, signe).
 FACES = [(0, 1), (0, -1), (1, 1), (1, -1), (2, 1), (2, -1)]
@@ -56,7 +93,7 @@ def to_blender(p):
 
 
 class Box:
-    def __init__(self, lo, hi, material, tile, surface, solid, top=True):
+    def __init__(self, lo, hi, material, tile, surface, solid, top=True, keep=False):
         self.lo = tuple(lo)
         self.hi = tuple(hi)
         self.material = material
@@ -65,6 +102,8 @@ class Box:
         self.solid = solid
         # Face du dessus dessinée ou non (toits trop hauts pour être vus depuis le sol).
         self.top = top
+        # Gardé même hors de la carte (repère visible de loin, comme le minaret).
+        self.keep = keep
 
     def contains(self, p, eps=1e-4):
         return all(self.lo[i] + eps < p[i] < self.hi[i] - eps for i in range(3))
@@ -76,12 +115,51 @@ class Kit:
         self.bounds_lo = bounds_lo
         self.bounds_hi = bounds_hi
         self.boxes = []
+        # Faces libres : (coins, matériau, UV).
+        self.faces = []
+        # Collisions sans bloc visible (fontaine octogonale, troncs…).
+        self.extra_collisions = []
 
-    def box(self, lo, hi, material, tile=1.0, surface=None, solid=True, top=True):
-        """Bloc de `lo` à `hi`. `material=None` : collision seule (invisible). `top=False` : sans dessus."""
-        self.boxes.append(Box(lo, hi, material, tile, surface, solid, top))
+    def box(self, lo, hi, material, tile=None, surface=None, solid=True, top=True, keep=False):
+        """
+        Bloc de `lo` à `hi`. `material=None` : collision seule (invisible). `solid=False` : décor sans
+        collision (encadrements, volets…). `top=False` : sans dessus. `tile` : taille du motif (par défaut
+        celle du matériau).
+        """
+        if tile is None:
+            tile = MATERIALS[material]['tile'] if material else 1.0
+        self.boxes.append(Box(lo, hi, material, tile, surface, solid, top, keep))
 
-    def stairs(self, axis, start, direction, across, steps, material, tile=1.0, surface='stone', base=0.0, rise=0.3, depth=0.6):
+    def collision(self, lo, hi, surface):
+        """Collision seule, sans rien de visible (la forme visible est faite de faces libres)."""
+        self.extra_collisions.append({'min': list(lo), 'max': list(hi), 'surface': surface})
+
+    def face(self, corners, material, uvs):
+        """Face libre (polygone plan convexe, coins dans le sens inverse des aiguilles vu de devant)."""
+        self.faces.append((corners, material, uvs))
+
+    def prism(self, center, radius, sides, y1, y2, material, top=True, walls=True, tile=None, phase=None, top_material=None):
+        """
+        Prisme à `sides` côtés (octogone…) posé en `center` (x, z), de `y1` à `y2`. `walls=False` : le
+        dessus seul (eau d'un bassin) ; `top_material` : autre matériau pour le dessus (margelle).
+        """
+        tile = tile or MATERIALS[material]['tile']
+        cx, cz = center
+        phase = math.pi / sides if phase is None else phase
+        ring = [(cx + radius * math.cos(phase + 2 * math.pi * k / sides), cz + radius * math.sin(phase + 2 * math.pi * k / sides)) for k in range(sides)]
+        side = 2 * radius * math.sin(math.pi / sides)
+        for k in range(sides if walls else 0):
+            (x1, z1), (x2, z2) = ring[k], ring[(k + 1) % sides]
+            u0 = k * side / tile
+            self.face([(x2, y1, z2), (x1, y1, z1), (x1, y2, z1), (x2, y2, z2)], material,
+                      [(u0, y1 / tile), (u0 + side / tile, y1 / tile), (u0 + side / tile, y2 / tile), (u0, y2 / tile)])
+        if top:
+            pts = [(x, y2, z) for x, z in reversed(ring)]
+            top_material = top_material or material
+            top_tile = MATERIALS[top_material]['tile']
+            self.face(pts, top_material, [(x / top_tile, -z / top_tile) for x, _, z in pts])
+
+    def stairs(self, axis, start, direction, across, steps, material, surface='stone', base=0.0, rise=0.3, depth=0.6, tile=None):
         """
         Escalier de `steps` marches qui monte dans la direction `direction` (+1 ou -1) le long de l'axe
         `axis` ('x' ou 'z'), en partant de `start` ; `across` = (début, fin) dans l'autre axe.
@@ -97,11 +175,12 @@ class Kit:
             else:
                 self.box((a, 0, across[0]), (b, top, across[1]), material, tile, surface)
 
-    def fill_buildings(self, walkable, height_of, material, tile=1.0, surface='plaster', cell=0.5):
+    def fill_buildings(self, walkable, house, cell=0.5, max_size=None):
         """
-        Remplit de bâtiments tout ce qui n'est pas dans une zone `walkable` (rectangles (x1, z1, x2, z2)),
-        à l'intérieur des limites de la carte : grille de `cell` m, regroupée en grands rectangles.
-        `height_of(x1, z1, x2, z2)` donne la hauteur de chaque bâtiment. Les toits ne sont pas dessinés.
+        Remplit de maisons tout ce qui n'est pas dans une zone `walkable` (rectangles (x1, z1, x2, z2)),
+        à l'intérieur des limites de la carte : grille de `cell` m, regroupée en grands rectangles, eux-mêmes
+        découpés en maisons d'au plus `max_size` m de côté. `house(x1, z1, x2, z2)` pose chaque maison et
+        renvoie ce qu'on veut en garder ; la fonction renvoie la liste de ces résultats.
         """
         x0, z0 = self.bounds_lo[0], self.bounds_lo[2]
         cols = round((self.bounds_hi[0] - x0) / cell)
@@ -112,7 +191,7 @@ class Kit:
                 for c in range(round((x1 - x0) / cell), round((x2 - x0) / cell)):
                     free[r][c] = True
         used = [[False] * cols for _ in range(rows)]
-        count = 0
+        houses = []
         for r in range(rows):
             for c in range(cols):
                 if free[r][c] or used[r][c]:
@@ -128,16 +207,18 @@ class Kit:
                         used[rr][cc] = True
                 x1, z1 = x0 + c * cell, z0 + r * cell
                 x2, z2 = x1 + w * cell, z1 + h * cell
-                self.box((x1, 0, z1), (x2, height_of(x1, z1, x2, z2), z2), material, tile, surface, top=False)
-                count += 1
-        print(f'[kit] {count} bâtiments')
+                for px1, px2 in _pieces(x1, x2, max_size):
+                    for pz1, pz2 in _pieces(z1, z2, max_size):
+                        houses.append(house(px1, pz1, px2, pz2))
+        print(f'[kit] {len(houses)} maisons')
+        return houses
 
     # --- Faces cachées ---
 
     def _outside(self, p):
         return any(p[i] < self.bounds_lo[i] or p[i] > self.bounds_hi[i] for i in (0, 2)) or p[1] < self.bounds_lo[1]
 
-    def _hidden(self, box, axis, sign):
+    def _hidden(self, box, axis, sign, occluders):
         """Vraie si toute la face est contre un bloc opaque, sous le sol ou hors de la carte."""
         u, v = [i for i in range(3) if i != axis]
         plane = box.hi[axis] if sign > 0 else box.lo[axis]
@@ -149,13 +230,14 @@ class Kit:
                 p[u] = box.lo[u] + (box.hi[u] - box.lo[u]) * fu
                 p[v] = box.lo[v] + (box.hi[v] - box.lo[v]) * fv
                 samples.append(p)
-        occluders = [b for b in self.boxes if b is not box and b.material is not None and b.solid]
-        return all(self._outside(p) or any(b.contains(p) for b in occluders) for p in samples)
+        near = [b for b in occluders if b is not box and all(b.lo[i] - 0.05 <= box.hi[i] and b.hi[i] + 0.05 >= box.lo[i] for i in range(3))]
+        outside = (lambda p: False) if box.keep else self._outside
+        return all(outside(p) or any(b.contains(p) for b in near) for p in samples)
 
     # --- Maillage ---
 
     def build(self, name='carte'):
-        names = sorted({b.material for b in self.boxes if b.material})
+        names = sorted({b.material for b in self.boxes if b.material} | {f[1] for f in self.faces})
         mesh = bpy.data.meshes.new(name)
         obj = bpy.data.objects.new(name, mesh)
         bpy.context.scene.collection.objects.link(obj)
@@ -164,34 +246,61 @@ class Kit:
 
         bm = bmesh.new()
         uv0 = bm.loops.layers.uv.new('uv0')
+        occluders = [b for b in self.boxes if b.material is not None and b.solid]
         kept = culled = 0
         for box in self.boxes:
             if not box.material:
                 continue
-            per_box = MATERIALS[box.material][2]
+            per_box = MATERIALS[box.material]['per_box']
             for axis, sign in FACES:
-                if (axis == 1 and sign > 0 and not box.top) or self._hidden(box, axis, sign):
+                if (axis == 1 and sign > 0 and not box.top) or self._hidden(box, axis, sign, occluders):
                     culled += 1
                     continue
                 kept += 1
                 for corners in split(face_corners(box, axis, sign), MAX_PIECE):
-                    verts = [bm.verts.new(to_blender(c)) for c in corners]
-                    face = bm.faces.new(verts)
+                    face = bm.faces.new([bm.verts.new(to_blender(c)) for c in corners])
                     face.material_index = names.index(box.material)
                     for loop, c in zip(face.loops, corners):
                         loop[uv0].uv = face_uv(box, axis, sign, c, per_box)
+        for corners, material, uvs in self.faces:
+            face = bm.faces.new([bm.verts.new(to_blender(c)) for c in corners])
+            face.material_index = names.index(material)
+            for loop, uv in zip(face.loops, uvs):
+                loop[uv0].uv = uv
         bm.normal_update()
         bm.to_mesh(mesh)
         bm.free()
-        print(f'[kit] {kept} faces gardées, {culled} cachées retirées')
+        print(f'[kit] {kept} faces de blocs gardées, {culled} cachées retirées, {len(self.faces)} faces libres')
+        self.used_materials = names
         return obj
 
     def collisions(self):
-        out = []
-        for b in self.boxes:
-            if b.solid:
-                out.append({'min': list(b.lo), 'max': list(b.hi), 'surface': b.surface or 'stone'})
+        out = [{'min': list(b.lo), 'max': list(b.hi), 'surface': b.surface or 'stone'} for b in self.boxes if b.solid]
+        return out + self.extra_collisions
+
+    def materials_json(self):
+        """Matériaux utilisés, pour que le jeu les recrée (src/world/MapVisuals.ts)."""
+        out = {}
+        for name in self.used_materials:
+            m = MATERIALS[name]
+            entry = {'color': m['shown']}
+            if m['texture']:
+                entry['texture'] = m['texture']
+            if m['canvas']:
+                entry['canvas'] = m['canvas']
+            if m['alpha']:
+                entry['alpha'] = True
+            out[name] = entry
         return out
+
+
+def _pieces(a, b, size):
+    """Découpe [a, b] en morceaux d'au plus `size` (à peu près égaux, alignés sur 0,5 m)."""
+    if not size or b - a <= size:
+        return [(a, b)]
+    n = math.ceil((b - a) / size)
+    cuts = [a] + [round((a + (b - a) * k / n) * 2) / 2 for k in range(1, n)] + [b]
+    return list(zip(cuts, cuts[1:]))
 
 
 def face_corners(box, axis, sign):
@@ -234,20 +343,26 @@ def face_uv(box, axis, sign, p, per_box):
 
 
 def make_material(name):
-    """Matériau Blender pour le calcul de l'éclairage : texture de couleur (UV 0) et teinte."""
-    texture, tint, _ = MATERIALS[name]
-    tint = linear(tint)
+    """Matériau Blender pour le calcul de l'éclairage : texture de couleur (UV 0), teinte, transparence."""
+    spec = MATERIALS[name]
+    tint = linear(spec['tint'])
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nodes, links = mat.node_tree.nodes, mat.node_tree.links
     bsdf = nodes['Principled BSDF']
     bsdf.inputs['Roughness'].default_value = 1.0
     bsdf.inputs['Base Color'].default_value = (*tint, 1)
-    if texture:
+    image = None
+    if spec['texture']:
+        image = bpy.data.images.load(f'{TEXTURES}/{spec["texture"]}_diff.webp', check_existing=True)
+    elif spec['alpha'] and spec['canvas']:
+        # Texture à transparence dessinée par le jeu : la même image, enregistrée par la carte.
+        image = bpy.data.images.load(f'{TEXTURES}/{spec["canvas"]}.png', check_existing=True)
+    if image:
         uv = nodes.new('ShaderNodeUVMap')
         uv.uv_map = 'uv0'
         tex = nodes.new('ShaderNodeTexImage')
-        tex.image = bpy.data.images.load(f'{TEXTURES}/{texture}_diff.jpg', check_existing=True)
+        tex.image = image
         mix = nodes.new('ShaderNodeMix')
         mix.data_type = 'RGBA'
         mix.blend_type = 'MULTIPLY'
@@ -256,6 +371,8 @@ def make_material(name):
         links.new(uv.outputs['UV'], tex.inputs['Vector'])
         links.new(tex.outputs['Color'], mix.inputs['A'])
         links.new(mix.outputs['Result'], bsdf.inputs['Base Color'])
+        if spec['alpha']:
+            links.new(tex.outputs['Alpha'], bsdf.inputs['Alpha'])
     return mat
 
 

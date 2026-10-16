@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { PropPlacement } from './props';
+import type { MapMaterial } from './MapVisuals';
 import dunes from '../maps/dunes.json';
 import medina from '../maps/medina.json';
 
@@ -12,6 +13,8 @@ export type MapId = 'dunes' | 'medina';
 interface MapData {
   /** Valeur d'éclairage d'un pixel blanc de la carte d'éclairage (voir map/lib/bake.py). */
   lightmapScale: number;
+  /** Matériaux du maillage, par nom (map/lib/kit.py). */
+  materials: Record<string, MapMaterial>;
   collisions: { min: number[]; max: number[]; surface: string }[];
   props: PropPlacement[];
 }
@@ -32,7 +35,7 @@ export const MAPS: Record<MapId, GameMap> = {
   dunes: {
     id: 'dunes',
     label: 'Dunes',
-    data: dunes as MapData,
+    data: dunes as unknown as MapData,
     bounds: new THREE.Box3(new THREE.Vector3(-36, 0, -36), new THREE.Vector3(36, 7, 36)),
     spawn: { position: new THREE.Vector3(0, 0, 31), yaw: 0 },
     roundSpawnZ: { enemy: -26, ally: 24 },
@@ -40,7 +43,7 @@ export const MAPS: Record<MapId, GameMap> = {
   medina: {
     id: 'medina',
     label: 'Médina',
-    data: medina as MapData,
+    data: medina as unknown as MapData,
     bounds: new THREE.Box3(new THREE.Vector3(-40, 0, -46), new THREE.Vector3(40, 8, 46)),
     spawn: { position: new THREE.Vector3(0, 0, 40), yaw: 0 },
     roundSpawnZ: { enemy: -35, ally: 35 },

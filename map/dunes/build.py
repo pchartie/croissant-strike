@@ -88,6 +88,7 @@ bake.export_glb(obj, os.path.join(OUT, 'dunes.glb'))
 bake.write_json(os.path.join(OUT, 'dunes.json'), {
     'lightmapScale': scale,
     'lightmapDensity': density,
+    'materials': carte.materials_json(),
     'collisions': carte.collisions(),
     'props': layout['props'],
 })
