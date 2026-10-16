@@ -66,11 +66,13 @@ MATERIALS = {
     'bluePlanks': M('bluePlanks', tile=1),
     'greenPlanks': M('greenPlanks', tile=1.5),
     'beam': M('wood', 0xb98a5a, tile=1),
+    'greenTiles': M('roofTiles', 0x8fc49a, tile=1.5),  # tuiles vernissées vertes (toit du puits)
     'fabricRed': M(tint=0xb23a2a, canvas='stripes', tile=2),
     'fabricOrange': M(tint=0xd9822b, canvas='stripes', tile=2),
     'fabricBlue': M(tint=0x2f5f8f, canvas='stripes', tile=2),
     'fabricGreen': M(tint=0x4f7a3a, canvas='stripes', tile=2),
     'water': M(tint=0x3f7f86),
+    'deepWater': M(tint=0x1e3a3c),  # eau au fond du puits
     'palmTrunk': M(tint=0x7a6347, canvas='palmTrunk', tile=1),
     'palmLeaf': M(canvas='palmLeaf', alpha=True, double=True),  # couleurs dans l'image (map/lib/palm.py)
     # Détails plaqués (images de map/lib/decals.py) et câbles électriques.

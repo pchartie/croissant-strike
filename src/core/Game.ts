@@ -22,7 +22,7 @@ import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
 import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem';
-import { ACTIVE_MAP, buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN } from '../world/Level';
+import { ACTIVE_MAP, buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN, type Animated } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { loadSky } from '../world/sky';
 import { setSunBlockers } from '../world/sunlight';
@@ -125,6 +125,8 @@ export class Game {
   private remoteStride = 0;
   private readonly botStrides = new Map<Bot, number>();
   private readonly radar: Radar;
+  /** Ce qui s'anime sur la carte (eau des fontaines). */
+  private readonly animated: Animated[];
   private fpsFrames = 0;
   private fpsTime = 0;
   private readonly spotted = new Map<Bot, number>();
@@ -153,7 +155,7 @@ export class Game {
     });
     this.input.onLockChange((locked) => this.hud.setPaused(!locked));
 
-    buildLevel(this.world, this.renderer.capabilities.getMaxAnisotropy());
+    this.animated = buildLevel(this.world, this.renderer.capabilities.getMaxAnisotropy());
     setSunBlockers(this.world.colliders);
     void loadSky(this.scene, [this.viewModel.scene]);
     this.scene.add(this.muzzleLight);
@@ -273,6 +275,7 @@ export class Game {
     this.bots.render(alpha);
     this.duel.update(frameTime, this.weapons.current.def.id);
     this.updateEffects(frameTime, mouse);
+    for (const item of this.animated) item.update(frameTime);
     this.updateHud();
     this.updateRadar();
 

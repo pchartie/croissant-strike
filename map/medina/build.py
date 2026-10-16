@@ -321,15 +321,9 @@ box(-10.2, -3, -10, 0, A_HEIGHT, A_HEIGHT + 0.9, 'stone')
 
 # --- Milieu : caisse, puits ---
 crate(-3.5, 26)
-carte.prism((0, -2), 1.25, 8, 0, 0.9, 'stone', top_material='stone')
-carte.prism((0, -2), 0.95, 8, 0.91, 0.91, 'shadowGap', walls=False)
-carte.collision((-1.3, 0, -3.3), (1.3, 1.0, -0.7), 'stone')
-for x in (-1.05, 0.95):
-    box(x, -2.06, x + 0.1, -1.94, 0.9, 2.5, 'beam', 'wood', solid=False)
-box(-1.1, -2.06, 1.1, -1.94, 2.4, 2.52, 'beam', 'wood', solid=False)
 
 # --- Site B : fontaine en zellige, caisses ---
-def basin(center, outer, inner, top, water, wall, rim, sides=8):
+def basin(center, outer, inner, top, water, wall, rim, sides=8, water_material='water'):
     """Bassin octogonal : paroi extérieure, margelle en anneau, paroi intérieure, eau en contrebas."""
     carte.prism(center, outer, sides, 0, top, wall, top=False)
     ring = lambda r, y: [(center[0] + r * math.cos(math.pi / sides + 2 * math.pi * k / sides), y,
@@ -342,7 +336,7 @@ def basin(center, outer, inner, top, water, wall, rim, sides=8):
         carte.face(quad, rim, [(p[0] / t, -p[2] / t) for p in quad])
         quad = oriented([inn[k], inn[j], low[j], low[k]], (center[0] - inn[k][0], 0, center[1] - inn[k][2]))
         carte.face(quad, wall, [(i * 0.5, p[1]) for i, p in enumerate(quad)])
-    carte.prism(center, inner, sides, water, water, 'water', walls=False)
+    carte.prism(center, inner, sides, water, water, water_material, walls=False)
 
 
 basin((29, -14), 2.3, 1.95, 0.7, 0.55, 'mosaic', 'stone')
@@ -350,6 +344,62 @@ carte.prism((29, -14), 0.35, 8, 0.6, 1.5, 'stone')
 carte.prism((29, -14), 0.9, 8, 1.5, 1.7, 'mosaic', top_material='water')
 carte.collision((26.8, 0, -16.2), (31.2, 0.8, -11.8), 'stone')
 carte.collision((28.6, 0.8, -14.4), (29.4, 1.7, -13.6), 'stone')
+# --- Puits de la place du Milieu : socle, paroi à frise de zellige, margelle, conduit sombre, treuil à
+# manivelle avec sa corde et son seau, petit toit de tuiles vertes sur deux poteaux ---
+def hcylinder(y, z, x1, x2, radius, material, sides=8):
+    """Cylindre couché le long de x (treuil), d'axe (y, z)."""
+    t = kit.MATERIALS[material]['tile']
+    ring = [(y + radius * math.cos(2 * math.pi * k / sides), z + radius * math.sin(2 * math.pi * k / sides)) for k in range(sides)]
+    side = 2 * radius * math.sin(math.pi / sides)
+    for k in range(sides):
+        (ya, za), (yb, zb) = ring[k], ring[(k + 1) % sides]
+        quad = [(x1, ya, za), (x2, ya, za), (x2, yb, zb), (x1, yb, zb)]
+        mid = ((ya + yb) / 2 - y, (za + zb) / 2 - z)
+        u = [(0, k * side / t), (1, k * side / t), (1, (k + 1) * side / t), (0, (k + 1) * side / t)]
+        if oriented(quad, (0, mid[0], mid[1])) is not quad:
+            quad, u = quad[::-1], u[::-1]
+        carte.face(quad, material, u)
+    for x, want in ((x1, (-1, 0, 0)), (x2, (1, 0, 0))):
+        cap = [(x, ya, za) for ya, za in ring]
+        cap = oriented(cap, want)
+        carte.face(cap, material, [(p[2] / t, p[1] / t) for p in cap])
+
+
+def well(cx, cz):
+    carte.prism((cx, cz), 1.5, 8, 0, 0.15, 'stone')  # socle
+    basin((cx, cz), 1.25, 0.9, 0.95, 0.2, 'stone', 'paving', water_material='deepWater')  # paroi, margelle, conduit, eau au fond
+    carte.prism((cx, cz), 1.27, 8, 0.5, 0.72, 'mosaic', top=False)  # frise de zellige
+    carte.collision((cx - 1.5, 0, cz - 1.5), (cx + 1.5, 0.15, cz + 1.5), 'stone')
+    carte.collision((cx - 1.3, 0, cz - 1.3), (cx + 1.3, 1.0, cz + 1.3), 'stone')
+    # Poteaux, traverse, treuil à manivelle.
+    for x in (cx - 1.12, cx + 0.96):
+        box(x, cz - 0.08, x + 0.16, cz + 0.08, 0.95, 2.62, 'beam', 'wood', solid=False)
+    box(cx - 1.2, cz - 0.09, cx + 1.2, cz + 0.09, 2.5, 2.66, 'beam', 'wood', solid=False)
+    hcylinder(2.15, cz, cx - 0.96, cx + 0.96, 0.11, 'beam')
+    box(cx + 1.12, cz - 0.03, cx + 1.2, cz + 0.03, 1.95, 2.21, 'beam', 'wood', solid=False)  # manivelle
+    box(cx + 1.2, cz - 0.03, cx + 1.38, cz + 0.03, 1.95, 2.01, 'beam', 'wood', solid=False)
+    # Corde et seau, au-dessus du conduit.
+    box(cx - 0.015, cz - 0.015, cx + 0.015, cz + 0.015, 1.32, 2.04, 'cable', solid=False)
+    carte.prism((cx, cz), 0.16, 8, 1.02, 1.32, 'beam')
+    # Petit toit à deux pentes, tuiles dessus, bois dessous, pignons en bois.
+    ridge, eave, half, over = 3.05, 2.66, 0.95, 1.45
+    for sgn in (-1, 1):
+        top = [(cx - over, ridge, cz), (cx + over, ridge, cz), (cx + over, eave, cz + sgn * half), (cx - over, eave, cz + sgn * half)]
+        t = kit.MATERIALS['greenTiles']['tile']
+        uv = [(p[0] / t, (p[1] - eave) / t * 2.4) for p in top]
+        if oriented(top, (0, 1, sgn * 0.4)) is not top:
+            top, uv = top[::-1], uv[::-1]
+        carte.face(top, 'greenTiles', uv)
+        under = top[::-1]
+        carte.face(under, 'beam', [(p[0], p[2]) for p in under])
+    for x, want in ((cx - over, (-1, 0, 0)), (cx + over, (1, 0, 0))):
+        gable = oriented([(x, eave, cz - half), (x, eave, cz + half), (x, ridge, cz)], want)
+        carte.face(gable, 'beam', [(p[2], p[1]) for p in gable])
+    carte.collision((cx - over, eave, cz - half), (cx + over, ridge, cz + half), 'wood')
+
+
+well(0, -2)
+
 crate(22, -28)
 crate(36, -6)
 crate(24, -4, SMALL)
@@ -400,7 +450,7 @@ for x, z, pid, yaw in (
 for x, z, yaw in ((-4.0, 13.3, 90), (5.0, -14.9, 0), (-12.2, 5.6, 30)):
     prop('jerrycan', x, z, yaw)
 prop('coveredCar', 37.6, -20, 0)
-prop('coveredCar', -15, -44.6, 90)
+prop('coveredCar', -17.6, -44.6, 90)
 for x, z in ((-11.3, -45.4), (-10.6, -45.4)):
     prop('barrelBlue', x, z)
 prop('jerrycan', -11, -44.8, 15)
@@ -477,6 +527,7 @@ for i, (x, z, h) in enumerate(((20.5, -32, 7.5), (38, -31.5, 6.5), (38, 3.5, 7),
     palm.add_palm(carte, x, z, h, seed=i)
 
 obj = carte.build('medina')
+props.check_overlaps(PROPS)
 props.place(ROOT, PROPS)
 bake.setup_lighting(SUN_DIRECTION, 2.5, os.path.join(ROOT, 'public', 'sky', 'sky.hdr'), sky_irradiance=1.9)
 density = bake.lightmap_uv(obj, SIZE)

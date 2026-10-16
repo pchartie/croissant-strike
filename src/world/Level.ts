@@ -3,6 +3,7 @@ import { SUN_DIRECTION } from './sky';
 import { loadProps, placeProps } from './props';
 import { loadMapVisuals } from './MapVisuals';
 import { MAPS } from './maps';
+import { Fountain } from './fountain';
 import { loadSettings } from '../core/settings';
 import type { World } from './World';
 
@@ -18,8 +19,13 @@ export const LEVEL_BOUNDS = ACTIVE_MAP.bounds;
 /** Apparition du joueur : au sud, face au nord. */
 export const PLAYER_SPAWN = ACTIVE_MAP.spawn;
 
-/** Construit la carte. */
-export function buildLevel(world: World, anisotropy: number): void {
+/** Ce qui s'anime sur la carte (eau des fontaines…), mis à jour à chaque image. */
+export interface Animated {
+  update(dt: number): void;
+}
+
+/** Construit la carte ; renvoie ce qui s'y anime. */
+export function buildLevel(world: World, anisotropy: number): Animated[] {
   setupLighting(world.scene);
   const { data } = ACTIVE_MAP;
 
@@ -35,6 +41,10 @@ export function buildLevel(world: World, anisotropy: number): void {
   const barrelRust = new THREE.MeshStandardMaterial({ color: 0x7a4a2a, roughness: 0.75, metalness: 0.3 });
   placeProps(world, placements, { barrelBlue, barrelRed: barrelRust });
   void loadProps(world, placements);
+
+  const fountains = (ACTIVE_MAP.fountains ?? []).map((spec) => new Fountain(spec));
+  for (const fountain of fountains) world.scene.add(fountain.group);
+  return fountains;
 }
 
 /** Ciel, brouillard et lumières : elles n'éclairent plus que ce qui bouge (la carte a son éclairage). */

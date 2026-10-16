@@ -17,3 +17,4 @@ Textures de [Poly Haven](https://polyhaven.com), licence **CC0** (domaine public
 | `mosaic_diff.webp` | [Marble Mosaic Tiles](https://polyhaven.com/a/marble_mosaic_tiles) | Amal Kumar | 2 m |
 | `bluePlanks_diff.webp` | [Blue Painted Planks](https://polyhaven.com/a/blue_painted_planks) | Rob Tuytel | 1 m |
 | `greenPlanks_diff.webp` | [Green Rough Planks](https://polyhaven.com/a/green_rough_planks) | Rob Tuytel | 1,5 m |
+| `roofTiles_diff.webp` | [Clay Roof Tiles 02](https://polyhaven.com/a/clay_roof_tiles_02) | Amal Kumar | 2,5 m |

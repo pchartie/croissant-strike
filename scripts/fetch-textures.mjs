@@ -26,6 +26,7 @@ const TEXTURES = {
   mosaic: 'marble_mosaic_tiles',
   bluePlanks: 'blue_painted_planks',
   greenPlanks: 'green_rough_planks',
+  roofTiles: 'clay_roof_tiles_02',
 };
 
 const headers = { 'User-Agent': 'croissant-strike-textures/1.0' };

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { PropPlacement } from './props';
 import type { MapMaterial } from './MapVisuals';
+import type { FountainSpec } from './fountain';
 import dunes from '../maps/dunes.json';
 import medina from '../maps/medina.json';
 
@@ -29,6 +30,8 @@ export interface GameMap {
   spawn: { position: THREE.Vector3; yaw: number };
   /** Mode manches : les ennemis apparaissent au nord de `enemyZ`, les coéquipiers au sud de `allyZ`. */
   roundSpawnZ: { enemy: number; ally: number };
+  /** Fontaines à animer (dimensions de celles construites par Blender). */
+  fountains?: FountainSpec[];
 }
 
 export const MAPS: Record<MapId, GameMap> = {
@@ -47,5 +50,6 @@ export const MAPS: Record<MapId, GameMap> = {
     bounds: new THREE.Box3(new THREE.Vector3(-40, 0, -46), new THREE.Vector3(40, 8, 46)),
     spawn: { position: new THREE.Vector3(0, 0, 40), yaw: 0 },
     roundSpawnZ: { enemy: -35, ally: 35 },
+    fountains: [{ x: 29, z: -14, basinRadius: 1.95, basinWater: 0.55, bowlRadius: 0.9, bowlTop: 1.7 }],
   },
 };
