@@ -16,7 +16,12 @@ const SUN_CHECK = 0.1;
 const SUN_BLEND = 6;
 /** Vitesses (m/s) auxquelles les animations de marche et de course ont leur rythme naturel. */
 const WALK_PACE = 1.5;
-const RUN_PACE = 3.4;
+const RUN_PACE = 5;
+/** Part gardée du mouvement du bassin dans la marche et la course (sinon le soldat rebondit). */
+const HIP_MOTION = 0.4;
+/** Part gardée de la flexion du dos des poses de visée (sinon le soldat est voûté). */
+const SPINE_BEND = 0.4;
+const SPINE_BONES = ['DEF-spine002', 'DEF-spine003'];
 /** Durée du recul d'un tir, et vitesse de l'animation de mort. */
 const SHOT_TIME = 0.22;
 const DEATH_SPEED = 1.6;
@@ -37,6 +42,19 @@ interface SoldierTemplate {
 
 let soldiers: Promise<SoldierTemplate | null> | null = null;
 
+/** Réduit les allers-retours du bassin autour de sa position moyenne (rebond de la foulée). */
+function dampHips(clip: THREE.AnimationClip): void {
+  const track = clip.tracks.find((t) => t.name === 'DEF-hips.position');
+  if (!track) return;
+  const values = track.values;
+  const keys = values.length / 3;
+  for (let axis = 0; axis < 3; axis++) {
+    let mean = 0;
+    for (let k = 0; k < keys; k++) mean += values[k * 3 + axis] / keys;
+    for (let k = 0; k < keys; k++) values[k * 3 + axis] = mean + (values[k * 3 + axis] - mean) * HIP_MOTION;
+  }
+}
+
 /** Charge les soldats une fois pour tous les bots (public/assets/characters, `npm run build-characters`). */
 function loadSoldiers(): Promise<SoldierTemplate | null> {
   soldiers ??= (async () => {
@@ -48,6 +66,7 @@ function loadSoldiers(): Promise<SoldierTemplate | null> {
       const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`${import.meta.env.BASE_URL}assets/characters/soldiers.glb`);
       const clips = new Map<string, THREE.AnimationClip>();
       for (const clip of gltf.animations) {
+        if (['walk', 'run', 'crouchWalk'].includes(clip.name)) dampHips(clip);
         // Chaque animation en deux : bas du corps (déplacements) et haut du corps (arme), mélangés à part.
         const part = (upper: boolean) =>
           new THREE.AnimationClip(clip.name, clip.duration, clip.tracks.filter((track) => UPPER.test(track.name) === upper));
@@ -67,10 +86,16 @@ function loadSoldiers(): Promise<SoldierTemplate | null> {
 const LOWER = ['idle', 'walk', 'run', 'crouchIdle', 'crouchWalk'] as const;
 const UPPER_BASE = ['aim', 'aimUp', 'aimDown'] as const;
 /**
- * Hors combat, arme basse : la visée penchée vers le sol (l'animation « arme basse » du pack est une
+ * Hors combat, arme basse : le fusil incliné vers le sol (l'animation « arme basse » du pack est une
  * posture au pistolet, buste de côté, qui ne va pas avec un fusil tenu droit devant).
  */
-const LOW_READY = -0.3;
+const LOW_READY = -0.35;
+/**
+ * Bras abaissés dans le mélange des poses de visée (−1 = visée vers le bas) : redresser le dos remonte
+ * les bras, qui y sont attachés. Un peu en visée, nettement arme basse.
+ */
+const AIM_ARMS_BIAS = -0.25;
+const LOW_READY_ARMS = -0.65;
 
 export interface PoseOptions {
   /** En combat : arme épaulée, qui suit le regard ; sinon arme basse. */
@@ -107,6 +132,8 @@ export class BotModel {
   private mixer: THREE.AnimationMixer | null = null;
   private readonly actions = new Map<string, THREE.AnimationAction>();
   private hand: THREE.Object3D | null = null;
+  /** Os du dos et leur rotation debout (au repos), vers laquelle on les redresse. */
+  private readonly spine: { bone: THREE.Object3D; upright: THREE.Quaternion }[] = [];
   private gun: THREE.Object3D | null = null;
   private shotTimer = 0;
   private reloadTimer = 0;
@@ -147,6 +174,10 @@ export class BotModel {
     this.root.add(body);
     this.takeMaterials(body);
     this.hand = body.getObjectByName('DEF-handR') ?? null;
+    for (const name of SPINE_BONES) {
+      const bone = body.getObjectByName(name);
+      if (bone) this.spine.push({ bone, upright: bone.quaternion.clone() });
+    }
 
     this.mixer = new THREE.AnimationMixer(body);
     const add = (name: string, clip: THREE.AnimationClip | undefined) => {
@@ -242,8 +273,9 @@ export class BotModel {
     this.reloadTimer = Math.max(0, this.reloadTimer - dt);
     const overlay = this.reloadTimer > 0 ? 'reload' : this.shotTimer > 0 ? 'shoot' : null;
     const base = 1 - (overlay ? 1 : 0);
+    // Arme basse : bras abaissés et fusil incliné vers le sol, dos droit.
     this.pitch = options.aiming ? pitch : LOW_READY;
-    const tilt = THREE.MathUtils.clamp(this.pitch / 0.9, -1, 1);
+    const tilt = THREE.MathUtils.clamp(options.aiming ? pitch / 0.9 + AIM_ARMS_BIAS : LOW_READY_ARMS, -1, 1);
     weights.aimUp = base * Math.max(tilt, 0);
     weights.aimDown = base * Math.max(-tilt, 0);
     weights.aim = base * (1 - Math.abs(tilt));
@@ -251,6 +283,7 @@ export class BotModel {
 
     for (const [name, action] of this.actions) if (name !== 'death') action.setEffectiveWeight(weights[name] ?? 0);
     this.mixer.update(dt);
+    for (const { bone, upright } of this.spine) bone.quaternion.slerp(upright, 1 - SPINE_BEND);
     this.placeGun();
   }
 

@@ -22,7 +22,7 @@ SOURCE, OUT = args[0], args[1]
 ANIMATIONS = {
     'Idle_Loop': 'idle',
     'Walk_Loop': 'walk',
-    'Jog_Fwd_Loop': 'run',
+    'Sprint_Loop': 'run',  # fait pour la vitesse des bots, et deux fois moins rebondissant que Jog_Fwd_Loop
     'Crouch_Idle_Loop': 'crouchIdle',
     'Crouch_Fwd_Loop': 'crouchWalk',
     'Pistol_Aim_Up': 'aimUp',
