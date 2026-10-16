@@ -13,3 +13,6 @@ RetroWeaponPack_V1.zip
 
 # Mesures de performance (npm run bench)
 bench/
+
+# Cache Python (scripts Blender)
+__pycache__/
