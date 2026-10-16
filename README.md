@@ -87,7 +87,7 @@ src/
 ├── weapons/       caractéristiques des armes, tir et recul, arme en main, impacts
 ├── grenades/      les 5 grenades : lancer, rebonds, explosion, flash, fumée, feu, leurre
 ├── net/           jeu en ligne : connexion PeerJS, messages, adversaire affiché
-├── bots/          ennemis et coéquipiers : modèle, IA (patrouille, combat, recherche), apparitions
+├── bots/          ennemis et coéquipiers : soldats animés, IA (patrouille, combat, recherche), apparitions
 └── ui/            HUD, fil des éliminations, écrans de pause et de mort
 ```
 
@@ -191,6 +191,10 @@ Vrais enregistrements d'armes (AR-15 et 1911) et de rechargements, en CC0 : voir
 ## Bots
 
 Les bots patrouillent sur toute la carte (escaliers et plateformes compris), t'attaquent dès qu'ils te voient et vont voir quand ils t'entendent tirer ou courir. Ils tirent en rafales en s'arrêtant, puis se décalent sur le côté entre deux rafales (en sautant parfois). Chacun a une HE et une flash par vie : quand tu te caches, il peut lancer une flash avant d'aller te chercher, ou une HE sur ta cachette (lancer en cloche calculé pour exploser sur place). Une balle dans la tête fait ×4 de dégâts, dans les jambes ×0,75, pour eux comme pour toi.
+
+**Soldats** : le mannequin CC0 de l'[Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html) de Quaternius, habillé par `characters/build.py` (`npm run build-characters`, avec Blender) : corps coloré selon l'os qui porte chaque partie (peau, chemise, gants, pantalon, bottes), gilet à poches et ceinture, cagoule pour tous (le mannequin n'a pas de visage), casque et lunettes pour les CT. Deux tenues sur le même squelette : les ennemis en CT (bleu marine, casque), les coéquipiers en T (kaki, cagoule). Un seul maillage animé par soldat (un appel de dessin), environ 7 700 triangles, 510 Ko pour les deux tenues et leurs animations.
+
+Animations mélangées en deux moitiés (`src/bots/BotModel.ts`) : le bas du corps marche, court ou s'accroupit selon la vitesse ; le haut vise et suit le regard en combat, arme basse sinon, avec par-dessus le tir et le rechargement ; mort animée. Le pack gratuit n'ayant pas d'animations au fusil, les bras prennent la visée au pistolet à deux mains et le fusil est placé dans la main droite, pointé où regarde le bot. Les zones de touche restent des boîtes fixes (tête, corps, bras tendus, jambes), comme dans CS.
 
 **Coéquipiers** : jusqu'à 4 bots dans ton camp (réglage « Coéquipiers », 0 par défaut), en tenue bleu-gris. Ils combattent les ennemis avec la même IA, s'entendent tirer entre camps, et apparaissent groupés autour de toi en mode manches ; la manche continue tant qu'un membre de ton équipe est en vie. Pas de tir ami : tes balles les traversent, tes grenades et ton feu ne les blessent pas, et inversement. Ils sont toujours visibles sur le radar (en bleu) et ont leur ligne dans le tableau des scores.
 

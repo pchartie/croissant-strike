@@ -240,7 +240,7 @@ export class Bot implements Target {
     this.body.move(dt, ctx.colliders(this));
 
     this.turn(dt);
-    this.model.pose(this.body.position, this.yaw, this.pitch, this.body.horizontalSpeed / MOVE.maxSpeed, dt);
+    this.model.pose(this.body.position, this.yaw, this.pitch, this.body.horizontalSpeed / MOVE.maxSpeed, dt, { aiming: this.state === 'combat' });
     this.model.root.updateMatrixWorld();
   }
 
@@ -493,6 +493,7 @@ export class Bot implements Target {
     this.ammo--;
     if (this.ammo <= 0) {
       this.reloadTimer = RIFLE.reloadTime;
+      this.model.reload(RIFLE.reloadTime);
       this.burstLeft = 0;
     }
     if (this.burstLeft === 0) this.burstPause = 0.3 + Math.random() * 0.4;

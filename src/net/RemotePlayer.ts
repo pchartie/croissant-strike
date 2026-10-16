@@ -100,9 +100,9 @@ export class RemotePlayer {
       this.box.makeEmpty();
       return;
     }
-    // Accroupi : le modèle (et ses zones de touche) se tasse comme sa vue.
-    this.model.root.scale.y = this.eyeHeight / PLAYER.eyeHeight;
-    this.model.pose(this.position, this.yaw, this.pitch, Math.min(this.speed / MOVE.maxSpeed, 1), dt);
+    // Accroupi : animation accroupie, et zones de touche tassées.
+    const crouch = this.eyeHeight < PLAYER.eyeHeight - 0.05;
+    this.model.pose(this.position, this.yaw, this.pitch, Math.min(this.speed / MOVE.maxSpeed, 1), dt, { aiming: true, crouch });
     this.model.root.updateMatrixWorld();
     this.box.min.set(this.position.x - PLAYER.radius, this.position.y, this.position.z - PLAYER.radius);
     this.box.max.set(this.position.x + PLAYER.radius, this.position.y + this.height, this.position.z + PLAYER.radius);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { Bot } from '../bots/Bot';
 import { BotManager, type BotShot } from '../bots/BotManager';
 import { DAMAGE_MULTIPLIER, type HitPart } from '../bots/BotModel';
@@ -231,6 +232,8 @@ export class Game {
       if (!weapons) return;
       this.viewModel.useAnimated(weapons.viewModels, this.weapons.current.def);
       this.bots.setWeaponModel(weapons.botRifle);
+      // L'adversaire en ligne tient le même fusil que les bots.
+      this.duel?.remote.model.setGun(cloneSkinned(weapons.botRifle));
       if (weapons.casings) this.casings.setModels(weapons.casings);
     });
     window.addEventListener('resize', () => this.resize());

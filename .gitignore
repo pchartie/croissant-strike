@@ -16,3 +16,6 @@ bench/
 
 # Cache Python (scripts Blender)
 __pycache__/
+
+# Mannequin Quaternius téléchargé par npm run build-characters
+.characters-src/

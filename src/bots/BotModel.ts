@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { MOVE } from '../config';
 import { flashSprite } from '../weapons/flash';
 import { blobShadow, sunShade, sunVisibility } from '../world/sunlight';
 import type { Team } from './Bot';
@@ -8,46 +10,91 @@ export type HitPart = 'head' | 'body' | 'legs';
 /** Multiplicateurs de dégâts de CS selon la zone touchée. */
 export const DAMAGE_MULTIPLIER: Record<HitPart, number> = { head: 4, body: 1, legs: 0.75 };
 
-const HIP = 0.88;
-const SHOULDER = 1.42;
 const FLASH_DURATION = 0.05;
 /** Délai entre deux tests d'ensoleillement (s), et vitesse de passage ombre ↔ soleil. */
 const SUN_CHECK = 0.1;
 const SUN_BLEND = 6;
-
-/** Tenues : beige et cagoule noire pour les ennemis, bleu-gris et casque pour les coéquipiers (comme les CT). */
-const OUTFITS = {
-  enemy: { shirt: 0x8a7a5a, vest: 0x4a4f3a, pants: 0x3b3a35, head: 0x222222 },
-  ally: { shirt: 0x3b4a5c, vest: 0x2a3540, pants: 0x2b3038, head: 0x3d4652 },
-};
-const outfitMaterials = (team: Team) => {
-  const colors = OUTFITS[team];
-  const material = (color: number, roughness = 0.9) => new THREE.MeshStandardMaterial({ color, roughness });
-  return { shirt: material(colors.shirt), vest: material(colors.vest, 0.85), pants: material(colors.pants), head: material(colors.head, 0.95) };
-};
-const MATERIALS = { enemy: outfitMaterials('enemy'), ally: outfitMaterials('ally') };
-const skin = new THREE.MeshStandardMaterial({ color: 0xc89c7c, roughness: 0.8 });
-const gunMetal = new THREE.MeshStandardMaterial({ color: 0x1e1f21, metalness: 0.6, roughness: 0.5 });
-const gunWood = new THREE.MeshStandardMaterial({ color: 0x6e3d1e, roughness: 0.7 });
+/** Vitesses (m/s) auxquelles les animations de marche et de course ont leur rythme naturel. */
+const WALK_PACE = 1.5;
+const RUN_PACE = 3.4;
+/** Durée du recul d'un tir, et vitesse de l'animation de mort. */
+const SHOT_TIME = 0.22;
+const DEATH_SPEED = 1.6;
 
 /**
- * Silhouette de bot en blocs : jambes animées, buste, tête et bras qui
- * suivent la visée. Les blocs du corps servent aussi de zones de touche.
+ * Tenues (characters/build.py) : les ennemis viennent du nord (spawn CT, casque), les coéquipiers du
+ * sud avec le joueur (spawn T, cagoule).
+ */
+const OUTFIT: Record<Team, string> = { enemy: 'soldier_CT', ally: 'soldier_T' };
+
+/** Os du haut du corps (noms nettoyés par three.js : sans points) : animés par la visée, le tir, le rechargement. */
+const UPPER = /^DEF-(spine00[23]|neck|head|shoulder|upper_arm|forearm|hand|f_|thumb)/;
+
+interface SoldierTemplate {
+  scene: THREE.Object3D;
+  clips: Map<string, THREE.AnimationClip>;
+}
+
+let soldiers: Promise<SoldierTemplate | null> | null = null;
+
+/** Charge les soldats une fois pour tous les bots (public/assets/characters, `npm run build-characters`). */
+function loadSoldiers(): Promise<SoldierTemplate | null> {
+  soldiers ??= (async () => {
+    try {
+      const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
+        import('three/examples/jsm/loaders/GLTFLoader.js'),
+        import('three/examples/jsm/libs/meshopt_decoder.module.js'),
+      ]);
+      const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(`${import.meta.env.BASE_URL}assets/characters/soldiers.glb`);
+      const clips = new Map<string, THREE.AnimationClip>();
+      for (const clip of gltf.animations) {
+        // Chaque animation en deux : bas du corps (déplacements) et haut du corps (arme), mélangés à part.
+        const part = (upper: boolean) =>
+          new THREE.AnimationClip(clip.name, clip.duration, clip.tracks.filter((track) => UPPER.test(track.name) === upper));
+        clips.set(`${clip.name}:lower`, part(false));
+        clips.set(`${clip.name}:upper`, part(true));
+        clips.set(clip.name, clip);
+      }
+      return { scene: gltf.scene, clips };
+    } catch (error) {
+      console.info('Soldats absents (npm run build-characters) : bots invisibles.', error);
+      return null;
+    }
+  })();
+  return soldiers;
+}
+
+const LOWER = ['idle', 'walk', 'run', 'crouchIdle', 'crouchWalk'] as const;
+const UPPER_BASE = ['aim', 'aimUp', 'aimDown'] as const;
+/**
+ * Hors combat, arme basse : la visée penchée vers le sol (l'animation « arme basse » du pack est une
+ * posture au pistolet, buste de côté, qui ne va pas avec un fusil tenu droit devant).
+ */
+const LOW_READY = -0.3;
+
+export interface PoseOptions {
+  /** En combat : arme épaulée, qui suit le regard ; sinon arme basse. */
+  aiming?: boolean;
+  crouch?: boolean;
+}
+
+const hidden = new THREE.MeshBasicMaterial({ visible: false });
+
+/**
+ * Soldat animé (mannequin habillé, voir characters/build.py) : déplacements selon la vitesse, haut du
+ * corps qui vise et suit le regard, tir, rechargement, mort ; arme dans la main droite. Les zones de
+ * touche sont des boîtes fixes (tête, corps, jambes), comme dans CS.
  */
 export class BotModel {
   readonly root = new THREE.Group();
-  /** Blocs touchables, chacun avec `userData.part` (tête, corps ou jambes). */
+  /** Zones de touche invisibles, chacune avec `userData.part` (tête, corps ou jambes). */
   readonly hitboxes: THREE.Mesh[] = [];
+  /** Bout du canon : origine des balles et de la flamme. */
   readonly muzzle = new THREE.Object3D();
 
-  private readonly leftLeg = new THREE.Group();
-  private readonly rightLeg = new THREE.Group();
-  private readonly arms = new THREE.Group();
-  /** Arme en blocs, cachée quand le vrai fusil est chargé. */
-  private readonly blockGun: THREE.Mesh[] = [];
+  private readonly hitGroup = new THREE.Group();
   private readonly flash = flashSprite();
   private flashTimer = 0;
-  private walkPhase = 0;
   /** Ombre ronde au sol (la carte n'a pas d'ombres en temps réel). */
   private readonly shadow = blobShadow(0.9);
   /** Matériaux propres à ce modèle (copies), assombris quand il passe à l'ombre. */
@@ -57,37 +104,64 @@ export class BotModel {
   private sunTimer = 0;
   private readonly probe = new THREE.Vector3();
 
-  constructor(team: Team = 'enemy') {
-    const { shirt, vest, pants, head } = MATERIALS[team];
-    // Lacet d'abord, puis bascule : le bot tombe en arrière par rapport à là où il regarde.
+  private mixer: THREE.AnimationMixer | null = null;
+  private readonly actions = new Map<string, THREE.AnimationAction>();
+  private hand: THREE.Object3D | null = null;
+  private gun: THREE.Object3D | null = null;
+  private shotTimer = 0;
+  private reloadTimer = 0;
+  private dying = false;
+  private deathStart = 0;
+  private pitch = 0;
+
+  constructor(private readonly team: Team = 'enemy') {
     this.root.rotation.order = 'YXZ';
-    for (const [leg, x] of [[this.leftLeg, -0.11], [this.rightLeg, 0.11]] as const) {
-      leg.position.set(x, HIP, 0);
-      this.box(leg, pants, [0.17, HIP, 0.2], [0, -HIP / 2, 0], 'legs');
-      this.root.add(leg);
-    }
-
-    this.box(this.root, shirt, [0.46, 0.62, 0.26], [0, HIP + 0.31, 0], 'body');
-    this.box(this.root, vest, [0.48, 0.4, 0.28], [0, HIP + 0.36, 0], 'body');
-    this.box(this.root, head, [0.24, 0.26, 0.26], [0, 1.63, 0], 'head');
-    this.box(this.root, skin, [0.2, 0.06, 0.02], [0, 1.65, -0.13]); // fente des yeux
-
-    // Bras et arme, inclinés selon la visée.
-    this.arms.position.set(0, SHOULDER, 0);
-    this.box(this.arms, shirt, [0.12, 0.12, 0.42], [0.2, -0.08, -0.18], 'body');
-    this.box(this.arms, shirt, [0.12, 0.12, 0.5], [-0.1, -0.12, -0.26], 'body');
-    this.blockGun.push(
-      this.box(this.arms, gunMetal, [0.06, 0.09, 0.55], [0.05, -0.12, -0.5]),
-      this.box(this.arms, gunWood, [0.05, 0.08, 0.22], [0.05, -0.15, -0.12]),
-      this.box(this.arms, gunMetal, [0.04, 0.15, 0.06], [0.05, -0.22, -0.42]),
-    );
-    this.muzzle.position.set(0.05, -0.12, -0.85);
+    const box = (size: [number, number, number], center: [number, number, number], part: HitPart) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), hidden);
+      mesh.position.set(...center);
+      mesh.userData.part = part;
+      this.hitGroup.add(mesh);
+      this.hitboxes.push(mesh);
+    };
+    box([0.26, 0.3, 0.28], [0, 1.67, 0], 'head');
+    box([0.5, 0.62, 0.32], [0, 1.21, 0], 'body');
+    box([0.32, 0.26, 0.5], [0.05, 1.36, -0.3], 'body'); // bras tendus vers l'arme
+    box([0.18, 0.9, 0.22], [-0.11, 0.45, 0], 'legs');
+    box([0.18, 0.9, 0.22], [0.11, 0.45, 0], 'legs');
+    this.root.add(this.hitGroup, this.shadow);
     this.muzzle.add(this.flash);
-    this.arms.add(this.muzzle);
-    this.root.add(this.arms);
+    void loadSoldiers().then((template) => template && this.attach(template));
+  }
 
-    this.root.add(this.shadow);
-    this.takeMaterials(this.root);
+  /** Le soldat est chargé : copie du modèle (sa tenue seulement), animations, arme si elle est déjà là. */
+  private attach(template: SoldierTemplate): void {
+    const body = cloneSkinned(template.scene);
+    body.traverse((child) => {
+      if (child instanceof THREE.SkinnedMesh) {
+        child.visible = child.name === OUTFIT[this.team];
+        child.frustumCulled = false; // la boîte du maillage au repos ne suit pas l'animation
+      }
+    });
+    // Le modèle regarde vers +z ; le jeu, vers -z.
+    body.rotation.y = Math.PI;
+    this.root.add(body);
+    this.takeMaterials(body);
+    this.hand = body.getObjectByName('DEF-handR') ?? null;
+
+    this.mixer = new THREE.AnimationMixer(body);
+    const add = (name: string, clip: THREE.AnimationClip | undefined) => {
+      if (!clip) return;
+      const action = this.mixer!.clipAction(clip);
+      action.setEffectiveWeight(0).play();
+      this.actions.set(name, action);
+    };
+    for (const name of LOWER) add(name, template.clips.get(`${name}:lower`));
+    for (const name of [...UPPER_BASE, 'shoot', 'reload']) add(name, template.clips.get(`${name}:upper`));
+    add('death', template.clips.get('death'));
+    const death = this.actions.get('death');
+    death?.setLoop(THREE.LoopOnce, 1);
+    if (death) death.clampWhenFinished = true;
+    if (this.gun) this.root.add(this.gun);
   }
 
   /** Remplace les matériaux partagés par des copies, que ce modèle peut assombrir seul. */
@@ -125,64 +199,108 @@ export class BotModel {
     this.shadow.material.opacity = 0.25 + 0.3 * sun;
   }
 
-  private box(
-    parent: THREE.Object3D,
-    material: THREE.Material,
-    size: [number, number, number],
-    position: [number, number, number],
-    part?: HitPart,
-  ): THREE.Mesh {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
-    mesh.position.set(...position);
-    parent.add(mesh);
-    if (part) {
-      mesh.userData.part = part;
-      this.hitboxes.push(mesh);
-    }
-    return mesh;
-  }
-
-  /** Remplace l'arme en blocs par un vrai modèle (le M4 du pack, en centimètres, canon vers +x). */
+  /** L'arme du bot (le M4 du pack, en centimètres, canon vers +x), tenue dans la main droite. */
   setGun(gun: THREE.Object3D): void {
-    for (const mesh of this.blockGun) mesh.visible = false;
     gun.scale.setScalar(0.01);
-    gun.rotation.y = Math.PI / 2;
-    // Poignée dans la main droite, canon à hauteur de l'ancienne arme.
-    gun.position.set(0.05, -0.285, -0.25);
+    this.muzzle.position.set(60, 16.5, 0);
+    gun.add(this.muzzle);
+    this.gun = gun;
     this.takeMaterials(gun);
-    this.arms.add(gun);
+    if (this.mixer) this.root.add(gun);
   }
 
-  /** Place le modèle. `speed` (0 à 1) règle le balancement des jambes. */
-  pose(position: THREE.Vector3, yaw: number, pitch: number, speed: number, dt: number): void {
+  /** Place le modèle. `speed` (0 à 1, fraction de la vitesse maximale) règle les déplacements. */
+  pose(position: THREE.Vector3, yaw: number, pitch: number, speed: number, dt: number, options: PoseOptions = {}): void {
     this.root.position.copy(position);
     this.root.rotation.set(0, yaw, 0);
-    this.arms.rotation.x = pitch;
-
-    this.walkPhase += dt * 9 * speed;
-    const swing = Math.sin(this.walkPhase) * 0.6 * speed;
-    this.leftLeg.rotation.x = swing;
-    this.rightLeg.rotation.x = -swing;
-
     this.flashTimer -= dt;
     this.flash.visible = this.flashTimer > 0;
     this.shadow.visible = true;
+    if (this.gun) this.gun.visible = true;
+    this.hitGroup.scale.y = options.crouch ? 0.72 : 1;
+    if (this.dying) {
+      // Réapparu : on repart des animations normales.
+      this.dying = false;
+      this.actions.get('death')?.stop().play().setEffectiveWeight(0);
+    }
     this.updateSun(position, dt);
+    if (!this.mixer) return;
+
+    // Bas du corps : immobile, marche ou course selon la vitesse (accroupi : immobile ou marche).
+    const velocity = speed * MOVE.maxSpeed;
+    const walk = THREE.MathUtils.smoothstep(velocity, 0.2, 0.9);
+    const run = THREE.MathUtils.smoothstep(velocity, 2.2, 3.4);
+    const weights: Record<string, number> = options.crouch
+      ? { crouchIdle: 1 - walk, crouchWalk: walk }
+      : { idle: 1 - walk, walk: walk * (1 - run), run: walk * run };
+    this.actions.get('walk')?.setEffectiveTimeScale(THREE.MathUtils.clamp(velocity / WALK_PACE, 0.6, 1.6));
+    this.actions.get('crouchWalk')?.setEffectiveTimeScale(THREE.MathUtils.clamp(velocity / WALK_PACE, 0.6, 1.6));
+    this.actions.get('run')?.setEffectiveTimeScale(THREE.MathUtils.clamp(velocity / RUN_PACE, 0.7, 1.8));
+
+    // Haut du corps : visée selon le regard (ou arme basse), avec par-dessus le tir ou le rechargement.
+    this.shotTimer = Math.max(0, this.shotTimer - dt);
+    this.reloadTimer = Math.max(0, this.reloadTimer - dt);
+    const overlay = this.reloadTimer > 0 ? 'reload' : this.shotTimer > 0 ? 'shoot' : null;
+    const base = 1 - (overlay ? 1 : 0);
+    this.pitch = options.aiming ? pitch : LOW_READY;
+    const tilt = THREE.MathUtils.clamp(this.pitch / 0.9, -1, 1);
+    weights.aimUp = base * Math.max(tilt, 0);
+    weights.aimDown = base * Math.max(-tilt, 0);
+    weights.aim = base * (1 - Math.abs(tilt));
+    if (overlay) weights[overlay] = 1;
+
+    for (const [name, action] of this.actions) if (name !== 'death') action.setEffectiveWeight(weights[name] ?? 0);
+    this.mixer.update(dt);
+    this.placeGun();
+  }
+
+  /** L'arme dans la main droite, pointée là où regarde le bot (le modèle ne tient pas de fusil). */
+  private placeGun(): void {
+    if (!this.gun || !this.hand) return;
+    this.root.updateMatrixWorld(true);
+    const grip = this.hand.getWorldPosition(this.probe);
+    this.root.worldToLocal(grip);
+    this.gun.position.copy(grip).add(GRIP_OFFSET);
+    // Canon vers +x dans le modèle : le quart de tour le pointe vers -z (l'avant du bot), puis on
+    // l'incline selon le regard.
+    this.gun.rotation.set(this.pitch, Math.PI / 2, 0, 'XYZ');
   }
 
   showFlash(): void {
     this.flashTimer = FLASH_DURATION;
     this.flash.material.rotation = Math.random() * Math.PI * 2;
     this.flash.scale.setScalar(0.3 + Math.random() * 0.15);
+    this.shotTimer = SHOT_TIME;
+    this.actions.get('shoot')?.reset().setEffectiveTimeScale(1.5);
   }
 
-  /** Chute en arrière : `progress` va de 0 (debout) à 1 (au sol). */
+  /** Rechargement : l'animation est calée sur sa durée. */
+  reload(seconds: number): void {
+    const action = this.actions.get('reload');
+    if (!action) return;
+    this.reloadTimer = seconds;
+    action.reset().setEffectiveTimeScale(action.getClip().duration / seconds);
+  }
+
+  /** Mort : animation de chute (`progress` sert seulement à savoir qu'elle a commencé). */
   fall(progress: number): void {
-    const t = 1 - (1 - progress) * (1 - progress);
-    this.root.rotation.x = (Math.PI / 2) * t;
-    this.arms.rotation.x = -0.6 * t;
     this.flash.visible = false;
-    // Couché, l'ombre ronde basculerait avec le corps.
+    // Couché, l'ombre ronde basculerait avec le corps ; l'arme lâchée disparaît, comme dans CS.
     this.shadow.visible = false;
+    if (this.gun) this.gun.visible = false;
+    if (!this.mixer) return;
+    const now = performance.now() / 1000;
+    if (!this.dying || progress === 0) {
+      this.dying = true;
+      this.deathStart = now;
+      for (const action of this.actions.values()) action.setEffectiveWeight(0);
+      this.actions.get('death')?.reset().setEffectiveWeight(1).play();
+    }
+    const death = this.actions.get('death');
+    if (death) death.time = Math.min((now - this.deathStart) * DEATH_SPEED, death.getClip().duration);
+    this.mixer.update(0);
   }
 }
+
+/** Décalage de la poignée par rapport au poignet (repère du bot : x à droite, y en haut, -z devant). */
+const GRIP_OFFSET = new THREE.Vector3(0, -0.02, -0.05);
