@@ -252,6 +252,45 @@ export class SettingsPanel {
         });
         break;
       }
+      case 'cards': {
+        // Une rangée à part, sur toute la largeur : une grande carte par choix, avec son image.
+        row.classList.add('cards-row');
+        control.classList.add('cards');
+        const cards = field.options.map((option) => {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'card';
+          const image = document.createElement('img');
+          image.src = `${import.meta.env.BASE_URL}${option.image}`;
+          image.alt = '';
+          image.loading = 'lazy';
+          const name = document.createElement('span');
+          name.className = 'card-name';
+          name.textContent = option.label;
+          const description = document.createElement('span');
+          description.className = 'card-description';
+          description.textContent = option.description;
+          const badge = document.createElement('span');
+          badge.className = 'card-badge';
+          badge.textContent = 'Sélectionnée';
+          card.append(image, badge, name, description);
+          card.addEventListener('click', () => {
+            if (this.settings[field.key] !== option.value) set(option.value);
+          });
+          control.append(card);
+          return { card, value: option.value };
+        });
+        if (field.hint) {
+          const hint = document.createElement('p');
+          hint.className = 'cards-hint';
+          hint.textContent = field.hint;
+          row.append(hint);
+        }
+        this.refreshers.push(() => {
+          for (const { card, value } of cards) card.classList.toggle('active', this.settings[field.key] === value);
+        });
+        break;
+      }
       case 'range': {
         const slider = document.createElement('input');
         slider.type = 'range';

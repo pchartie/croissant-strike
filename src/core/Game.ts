@@ -464,6 +464,8 @@ export class Game {
     }
     this.audio.draw();
     this.buyMenu.message = `${item.label} : acheté`;
+    // Une arme achetée, on passe au jeu ; grenades et protections se prennent souvent à la suite.
+    if (item.kind === 'weapon') this.buyMenu.close();
   }
 
   /**

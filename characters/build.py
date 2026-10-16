@@ -51,11 +51,18 @@ REGIONS = [
 ]
 
 
-def linear(hex_color):
+# Tissu de chaque partie, rangé dans l'alpha de la couleur des sommets : le jeu applique le motif
+# correspondant (src/bots/BotModel.ts) : 0 sergé (vêtements, cagoule), 1/3 toile épaisse (gilet,
+# ceinture), 2/3 cuir (gants, bottes), 1 lisse (casque, lunettes).
+FABRIC = {'head': 0.0, 'skin': 0.0, 'shirt': 0.0, 'pants': 0.0, 'gloves': 2 / 3, 'boots': 2 / 3,
+          'vest': 1 / 3, 'pouch': 1 / 3, 'belt': 1 / 3, 'helmet': 1.0, 'plain': 1.0}
+
+
+def linear(hex_color, fabric=1.0):
     def channel(c):
         c /= 255
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-    return tuple(channel((hex_color >> shift) & 0xff) for shift in (16, 8, 0)) + (1.0,)
+    return tuple(channel((hex_color >> shift) & 0xff) for shift in (16, 8, 0)) + (fabric,)
 
 
 def region_of(bone):
@@ -113,7 +120,7 @@ def make_soldier(team):
     colors = mesh.color_attributes.new('Col', 'FLOAT_COLOR', 'CORNER')
     for loop in mesh.loops:
         region = vertex_region[loop.vertex_index]
-        colors.data[loop.index].color = linear(outfit[region])
+        colors.data[loop.index].color = linear(outfit[region], FABRIC[region])
 
     gear = bmesh.new()
     color_layer = gear.loops.layers.float_color.new('Col')
@@ -126,7 +133,7 @@ def make_soldier(team):
             bone_index[name] = group.index
         return bone_index[name]
 
-    def add_box(center, size, color, bone, rotation=Matrix.Identity(3)):
+    def add_box(center, size, color, bone, rotation=Matrix.Identity(3), fabric=1 / 3):
         """Boîte rigide, collée à un os (poids 1)."""
         result = bmesh.ops.create_cube(gear, size=1.0)
         for v in result['verts']:
@@ -135,7 +142,7 @@ def make_soldier(team):
         faces = {f for v in result['verts'] for f in v.link_faces}
         for f in faces:
             for loop in f.loops:
-                loop[color_layer] = linear(color)
+                loop[color_layer] = linear(color, fabric)
 
     def add_dome(center, radius, color, bone, squash=0.85):
         """Demi-sphère (casque)."""
@@ -148,7 +155,7 @@ def make_soldier(team):
             keep.append(v)
         for f in {f for v in keep for f in v.link_faces}:
             for loop in f.loops:
-                loop[color_layer] = linear(color)
+                loop[color_layer] = linear(color, FABRIC['helmet'])
 
     # Repères au repos (Blender : z vers le haut, -y vers l'avant du personnage).
     chest = bone_point('DEF-spine.003', 0.1)
@@ -167,9 +174,9 @@ def make_soldier(team):
     crown = bone_point('DEF-head', 0.75)
     if team == 'CT':
         add_dome(crown + Vector((0, 0.005, -0.01)), 0.15, outfit['helmet'], 'DEF-head', squash=0.9)
-        add_box(head + front * 0.1 + Vector((0, 0, 0.02)), (0.17, 0.035, 0.05), 0x0e1012, 'DEF-head')
+        add_box(head + front * 0.1 + Vector((0, 0, 0.02)), (0.17, 0.035, 0.05), 0x0e1012, 'DEF-head', fabric=FABRIC['plain'])
     else:
-        add_box(head + front * 0.095 + Vector((0, 0, 0.02)), (0.15, 0.03, 0.035), 0x5a4a3a, 'DEF-head')
+        add_box(head + front * 0.095 + Vector((0, 0, 0.02)), (0.15, 0.03, 0.035), 0x5a4a3a, 'DEF-head', fabric=0.0)
 
     gear_mesh = bpy.data.meshes.new(f'gear_{team}')
     gear.to_mesh(gear_mesh)

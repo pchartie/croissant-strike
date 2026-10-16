@@ -63,6 +63,8 @@ type Key = Exclude<keyof Settings, 'bindings'>;
 export type SettingField =
   | { key: Key; label: string; type: 'toggle'; on: string; off: string }
   | { key: Key; label: string; type: 'choice'; options: { value: string; label: string }[] }
+  /** Grandes cartes avec une image (choix de la carte de jeu). `image` : chemin depuis la racine du site. */
+  | { key: Key; label: string; type: 'cards'; hint?: string; options: { value: string; label: string; description: string; image: string }[] }
   | { key: Key; label: string; type: 'range'; min: number; max: number; step: number; unit?: string };
 
 export interface SettingsTab {
@@ -77,10 +79,11 @@ export const SETTINGS_TABS: SettingsTab[] = [
       {
         key: 'map',
         label: 'Carte',
-        type: 'choice',
+        type: 'cards',
+        hint: 'Changer de carte relance la partie.',
         options: [
-          { value: 'dunes', label: 'Dunes (grise)' },
-          { value: 'medina', label: 'Médina' },
+          { value: 'dunes', label: 'Dunes', description: 'Carte grise « squelette », 72 × 72 m', image: 'maps/dunes/preview.webp' },
+          { value: 'medina', label: 'Médina', description: 'Vieille ville du Maghreb, 80 × 92 m', image: 'maps/medina/preview.webp' },
         ],
       },
       {
@@ -190,6 +193,7 @@ function validate(field: SettingField, value: unknown): unknown {
     case 'toggle':
       return typeof value === 'boolean' ? value : undefined;
     case 'choice':
+    case 'cards':
       return field.options.some((option) => option.value === value) ? value : undefined;
     case 'range':
       if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;

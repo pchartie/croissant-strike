@@ -35,6 +35,50 @@ const OUTFIT: Record<Team, string> = { enemy: 'soldier_CT', ally: 'soldier_T' };
 /** Os du haut du corps (noms nettoyés par three.js : sans points) : animés par la visée, le tir, le rechargement. */
 const UPPER = /^DEF-(spine00[23]|neck|head|shoulder|upper_arm|forearm|hand|f_|thumb)/;
 
+/**
+ * Taille d'un motif de tissu dans le repère du modèle (positions compressées : le corps fait environ 2
+ * unités de haut, soit à peu près un motif par 25 cm), et force du grain de chaque tissu : sergé, toile, cuir.
+ */
+const FABRIC_TILE = 1.0;
+const FABRIC_STRENGTH = '1.7, 1.9, 1.3';
+
+let fabric: THREE.Texture | null = null;
+
+/**
+ * Grain de tissu sur la tenue (characters/build.py range le tissu de chaque partie dans l'alpha de la
+ * couleur des sommets) : l'image des tissus (un par canal) est projetée selon les trois axes, sur la
+ * pose de repos, pour que le motif suive le corps sans coordonnées de texture.
+ */
+function addFabric(material: THREE.MeshStandardMaterial): void {
+  fabric ??= new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}assets/characters/fabric.webp`, (texture) => {
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.needsUpdate = true;
+  });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.fabricMap = { value: fabric };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFabricPos;\nvarying vec3 vFabricNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFabricPos = position;\nvFabricNormal = normal;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D fabricMap;\nvarying vec3 vFabricPos;\nvarying vec3 vFabricNormal;')
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        {
+          vec3 w = pow(abs(normalize(vFabricNormal)), vec3(4.0));
+          w /= w.x + w.y + w.z;
+          vec3 p = vFabricPos / ${FABRIC_TILE.toFixed(2)};
+          vec3 grain = texture2D(fabricMap, p.yz).rgb * w.x + texture2D(fabricMap, p.xz).rgb * w.y + texture2D(fabricMap, p.xy).rgb * w.z;
+          float kind = vColor.a * 3.0; // 0 sergé, 1 toile, 2 cuir, 3 lisse
+          vec3 pick = vec3(step(kind, 0.5), step(0.5, kind) * step(kind, 1.5), step(1.5, kind) * step(kind, 2.5));
+          diffuseColor.rgb *= 1.0 + dot((grain - 0.5) * vec3(${FABRIC_STRENGTH}), pick);
+          diffuseColor.a = opacity;
+        }`,
+      );
+  };
+  material.customProgramCacheKey = () => 'soldier-fabric';
+}
+
 interface SoldierTemplate {
   scene: THREE.Object3D;
   clips: Map<string, THREE.AnimationClip>;
@@ -175,6 +219,9 @@ export class BotModel {
     body.rotation.y = Math.PI;
     this.root.add(body);
     this.takeMaterials(body);
+    body.traverse((child) => {
+      if (child instanceof THREE.SkinnedMesh && child.material instanceof THREE.MeshStandardMaterial) addFabric(child.material);
+    });
     const arm = (side: 'L' | 'R'): Arm | null => {
       const bones = ['upper_arm', 'forearm', 'hand'].map((name) => body.getObjectByName(`DEF-${name}${side}`));
       return bones.every(Boolean) ? (bones as Arm) : null;
