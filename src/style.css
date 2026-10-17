@@ -180,8 +180,8 @@ canvas {
 
 #weapon-name .weapon-icon {
   display: block;
-  height: 30px;
-  max-width: 120px;
+  height: 36px;
+  max-width: 140px;
   object-fit: contain;
   filter: drop-shadow(0 1px 2px #000);
 }
@@ -194,7 +194,7 @@ canvas {
 
 #ammo-count {
   min-width: 2ch;
-  font-size: 40px;
+  font-size: 46px;
   font-weight: 700;
   line-height: 1;
   text-align: right;
@@ -206,7 +206,7 @@ canvas {
 
 #ammo .sep,
 #ammo-reserve {
-  font-size: 20px;
+  font-size: 23px;
   opacity: 0.6;
 }
 
@@ -448,11 +448,11 @@ canvas {
 #grenades {
   position: absolute;
   right: 16px;
-  bottom: 84px;
+  bottom: 92px;
   display: flex;
-  gap: 4px;
+  gap: 5px;
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   text-shadow: 0 1px 2px #000;
 }
@@ -469,7 +469,7 @@ canvas {
 }
 
 #grenades .grenade-icon {
-  height: 20px;
+  height: 24px;
 }
 
 #grenades span.current {
