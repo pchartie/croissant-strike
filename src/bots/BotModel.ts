@@ -226,7 +226,7 @@ export class BotModel {
       if (child instanceof THREE.SkinnedMesh && child.material instanceof THREE.MeshStandardMaterial) addFabric(child.material);
     });
     const arm = (side: 'L' | 'R'): Arm | null => {
-      const bones = ['upper_arm', 'forearm', 'hand'].map((name) => body.getObjectByName(`DEF-${name}${side}`));
+      const bones = ['upper_arm', 'forearm', 'hand', 'f_middle01'].map((name) => body.getObjectByName(`DEF-${name}${side}`));
       return bones.every(Boolean) ? (bones as Arm) : null;
     };
     this.rightArm = arm('R');
@@ -360,9 +360,10 @@ export class BotModel {
     const stock = ik.b.copy(STOCK).multiplyScalar(0.01).applyQuaternion(this.gun.quaternion);
     this.gun.position.copy(pocket).sub(stock);
     this.gun.updateMatrixWorld(true);
-    reach(this.rightArm, this.gun.localToWorld(ik.target.copy(RIGHT_WRIST)), RIGHT_ELBOW_HINT, this.root.quaternion);
+    this.gun.getWorldQuaternion(ik.gunRotation);
+    reach(this.rightArm, this.gun.localToWorld(ik.palm.copy(RIGHT_PALM)), ik.handDir.copy(RIGHT_HAND).applyQuaternion(ik.gunRotation), RIGHT_ELBOW_HINT, this.root.quaternion);
     if (this.leftArm && this.reloadTimer <= 0) {
-      reach(this.leftArm, this.gun.localToWorld(ik.target.copy(LEFT_WRIST)), LEFT_ELBOW_HINT, this.root.quaternion);
+      reach(this.leftArm, this.gun.localToWorld(ik.palm.copy(LEFT_PALM)), ik.handDir.copy(LEFT_HAND).applyQuaternion(ik.gunRotation), LEFT_ELBOW_HINT, this.root.quaternion);
     }
   }
 
@@ -403,17 +404,27 @@ export class BotModel {
 }
 
 /**
- * Tenue du fusil, dans son repère (cm : canon vers +x, haut +y, gauche du tireur -z) : la crosse contre
- * l'épaule droite, et les poignets, un peu en retrait des prises (la paume est à quelques cm du poignet).
+ * Tenue du fusil, dans son repère (cm : canon vers +x, haut +y, gauche du tireur -z ; poignée vers
+ * x = -4..4, chargeur x = 12..28, garde-main x = 28..52 avec son dessous à y = 13,4) : la crosse contre
+ * l'épaule droite, la paume droite sur le flanc droit de la poignée, la paume gauche sous le garde-main.
+ * `*_HAND` : direction poignet → doigts (la main droite remonte vers la détente, la gauche s'enroule
+ * sous le garde-main vers son flanc droit).
  */
 const STOCK = new THREE.Vector3(-21, 13, 0);
-const RIGHT_WRIST = new THREE.Vector3(1, 1, 3);
-const LEFT_WRIST = new THREE.Vector3(27, 6, -5);
-/** La crosse se pose un peu devant et à l'intérieur de l'articulation de l'épaule (repère du bot). */
-const SHOULDER_POCKET = new THREE.Vector3(-0.05, -0.03, -0.1);
-/** Les coudes plient vers le bas et vers l'extérieur (repère du bot). */
-const RIGHT_ELBOW_HINT = new THREE.Vector3(0.25, -0.35, 0);
-const LEFT_ELBOW_HINT = new THREE.Vector3(-0.25, -0.35, 0);
+const RIGHT_PALM = new THREE.Vector3(0.5, 5.5, 3.4);
+const RIGHT_HAND = new THREE.Vector3(0.55, 0.75, -0.35).normalize();
+const LEFT_PALM = new THREE.Vector3(36, 11.4, -0.6);
+const LEFT_HAND = new THREE.Vector3(0.55, 0.3, 0.78).normalize();
+/** Centre de la paume, en fraction de la distance poignet → base des doigts. */
+const PALM = 0.6;
+/**
+ * La crosse se pose devant et à l'intérieur de l'articulation de l'épaule (repère du bot), assez en avant
+ * pour que le fusil et l'avant-bras gauche passent devant le gilet.
+ */
+const SHOULDER_POCKET = new THREE.Vector3(-0.05, -0.03, -0.15);
+/** Les coudes plient vers le bas, vers l'extérieur et un peu vers l'avant, hors du gilet (repère du bot). */
+const RIGHT_ELBOW_HINT = new THREE.Vector3(0.3, -0.35, -0.1);
+const LEFT_ELBOW_HINT = new THREE.Vector3(-0.35, -0.3, -0.25);
 
 const ik = {
   shoulder: new THREE.Vector3(),
@@ -427,26 +438,39 @@ const ik = {
   b: new THREE.Vector3(),
   q: new THREE.Quaternion(),
   parent: new THREE.Quaternion(),
+  palm: new THREE.Vector3(),
+  handDir: new THREE.Vector3(),
+  finger: new THREE.Vector3(),
+  gunRotation: new THREE.Quaternion(),
 };
 
-type Arm = [THREE.Object3D, THREE.Object3D, THREE.Object3D];
+/** Bras, avant-bras, main et base du majeur (pour orienter la main). */
+type Arm = [THREE.Object3D, THREE.Object3D, THREE.Object3D, THREE.Object3D];
 
 /**
  * IK à deux os : amène le poignet d'un bras sur `target` (monde). On calcule le coude (longueurs du bras
  * gardées, plié du côté de `elbowHint`, dans le repère du bot), puis on tourne le bras vers le coude et
  * l'avant-bras vers la cible. Hors de portée, le bras se tend vers elle.
  */
-function reach(arm: Arm, target: THREE.Vector3, elbowHint: THREE.Vector3, facing: THREE.Quaternion): void {
-  const [upper, fore, hand] = arm;
+/**
+ * Pose la main sur une prise : la paume en `palm`, la main orientée selon `handDir` (poignet → doigts),
+ * le coude plié vers `elbowHint` (repère du bot). Le poignet se place en retrait de la paume, dans l'axe
+ * de la main, puis bras et avant-bras le rejoignent (deux segments), et la main tourne vers `handDir`.
+ */
+function reach(arm: Arm, palm: THREE.Vector3, handDir: THREE.Vector3, elbowHint: THREE.Vector3, facing: THREE.Quaternion): void {
+  const [upper, fore, hand, finger] = arm;
   upper.getWorldPosition(ik.shoulder);
   fore.getWorldPosition(ik.elbow);
   hand.getWorldPosition(ik.wrist);
+  finger.getWorldPosition(ik.finger);
+  const handLength = ik.wrist.distanceTo(ik.finger);
+  const target = ik.target.copy(palm).addScaledVector(handDir, -handLength * PALM);
   const upperLength = ik.shoulder.distanceTo(ik.elbow);
   const foreLength = ik.elbow.distanceTo(ik.wrist);
   ik.dir.subVectors(target, ik.shoulder);
   const distance = Math.min(ik.dir.length(), (upperLength + foreLength) * 0.999);
   ik.dir.normalize();
-  const goal = ik.target.copy(ik.shoulder).addScaledVector(ik.dir, distance);
+  const goal = target.copy(ik.shoulder).addScaledVector(ik.dir, distance);
   // Coude : à `along` sur la ligne épaule → poignet, écarté de `out` vers l'indice.
   const along = (upperLength * upperLength - foreLength * foreLength + distance * distance) / (2 * distance);
   const out = Math.sqrt(Math.max(upperLength * upperLength - along * along, 0));
@@ -457,6 +481,10 @@ function reach(arm: Arm, target: THREE.Vector3, elbowHint: THREE.Vector3, facing
   fore.getWorldPosition(ik.elbow);
   hand.getWorldPosition(ik.wrist);
   swing(fore, ik.elbow, ik.wrist, goal);
+  // La main suit la prise.
+  hand.getWorldPosition(ik.wrist);
+  finger.getWorldPosition(ik.finger);
+  swing(hand, ik.wrist, ik.finger, ik.pole.copy(ik.wrist).add(handDir));
 }
 
 /** Tourne un os (dans le monde) pour que son point `from` aille vers `to`, vus depuis `pivot`. */
