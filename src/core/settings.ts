@@ -2,7 +2,8 @@ import { DEFAULT_BINDINGS, validateBindings, type Bindings } from './bindings';
 import type { MapId } from '../world/maps';
 
 export type GameMode = 'deathmatch' | 'rounds';
-export type Difficulty = 'easy' | 'normal' | 'hard';
+/** Passif : les bots se promènent sans attaquer (entraînement à la visée) ; sinon ils combattent. */
+export type Difficulty = 'passive' | 'easy' | 'normal' | 'hard';
 export type CrosshairColor = 'green' | 'white' | 'red' | 'cyan' | 'yellow';
 export type CrosshairSize = 'small' | 'medium' | 'large';
 
@@ -13,7 +14,6 @@ export interface Settings {
   /** Deathmatch : réapparition en continu. Manches : une vie par manche, comme dans CS. */
   mode: GameMode;
   botsEnabled: boolean;
-  botsAggressive: boolean;
   /** Taille des équipes, comme dans CS : N ennemis contre toi et N − 1 coéquipiers. */
   botCount: number;
   difficulty: Difficulty;
@@ -40,10 +40,9 @@ export const DEFAULT_SETTINGS: Settings = {
   map: 'dunes',
   mode: 'deathmatch',
   botsEnabled: true,
-  // Passifs par défaut : on découvre la carte et on s'entraîne à viser sans se faire tirer dessus.
-  botsAggressive: false,
   botCount: 3,
-  difficulty: 'normal',
+  // Passifs par défaut : on découvre la carte et on s'entraîne à viser sans se faire tirer dessus.
+  difficulty: 'passive',
   sensitivity: 2,
   invertY: true,
   fov: 75,
@@ -95,7 +94,6 @@ export const SETTINGS_TABS: SettingsTab[] = [
         ],
       },
       { key: 'botsEnabled', label: 'Bots', type: 'toggle', on: 'Activés', off: 'Désactivés' },
-      { key: 'botsAggressive', label: 'Comportement', type: 'toggle', on: 'Agressifs', off: 'Passifs' },
       {
         key: 'botCount',
         label: 'Nombre de bots',
@@ -110,6 +108,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
         label: 'Difficulté',
         type: 'choice',
         options: [
+          { value: 'passive', label: 'Passif' },
           { value: 'easy', label: 'Facile' },
           { value: 'normal', label: 'Normale' },
           { value: 'hard', label: 'Difficile' },
@@ -163,14 +162,14 @@ export const SETTINGS_TABS: SettingsTab[] = [
 
 /** Ces réglages n'ont pas de sens sans bots : ils sont grisés quand les bots sont désactivés. */
 export function isFieldEnabled(key: Key, settings: Settings): boolean {
-  const needsBots: Key[] = ['botsAggressive', 'botCount', 'difficulty'];
+  const needsBots: Key[] = ['botCount', 'difficulty'];
   return !needsBots.includes(key) || settings.botsEnabled;
 }
 
 const STORAGE_KEY = 'fps1.settings';
 /** Révision des réglages : un réglage listé ici reprend une fois sa valeur par défaut quand elle a changé. */
-const REVISION = 3;
-const RESET_AT: Partial<Record<Key, number>> = { showFps: 2, botCount: 3 };
+const REVISION = 4;
+const RESET_AT: Partial<Record<Key, number>> = { showFps: 2, botCount: 3, difficulty: 4 };
 
 /** Réglages mémorisés dans le navigateur ; toute valeur absente ou invalide reprend sa valeur par défaut. */
 export function loadSettings(): Settings {

@@ -925,11 +925,13 @@ export class Game {
     // En ligne, le mode et les bots sont imposés ; ces réglages reprendront effet après la partie.
     this.settings = settings;
     if (this.duel?.active) return;
-    this.bots.setDifficulty(settings.difficulty);
+    // Passif : les bots ne combattent pas (leurs réglages de visée n'ont alors pas d'effet).
+    const passive = settings.difficulty === 'passive';
+    this.bots.setDifficulty(settings.difficulty === 'passive' ? 'normal' : settings.difficulty);
     // Comme dans CS : deux équipes de même taille, toi compris dans la tienne.
     this.bots.setCount(settings.botCount);
     this.bots.setAllies(settings.botCount - 1);
-    this.bots.setAggressive(settings.botsAggressive);
+    this.bots.setAggressive(!passive);
     this.bots.setEnabled(settings.botsEnabled);
     if (settings.mode !== this.mode) this.startMode(settings.mode);
   }
