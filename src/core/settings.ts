@@ -82,7 +82,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
         key: 'map',
         label: 'Carte',
         type: 'cards',
-        hint: 'Changer de carte relance la partie.',
+        hint: 'La carte choisie se charge quand tu cliques sur le bouton en bas.',
         options: [
           { value: 'dunes', label: 'Dunes', description: 'Carte grise « squelette »', image: 'maps/dunes/preview.webp' },
           { value: 'medina', label: 'Médina', description: 'Vieille ville du Maghreb', image: 'maps/medina/preview.webp' },

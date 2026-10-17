@@ -35,6 +35,8 @@ interface PropSpec {
   surface: Surface;
   /** Collision : tout l'objet, ou seulement le tronc (les branches ne bloquent ni joueurs ni balles). */
   trunk?: number;
+  /** Sans collision : objet à ras du sol (plaque d'égout), qu'on ne doit pas sentir sous ses pieds. */
+  flat?: boolean;
 }
 
 const SPECS: Record<PropId, PropSpec> = {
@@ -61,7 +63,8 @@ const SPECS: Record<PropId, PropSpec> = {
   windowShutter: { file: 'window-shutter', size: [0.98, 0.15, 1.55], surface: 'metal' },
   utilityBox: { file: 'utility-box', size: [0.52, 0.43, 1.12], surface: 'metal' },
   // Sol : plaque d'égout, sacs de ciment, banc.
-  manhole: { file: 'manhole', size: [0.69, 0.69, 0.07], surface: 'metal' },
+  // Enfoncée dans le sol (posée à -6,5 cm par la carte) : seul son dessus dépasse, de 5 mm.
+  manhole: { file: 'manhole', size: [0.69, 0.69, 0.07], surface: 'metal', flat: true },
   cementBag: { file: 'cement-bag', size: [0.46, 0.7, 0.18], surface: 'sand' },
   bench: { file: 'bench', size: [1.16, 0.5, 0.89], surface: 'wood' },
 };
@@ -93,6 +96,7 @@ export function placeProps(world: World, placements: PropPlacement[], fallbackBa
       barrel.userData.surface = spec.surface;
       continue;
     }
+    if (spec.flat) continue;
     // Boîte englobant l'objet tourné (ou son tronc).
     const yaw = THREE.MathUtils.degToRad(place.yaw ?? 0);
     const [w, d] = spec.trunk ? [spec.trunk, spec.trunk] : [width, depth];

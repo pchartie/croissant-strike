@@ -650,7 +650,7 @@ for x, z1 in ((22.6, 10), (22.6, 20), (22.6, 28), (29.4, 15), (29.4, 25)):
 
 # --- Détails au sol : plaques d'égout dans les rues pavées, taches, bancs le long des places, sacs de ciment ---
 for x, z in ((-35.5, 4), (-35, 28), (1.2, 20), (1, -24), (-25, 40), (20, 40.5), (14, -3.5), (8, -38)):
-    prop('manhole', x, z)
+    prop('manhole', x, z, y=-0.065)  # à ras du sol : seul le dessus dépasse (5 mm)
 for x, z, yaw in ((-9.72, 42.5, 90), (-7, -9.72, 0), (39.72, -12, -90), (-7.5, -45.72, 0), (18, -45.72, 0)):
     prop('bench', x, z, yaw)
 for x, z, y, yaw in ((-38.5, 36.8, 0, 0), (-38.5, 36.8, 0.18, 6), (-38.5, 36.8, 0.36, -5), (-37.9, 36.8, 0, 3), (-37.9, 36.8, 0.18, -4),

@@ -265,11 +265,27 @@ export class Hud {
     this.fps.style.display = visible ? '' : 'none';
   }
 
+  /** Carte choisie dans le menu mais pas encore chargée : le bouton la charge (null : Jouer / Reprendre). */
+  setPendingMap(label: string | null): void {
+    this.pendingMap = label;
+    this.updatePlayLabel();
+  }
+
+  private pendingMap: string | null = null;
+  private started = false;
+
+  private updatePlayLabel(): void {
+    this.play.textContent = this.pendingMap ? `Charger ${this.pendingMap}` : this.started ? 'Reprendre' : 'Jouer';
+  }
+
   setPaused(paused: boolean): void {
     this.paused = paused;
     if (paused) this.pausedAt = performance.now();
     this.showMenu(paused);
-    if (!paused) this.play.textContent = 'Reprendre';
+    if (!paused) {
+      this.started = true;
+      this.updatePlayLabel();
+    }
   }
 
   private restartAnimation(element: HTMLElement, classes: string): void {

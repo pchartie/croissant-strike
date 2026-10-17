@@ -26,6 +26,7 @@ import { ViewModel } from '../weapons/ViewModel';
 import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem';
 import { ACTIVE_MAP, buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN, type Animated } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
+import { MAPS } from '../world/maps';
 import { loadSky } from '../world/sky';
 import { setSunBlockers } from '../world/sunlight';
 import { surfaceOf, type Surface } from '../world/surfaces';
@@ -155,6 +156,12 @@ export class Game {
 
     this.input = new Input(this.renderer.domElement);
     this.hud = new Hud(() => {
+      // Autre carte choisie dans le menu : on la charge seulement maintenant, en rechargeant la page
+      // (elle construit la carte, ses collisions, la navigation des bots…).
+      if (this.settings.map !== ACTIVE_MAP.id) {
+        location.reload();
+        return;
+      }
       this.audio.unlock();
       this.input.requestLock();
     });
@@ -227,11 +234,8 @@ export class Game {
       settings,
       (changed) => {
         saveSettings(changed);
-        // Autre carte : on recharge la page, qui la construit (collisions, navigation des bots…).
-        if (changed.map !== ACTIVE_MAP.id) {
-          location.reload();
-          return;
-        }
+        // Autre carte : seulement sélectionnée ; le bouton du menu la chargera.
+        this.hud.setPendingMap(changed.map !== ACTIVE_MAP.id ? MAPS[changed.map].label.replace(/ \(.*\)$/, '') : null);
         this.applySettings(changed);
       },
       [{ title: 'En ligne', element: document.getElementById('online')!, index: 1 }],
