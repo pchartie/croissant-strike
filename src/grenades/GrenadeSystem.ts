@@ -145,6 +145,13 @@ export class GrenadeSystem {
     return false;
   }
 
+  /** Sort une grenade précise (molette) ; faux si on n'en a pas. */
+  choose(type: GrenadeType): boolean {
+    if (this.counts[type] <= 0) return false;
+    if (type !== this.current || this.state !== 'pulled') this.select(type);
+    return true;
+  }
+
   unequip(): void {
     this.current = null;
   }

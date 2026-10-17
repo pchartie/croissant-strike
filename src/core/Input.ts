@@ -5,7 +5,11 @@ import { DEFAULT_BINDINGS, type Action, type Bindings } from './bindings';
  * les réglages associent à des touches. Les codes physiques (KeyW…) suivent la
  * position des touches : sur un clavier AZERTY, KeyW est la touche Z.
  */
+/** Écart minimal entre deux crans de molette (ms). */
+const WHEEL_INTERVAL = 120;
+
 export class Input {
+  private lastWheel = -Infinity;
   private bindings: Bindings = DEFAULT_BINDINGS;
   private held = new Set<string>();
   private pressed = new Set<string>();
@@ -40,9 +44,12 @@ export class Input {
       this.mouseDY += e.movementY;
     });
 
-    // La molette compte comme une touche « Wheel » qu'on appuie (pour sauter, par défaut).
+    // La molette compte comme deux touches, « WheelUp » et « WheelDown » (changer d'arme, par
+    // défaut). Un pavé tactile envoie des dizaines d'évènements par geste : un cran tous les 120 ms.
     document.addEventListener('wheel', (e) => {
-      if (this.locked && e.deltaY !== 0) this.pressed.add('Wheel');
+      if (!this.locked || e.deltaY === 0 || e.timeStamp - this.lastWheel < WHEEL_INTERVAL) return;
+      this.lastWheel = e.timeStamp;
+      this.pressed.add(e.deltaY > 0 ? 'WheelDown' : 'WheelUp');
     });
 
     document.addEventListener('pointerlockchange', () => {

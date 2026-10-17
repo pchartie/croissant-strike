@@ -34,12 +34,13 @@ FPS façon Counter-Strike, directement dans le navigateur : bots, manches avec �
 | Z Q S D | Se déplacer |
 | Clic gauche / R | Tirer / recharger |
 | 1 · 2 · 3 · 4 | Arme principale · pistolet · couteau · grenades |
+| Molette | Arme suivante / précédente |
 | B | Menu d'achat |
 | Espace · Ctrl · Maj | Sauter · s'accroupir · marcher |
 | Tab | Scores |
 | Échap | Menu et réglages |
 
-Toutes les touches se changent dans le menu (**Touches**).
+Les touches suivent ton clavier (Z Q S D en AZERTY, W A S D en QWERTY) et se changent toutes dans le menu (**Touches**).
 
 ## Lancer en local
 

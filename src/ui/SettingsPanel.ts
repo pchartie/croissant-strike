@@ -6,6 +6,7 @@ import {
 } from '../core/settings';
 import {
   ACTION_GROUPS,
+  guessLayout,
   ACTIONS,
   BINDING_SLOTS,
   keyName,
@@ -132,7 +133,8 @@ export class SettingsPanel {
 
     // Lettres selon la disposition du clavier : le navigateur la donne (Chrome, Edge) ;
     // sinon (Firefox), on apprend la lettre de chaque touche dès qu'elle est utilisée.
-    this.layout = loadLearnedKeys();
+    // Ordre de confiance : la carte du navigateur, puis les touches déjà tapées, puis la langue.
+    this.layout = new Map([...guessLayout(navigator.languages ?? [navigator.language]), ...(loadLearnedKeys() ?? [])]);
     window.addEventListener('keydown', (event) => {
       if (event.key.length !== 1 || this.layout?.get(event.code) === event.key) return;
       this.layout ??= new Map();
@@ -176,7 +178,7 @@ export class SettingsPanel {
     };
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      finish('Wheel');
+      if (event.deltaY !== 0) finish(event.deltaY > 0 ? 'WheelDown' : 'WheelUp');
     };
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('mousedown', onMouse, true);

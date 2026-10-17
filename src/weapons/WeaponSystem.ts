@@ -186,6 +186,20 @@ export class WeaponSystem {
     this.equip(this.slots[0] ? 0 : 1);
   }
 
+  /** Emplacements occupés (0 : principale, 1 : pistolet, 2 : couteau), et celui en main. */
+  get ownedSlots(): number[] {
+    return this.slots.flatMap((slot, i) => (slot ? [i] : []));
+  }
+
+  get slotIndex(): number {
+    return this.index;
+  }
+
+  /** Sort l'arme de l'emplacement `index` (molette), si on l'a et qu'elle n'est pas déjà en main. */
+  selectSlot(index: number): void {
+    if (this.slots[index] && (index !== this.index || this.holstered)) this.equip(index);
+  }
+
   /** Range l'arme pour sortir une grenade. */
   holster(): void {
     this.holstered = true;

@@ -4,7 +4,7 @@ import type { Bot } from '../bots/Bot';
 import { BotManager, type BotShot } from '../bots/BotManager';
 import { DAMAGE_MULTIPLIER, type HitPart } from '../bots/BotModel';
 import { CAMERA, ECONOMY, MOVE, PLAYER, TICK, UNIT } from '../config';
-import { GRENADE_ORDER, GRENADES, HE, MOLOTOV } from '../grenades/definitions';
+import { GRENADE_ORDER, GRENADES, HE, MOLOTOV, type GrenadeType } from '../grenades/definitions';
 import { throwVelocity } from '../grenades/ballistics';
 import { flashDuration } from '../grenades/flashbang';
 import { GrenadeSystem } from '../grenades/GrenadeSystem';
@@ -313,6 +313,8 @@ export class Game {
         this.viewModel.showGrenade(this.grenades.current!);
         this.audio.draw();
       }
+      const step = (this.input.consumePress('nextWeapon') ? 1 : 0) - (this.input.consumePress('prevWeapon') ? 1 : 0);
+      if (step) this.cycleWeapon(step);
       this.weapons.update(TICK, this.input);
       if (this.weapons.holstered) this.grenades.updateInput(TICK, this.input);
     } else if (this.respawnTimer !== null) {
@@ -364,6 +366,31 @@ export class Game {
     this.hud.addKill(attacker, this.playerName, weapon, headshot, { me: true });
     this.hud.setScore(this.kills, this.deaths);
     if (this.mode === 'deathmatch') this.respawnTimer = RESPAWN_DELAY;
+  }
+
+  /**
+   * Molette, comme dans CS : arme principale → pistolet → couteau → chaque grenade qu'on a → retour
+   * à l'arme principale (`step` 1), ou dans l'autre sens (-1).
+   */
+  private cycleWeapon(step: number): void {
+    const entries: ({ slot: number } | { grenade: GrenadeType })[] = [
+      ...this.weapons.ownedSlots.map((slot) => ({ slot })),
+      ...GRENADE_ORDER.filter((type) => this.grenades.counts[type] > 0).map((grenade) => ({ grenade })),
+    ];
+    const current = entries.findIndex((entry) =>
+      'grenade' in entry
+        ? this.weapons.holstered && this.grenades.current === entry.grenade
+        : !this.weapons.holstered && this.weapons.slotIndex === entry.slot,
+    );
+    const next = entries[(current + step + entries.length) % entries.length];
+    if (!next) return;
+    if (!('grenade' in next)) {
+      this.weapons.selectSlot(next.slot);
+    } else if (this.grenades.choose(next.grenade)) {
+      this.weapons.holster();
+      this.viewModel.showGrenade(next.grenade);
+      this.audio.draw();
+    }
   }
 
   /** Dégâts infligés à un bot par le joueur ; renvoie vrai s'il en meurt. */

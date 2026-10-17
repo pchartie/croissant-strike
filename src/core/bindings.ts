@@ -14,6 +14,8 @@ export type Action =
   | 'weapon2'
   | 'weapon3'
   | 'grenades'
+  | 'nextWeapon'
+  | 'prevWeapon'
   | 'buy'
   | 'scoreboard';
 
@@ -42,6 +44,8 @@ export const ACTIONS: { action: Action; label: string; hint?: string; group: (ty
   { action: 'weapon2', label: 'Pistolet', group: 'Équipement' },
   { action: 'weapon3', label: 'Couteau', group: 'Équipement' },
   { action: 'grenades', label: 'Grenades', hint: 'appuyer à nouveau pour changer', group: 'Équipement' },
+  { action: 'nextWeapon', label: 'Arme suivante', group: 'Équipement' },
+  { action: 'prevWeapon', label: 'Arme précédente', group: 'Équipement' },
   { action: 'buy', label: "Menu d'achat", group: 'Interface' },
   { action: 'scoreboard', label: 'Tableau des scores', hint: 'maintenir', group: 'Interface' },
 ];
@@ -52,7 +56,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   back: ['KeyS'],
   left: ['KeyA'],
   right: ['KeyD'],
-  jump: ['Space', 'Wheel'],
+  jump: ['Space'],
   // Ctrl+W ferme l'onglet du navigateur en QWERTY : C est proposé en plus.
   crouch: ['ControlLeft', 'KeyC'],
   walk: ['ShiftLeft'],
@@ -63,12 +67,15 @@ export const DEFAULT_BINDINGS: Bindings = {
   weapon2: ['Digit2'],
   weapon3: ['Digit3'],
   grenades: ['Digit4'],
+  // Comme dans CS : la molette fait défiler les armes et les grenades.
+  nextWeapon: ['WheelDown'],
+  prevWeapon: ['WheelUp'],
   buy: ['KeyB'],
   scoreboard: ['Tab'],
 };
 
-/** Touches qu'on ne peut pas assigner : Échap met le jeu en pause. */
-export const RESERVED_CODES = ['Escape'];
+/** Touches qu'on ne peut pas assigner : Échap met le jeu en pause ; « Wheel » (ancienne molette sans sens) n'existe plus. */
+export const RESERVED_CODES = ['Escape', 'Wheel'];
 
 /** Garde les touches valides d'une sauvegarde ; les actions absentes reprennent leurs touches par défaut. */
 export function validateBindings(value: unknown): Bindings {
@@ -109,7 +116,8 @@ const NAMES: Record<string, string> = {
   Mouse2: 'Clic droit',
   Mouse3: 'Souris 4',
   Mouse4: 'Souris 5',
-  Wheel: 'Molette',
+  WheelUp: 'Molette haut',
+  WheelDown: 'Molette bas',
 };
 
 /**
@@ -118,10 +126,38 @@ const NAMES: Record<string, string> = {
  */
 export function keyName(code: string, layout?: Map<string, string>): string {
   if (NAMES[code]) return NAMES[code];
+  // Rangée des chiffres : « 1 » plutôt que « & » en AZERTY, comme on la désigne en jeu.
+  if (code.startsWith('Digit')) return code.slice(5);
   const letter = layout?.get(code);
   if (letter && letter.trim()) return letter.toUpperCase();
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   if (code.startsWith('Numpad')) return `Pavé ${code.slice(6)}`;
   return code;
+}
+
+/**
+ * Disposition du clavier devinée d'après la langue du navigateur, quand il ne la donne pas
+ * (Firefox, Safari, Brave) : AZERTY en France et en Belgique, QWERTZ en Allemagne, Autriche
+ * et Suisse, QWERTY ailleurs (Québec compris). Seules les lettres qui changent sont listées.
+ */
+export function guessLayout(languages: readonly string[]): Map<string, string> {
+  const language = (languages[0] ?? '').toLowerCase();
+  if (/^fr(-(fr|be|lu|mc))?$/.test(language)) {
+    return new Map([
+      ['KeyQ', 'a'],
+      ['KeyW', 'z'],
+      ['KeyA', 'q'],
+      ['KeyZ', 'w'],
+      ['Semicolon', 'm'],
+      ['KeyM', ','],
+    ]);
+  }
+  if (/^de\b|^(fr|it)-ch$/.test(language)) {
+    return new Map([
+      ['KeyY', 'z'],
+      ['KeyZ', 'y'],
+    ]);
+  }
+  return new Map();
 }
