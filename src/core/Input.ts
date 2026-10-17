@@ -1,13 +1,13 @@
 import { DEFAULT_BINDINGS, type Action, type Bindings } from './bindings';
 
+/** Écart minimal entre deux crans de molette (ms). */
+const WHEEL_INTERVAL = 120;
+
 /**
  * Clavier et souris. Le jeu demande des actions (« avancer », « tirer »…), que
  * les réglages associent à des touches. Les codes physiques (KeyW…) suivent la
  * position des touches : sur un clavier AZERTY, KeyW est la touche Z.
  */
-/** Écart minimal entre deux crans de molette (ms). */
-const WHEEL_INTERVAL = 120;
-
 export class Input {
   private lastWheel = -Infinity;
   private bindings: Bindings = DEFAULT_BINDINGS;
@@ -18,6 +18,8 @@ export class Input {
   private lockListeners: ((locked: boolean) => void)[] = [];
 
   locked = false;
+  /** Vrai dès qu'on a joué (souris capturée au moins une fois). */
+  private started = false;
 
   constructor(private readonly element: HTMLElement) {
     window.addEventListener('keydown', (e) => {
@@ -52,8 +54,15 @@ export class Input {
       this.pressed.add(e.deltaY > 0 ? 'WheelDown' : 'WheelUp');
     });
 
+    // Une fois la partie lancée, un raccourci du navigateur (Ctrl+W, Ctrl+Maj+Q, Cmd+Q, Alt+F4…)
+    // ne ferme plus rien sans confirmation : la page ne peut pas les bloquer, seulement demander.
+    window.addEventListener('beforeunload', (e) => {
+      if (this.started) e.preventDefault();
+    });
+
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.element;
+      if (this.locked) this.started = true;
       if (!this.locked) {
         this.held.clear();
         this.pressed.clear();

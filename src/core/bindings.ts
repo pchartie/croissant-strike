@@ -35,7 +35,7 @@ export const ACTIONS: { action: Action; label: string; hint?: string; group: (ty
   { action: 'left', label: 'Gauche', group: 'Déplacements' },
   { action: 'right', label: 'Droite', group: 'Déplacements' },
   { action: 'jump', label: 'Sauter', group: 'Déplacements' },
-  { action: 'crouch', label: "S'accroupir", group: 'Déplacements' },
+  { action: 'crouch', label: "S'accroupir", hint: 'Ctrl déconseillé : raccourcis du navigateur', group: 'Déplacements' },
   { action: 'walk', label: 'Marcher', hint: 'sans bruit', group: 'Déplacements' },
   { action: 'attack', label: 'Tirer', hint: 'grenade lancée loin · coup de couteau rapide', group: 'Combat' },
   { action: 'attack2', label: 'Action secondaire', hint: 'grenade en cloche · coup de couteau puissant', group: 'Combat' },
@@ -57,8 +57,9 @@ export const DEFAULT_BINDINGS: Bindings = {
   left: ['KeyA'],
   right: ['KeyD'],
   jump: ['Space'],
-  // Ctrl+W ferme l'onglet du navigateur en QWERTY : C est proposé en plus.
-  crouch: ['ControlLeft', 'KeyC'],
+  // Pas Ctrl, contrairement à CS : le navigateur garde ses raccourcis même en jeu (Ctrl+W ferme
+  // l'onglet en QWERTY, Ctrl+Maj+Q quitte le navigateur en AZERTY sous Windows).
+  crouch: ['KeyC'],
   walk: ['ShiftLeft'],
   attack: ['Mouse0'],
   attack2: ['Mouse2'],
@@ -77,6 +78,9 @@ export const DEFAULT_BINDINGS: Bindings = {
 /** Touches qu'on ne peut pas assigner : Échap met le jeu en pause ; « Wheel » (ancienne molette sans sens) n'existe plus. */
 export const RESERVED_CODES = ['Escape', 'Wheel'];
 
+/** Anciennes touches par défaut remplacées depuis : une sauvegarde qui les a encore reprend les nouvelles. */
+const OLD_DEFAULTS: Partial<Record<Action, string[]>> = { crouch: ['ControlLeft', 'KeyC'] };
+
 /** Garde les touches valides d'une sauvegarde ; les actions absentes reprennent leurs touches par défaut. */
 export function validateBindings(value: unknown): Bindings {
   const bindings = cloneBindings(DEFAULT_BINDINGS);
@@ -84,6 +88,8 @@ export function validateBindings(value: unknown): Bindings {
   for (const { action } of ACTIONS) {
     const codes = (value as Record<string, unknown>)[action];
     if (!Array.isArray(codes)) continue;
+    const old = OLD_DEFAULTS[action];
+    if (old && old.length === codes.length && old.every((code, i) => codes[i] === code)) continue;
     bindings[action] = codes
       .filter((code): code is string => typeof code === 'string' && code.length > 0 && !RESERVED_CODES.includes(code))
       .slice(0, BINDING_SLOTS);

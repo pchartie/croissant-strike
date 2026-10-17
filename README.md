@@ -36,7 +36,7 @@ FPS façon Counter-Strike, directement dans le navigateur : bots, manches avec �
 | 1 · 2 · 3 · 4 | Arme principale · pistolet · couteau · grenades |
 | Molette | Arme suivante / précédente |
 | B | Menu d'achat |
-| Espace · Ctrl · Maj | Sauter · s'accroupir · marcher |
+| Espace · C · Maj | Sauter · s'accroupir · marcher |
 | Tab | Scores |
 | Échap | Menu et réglages |
 
