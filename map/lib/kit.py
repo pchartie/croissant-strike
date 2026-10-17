@@ -45,6 +45,10 @@ MATERIALS = {
     'sandstone': M('sandstone', tile=3),
     'wood': M('wood', 0xd9a66b, tile=1),
     'crate': M(tint=0x6b4522, per_box=True, canvas='crate', shown=0xffffff),
+    # Caisses en vrai bois (photos Poly Haven assemblées par scripts/fetch-textures.mjs), trois essences.
+    'crateLight': M('crateLight', per_box=True),
+    'crateDark': M('crateDark', per_box=True),
+    'crateGreen': M('crateGreen', per_box=True),
     'shadowGap': M(tint=0x1b1814),
     # Version grise (quadrillage de 1 m), pour tester un tracé avant de l'habiller.
     'greyWall': M(tint=0xb4b2ac, canvas='grid'),
@@ -84,6 +88,7 @@ MATERIALS = {
     'decalCracks': M(canvas='decalCracks', blend=True),
     'decalPosters': M(canvas='decalPosters', alpha=True),
     'decalLattice': M(canvas='decalLattice', alpha=True),  # moucharabieh (bois ajouré)
+    'decalInterior': M(canvas='decalInterior', alpha=True),  # pièces vues par les fenêtres ouvertes
     'decalGrille': M(canvas='decalGrille', alpha=True, tile=0.6),  # barreaux de fenêtre (une face par grille)
     'decalStuds': M(canvas='decalStuds', alpha=True, tile=0.4),  # clous de porte
     'decalSand': M(canvas='decalSand', blend=True),  # sable au pied des murs

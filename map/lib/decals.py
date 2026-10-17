@@ -178,6 +178,59 @@ def sand(path, w=512, h=128, seed=5):
     _save(path, np.concatenate([color, alpha[..., None].astype(np.float32)], axis=-1))
 
 
+INTERIORS = 4
+
+
+def interiors(path, cell_w=192, cell_h=256, seed=7):
+    """
+    Intérieurs vus à travers une fenêtre, côte à côte : pièce en perspective (mur du fond, côtés et plafond
+    plus sombres, sol), rideaux tirés sur les côtés, et une lampe allumée ou une étagère. Assez sombres pour
+    se lire comme un intérieur même au soleil (l'image est une face plate sur la façade).
+    """
+    rng = np.random.default_rng(seed)
+    walls = [(0.55, 0.42, 0.28), (0.30, 0.42, 0.42), (0.55, 0.36, 0.33), (0.62, 0.58, 0.50)]
+    curtains = [(0.55, 0.12, 0.10), (0.85, 0.82, 0.74), (0.16, 0.28, 0.50), (0.60, 0.45, 0.15)]
+    rgba = np.ones((cell_h, cell_w * INTERIORS, 4), dtype=np.float32)
+    yy, xx = np.mgrid[0:cell_h, 0:cell_w].astype(np.float32)
+    u, v = xx / cell_w, yy / cell_h  # v = 0 en haut
+    for k in range(INTERIORS):
+        img = np.zeros((cell_h, cell_w, 3), dtype=np.float32)
+        wall = np.array(walls[k])
+        # Mur du fond au centre ; côtés, plafond et sol en perspective autour.
+        bx0, bx1, by0, by1 = 0.22, 0.78, 0.18, 0.68
+        img[:] = wall * 0.55  # côtés
+        back = (u > bx0) & (u < bx1) & (v > by0) & (v < by1)
+        img[back] = wall * 0.9
+        ceiling = (v < by0) & (v < np.minimum(u, 1 - u) * (by0 / bx0) + 0.001)
+        img[ceiling] = wall * 0.38
+        floor = (v > by1) & ((1 - v) < np.minimum(u, 1 - u) * ((1 - by1) / bx0) + 0.001)
+        img[floor] = np.array([0.30, 0.20, 0.13])
+        # Fond plus sombre en haut (lumière qui vient de la fenêtre, par le bas).
+        img *= (0.55 + 0.45 * v)[..., None]
+        if k % 2 == 0:  # lampe suspendue, halo chaud
+            d = np.hypot((u - 0.5) * cell_w, (v - 0.3) * cell_h) / cell_w
+            img += np.array([1.0, 0.75, 0.4]) * np.clip(0.35 - d, 0, None)[..., None] * 1.6
+            img[(np.abs(u - 0.5) < 0.004) & (v < 0.27)] = 0.05
+        else:  # étagère avec des pots
+            shelf = (u > 0.3) & (u < 0.7) & (np.abs(v - 0.45) < 0.012)
+            img[shelf] = np.array([0.22, 0.14, 0.08])
+            for j in range(4):
+                cx = 0.35 + 0.1 * j + rng.uniform(-0.02, 0.02)
+                pot = (np.abs(u - cx) < 0.025) & (v > 0.38) & (v < 0.44)
+                img[pot] = np.array(rng.uniform(0.2, 0.6, 3))
+        # Rideaux tirés de chaque côté, avec des plis.
+        curtain = np.array(curtains[k])
+        width = 0.2 + 0.05 * (k % 3)
+        side = (u < width) | (u > 1 - width)
+        folds = 0.75 + 0.25 * np.sin(u * 60 + k)
+        img[side] = (curtain * folds[..., None])[side]
+        # Assombrit les bords (ombre du tableau de la fenêtre).
+        edge = np.minimum.reduce([u, 1 - u, v, 1 - v])
+        img *= np.clip(0.55 + edge * 6, 0, 1)[..., None]
+        rgba[:, k * cell_w:(k + 1) * cell_w, :3] = np.clip(img, 0, 1)
+    _save(path, rgba)
+
+
 STAINS = 4
 
 
@@ -210,3 +263,4 @@ def make_all(textures):
     studs_image(f'{textures}/decalStuds.png')
     sand(f'{textures}/decalSand.png')
     stains(f'{textures}/decalStains.png')
+    interiors(f'{textures}/decalInterior.png')

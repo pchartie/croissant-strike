@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-// Eau animée d'une fontaine, posée sur la fontaine construite par Blender (bassin et vasque octogonaux,
+// Eau animée d'une fontaine, posée sur la fontaine construite par Blender (bassin et vasque ronds,
 // voir map/medina/build.py) : jet qui monte de la vasque et gouttes qui retombent, rideau d'eau qui
 // déborde vers le bassin, reflets qui ondulent sur l'eau, écume au pied du rideau. Quelques appels de
 // dessin, sans lumière (l'éclairage de la fontaine est précalculé) ; textures dessinées ici.
@@ -15,6 +15,8 @@ export interface FountainSpec {
   /** Vasque : rayon et hauteur du bord (l'eau affleure). */
   bowlRadius: number;
   bowlTop: number;
+  /** Rayon du rebord extérieur de la vasque, d'où l'eau déborde (par défaut, celui de l'eau). */
+  bowlLip?: number;
 }
 
 const JET_HEIGHT = 0.6;
@@ -111,7 +113,7 @@ export class Fountain {
         map.rotation = k * 1.1;
         this.ripples.push(map);
         (map.userData as { speed: number }).speed = speed;
-        const surface = new THREE.Mesh(new THREE.CircleGeometry(radius, 8, Math.PI / 8), waterMaterial(map, 0xb8e0e6, 0.32));
+        const surface = new THREE.Mesh(new THREE.CircleGeometry(radius, 40, Math.PI / 40), waterMaterial(map, 0xb8e0e6, 0.32));
         surface.rotation.x = -Math.PI / 2;
         surface.position.y = y + 0.004 + k * 0.002;
         this.group.add(surface);
@@ -133,15 +135,16 @@ export class Fountain {
     this.falling.push(curtainMap);
     (curtainMap.userData as { speed: number }).speed = 1.6;
     const drop = bowlTop - basinWater;
+    const lip = spec.bowlLip ?? bowlRadius;
     const curtain = new THREE.Mesh(
-      new THREE.CylinderGeometry(bowlRadius + 0.02, bowlRadius + 0.14, drop, 16, 1, true),
+      new THREE.CylinderGeometry(lip + 0.02, lip + 0.14, drop, 40, 1, true),
       waterMaterial(curtainMap, 0xcfeaf0, 0.45, THREE.DoubleSide),
     );
     curtain.position.y = basinWater + drop / 2;
     this.group.add(curtain);
 
     // Écume au pied du rideau.
-    this.foam = new THREE.Mesh(new THREE.PlaneGeometry((bowlRadius + 0.45) * 2, (bowlRadius + 0.45) * 2), waterMaterial(foamTexture(), 0xffffff, 0.5));
+    this.foam = new THREE.Mesh(new THREE.PlaneGeometry((lip + 0.45) * 2, (lip + 0.45) * 2), waterMaterial(foamTexture(), 0xffffff, 0.5));
     this.foam.rotation.x = -Math.PI / 2;
     this.foam.position.y = basinWater + 0.01;
     this.group.add(this.foam);

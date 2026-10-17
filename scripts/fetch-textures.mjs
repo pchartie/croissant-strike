@@ -27,6 +27,9 @@ const TEXTURES = {
   bluePlanks: 'blue_painted_planks',
   greenPlanks: 'green_rough_planks',
   roofTiles: 'clay_roof_tiles_02',
+  // Bois des caisses (assemblées plus bas en caisses à cadre et écharpe).
+  pineBoards: 'raw_plank_wall',
+  weatheredBoards: 'weathered_brown_planks',
 };
 
 const headers = { 'User-Agent': 'croissant-strike-textures/1.0' };
@@ -59,3 +62,41 @@ Textures de [Poly Haven](https://polyhaven.com), licence **CC0** (domaine public
 ${rows.join('\n')}
 `,
 );
+
+// --- Caisses : planches de la photo, cadre et écharpe (diagonale) en planches plus sombres posées en
+// travers, joints sombres, clous aux coins. Trois bois pour que les caisses ne soient pas toutes pareilles.
+const CRATE = 512;
+async function crate(name, source, { frameBrightness = 0.72, tint = null } = {}) {
+  const file = path.join(OUT, `${source}_diff.webp`);
+  const prepare = (image) => (tint ? image.tint(tint) : image).resize(CRATE, CRATE).removeAlpha().raw().toBuffer();
+  const boards = await prepare(sharp(file));
+  const frame = await prepare(sharp(file).rotate(90).modulate({ brightness: frameBrightness }));
+  const out = Buffer.alloc(CRATE * CRATE * 3);
+  const border = 54;
+  const band = 40; // demi-largeur de l'écharpe, mesurée sur x + y
+  for (let y = 0; y < CRATE; y++) {
+    for (let x = 0; x < CRATE; x++) {
+      const i = (y * CRATE + x) * 3;
+      const edge = Math.min(x, y, CRATE - 1 - x, CRATE - 1 - y);
+      const inner = edge >= border;
+      const diagonal = inner && Math.abs(x + y - CRATE) < band;
+      let source = inner && !diagonal ? boards : frame;
+      // Joints : contour de la caisse, bord intérieur du cadre, bords de l'écharpe.
+      let shade = 1;
+      if (edge < 3) shade = 0.45;
+      else if (Math.abs(edge - border) < 2) shade = 0.5;
+      else if (inner && Math.abs(Math.abs(x + y - CRATE) - band) < 2) shade = 0.55;
+      // Clous dans les coins du cadre.
+      for (const [cx, cy] of [[27, 27], [CRATE - 27, 27], [27, CRATE - 27], [CRATE - 27, CRATE - 27]]) {
+        if ((x - cx) ** 2 + (y - cy) ** 2 < 25) shade = 0.35;
+      }
+      for (let c = 0; c < 3; c++) out[i + c] = Math.min(255, source[i + c] * shade);
+    }
+  }
+  const target = path.join(OUT, `${name}_diff.webp`);
+  await sharp(out, { raw: { width: CRATE, height: CRATE, channels: 3 } }).webp({ quality: 85 }).toFile(target);
+  console.log(`${name} ← caisse en ${source} (${Math.round(fs.statSync(target).size / 1024)} Ko)`);
+}
+await crate('crateLight', 'pineBoards');
+await crate('crateDark', 'weatheredBoards', { frameBrightness: 0.8 });
+await crate('crateGreen', 'pineBoards', { tint: { r: 92, g: 112, b: 70 } });

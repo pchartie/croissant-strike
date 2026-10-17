@@ -50,6 +50,6 @@ export const MAPS: Record<MapId, GameMap> = {
     bounds: new THREE.Box3(new THREE.Vector3(-40, 0, -46), new THREE.Vector3(40, 8, 46)),
     spawn: { position: new THREE.Vector3(0, 0, 40), yaw: 0 },
     roundSpawnZ: { enemy: -35, ally: 35 },
-    fountains: [{ x: 29, z: -14, basinRadius: 1.95, basinWater: 0.55, bowlRadius: 0.9, bowlTop: 1.7 }],
+    fountains: [{ x: 29, z: -14, basinRadius: 2.6, basinWater: 0.6, bowlRadius: 1.05, bowlTop: 1.94, bowlLip: 1.18 }],
   },
 };

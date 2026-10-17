@@ -83,8 +83,13 @@ def box(x1, z1, x2, z2, y1, y2, material, surface='stone', top=True, solid=True,
     carte.box((x1, y1, z1), (x2, y2, z2), material, tile, surface, solid=solid, top=top, keep=keep)
 
 
+# Bois des caisses : pin clair surtout, bois vieilli, quelques caisses peintes en vert.
+CRATE_WOODS = ['crateLight'] * 9 + ['crateDark'] * 7 + ['crateGreen'] * 4
+
+
 def crate(x, z, size=BIG, y=0.0):
-    box(x - size / 2, z - size / 2, x + size / 2, z + size / 2, y, y + size, 'crate', 'wood', tile=size)
+    wood = random.Random(f'caisse {x},{z},{y}').choice(CRATE_WOODS)
+    box(x - size / 2, z - size / 2, x + size / 2, z + size / 2, y, y + size, wood, 'wood', tile=size)
 
 
 def zone_at(x, z):
@@ -164,13 +169,25 @@ def decal(side, at, a, b, y1, y2, material, u=(0.0, 1.0), offset=0.01):
     carte.face(corners, material, uvs)
 
 
-def panel(side, at, outline, material, offset):
-    """Polygone plan convexe plaqué sur une façade : `outline` = [(t le long du mur, y)], à `offset` du mur."""
-    normal, _ = FACING[side]
+def panel(side, at, outline, material, offset, fit=None):
+    """
+    Polygone plan convexe plaqué sur une façade : `outline` = [(t le long du mur, y)], à `offset` du mur.
+    `fit` = (u0, u1) : l'image couvre le polygone (de gauche à droite vu de la rue), au lieu de se répéter.
+    """
+    normal, right = FACING[side]
     plane = at + offset * (normal[0] + normal[2])
     tile = kit.MATERIALS[material]['tile']
     corners = [(plane, y, t) if side[0] == 'x' else (t, y, plane) for t, y in outline]
-    uvs = [(t / tile, y / tile) for t, y in outline]
+    if fit:
+        ts, ys = [t for t, _ in outline], [y for _, y in outline]
+        t0, t1, y0, y1 = min(ts), max(ts), min(ys), max(ys)
+        flip = right[0] + right[2] < 0  # t décroît vers la droite vue de la rue
+        def u(t):
+            a = (t - t0) / (t1 - t0)
+            return fit[0] + (1 - a if flip else a) * (fit[1] - fit[0])
+        uvs = [(u(t), (y - y0) / (y1 - y0)) for t, y in outline]
+    else:
+        uvs = [(t / tile, y / tile) for t, y in outline]
     if oriented(corners, normal) is not corners:
         corners, uvs = corners[::-1], uvs[::-1]
     carte.face(corners, material, uvs)
@@ -230,8 +247,9 @@ IRON = 'cable'
 
 
 def opening(side, at, outline, grille=True):
-    """Ouverture sombre, avec ses barreaux (une face ajourée devant)."""
-    panel(side, at, outline, 'shadowGap', 0.062)
+    """Fenêtre ouverte : une pièce peinte derrière (faux intérieur), et les barreaux devant (face ajourée)."""
+    k = random.Random(f'intérieur {side},{at},{outline[0]}').randrange(decals.INTERIORS)
+    panel(side, at, outline, 'decalInterior', 0.062, fit=(k / decals.INTERIORS, (k + 1) / decals.INTERIORS))
     if grille:
         panel(side, at, outline, 'decalGrille', 0.075)
 
@@ -495,10 +513,15 @@ box(-10.2, -3, -10, 0, A_HEIGHT, A_HEIGHT + 0.9, 'stone')
 # --- Milieu : caisse, puits ---
 crate(-3.5, 26)
 
-# --- Site B : fontaine en zellige, caisses ---
-def basin(center, outer, inner, top, water, wall, rim, sides=8, water_material='water'):
-    """Bassin octogonal : paroi extérieure, margelle en anneau, paroi intérieure, eau en contrebas."""
-    carte.prism(center, outer, sides, 0, top, wall, top=False)
+# --- Site B : fontaine ronde en zellige, caisses ---
+# Mêmes dimensions que FountainSpec dans src/world/maps.ts (l'eau animée se pose dessus).
+FOUNTAIN = (29, -14)
+ROUND = 40  # côtés des formes rondes
+
+
+def basin(center, outer, inner, top, water, wall, rim, sides=ROUND, base=0.0, water_material='water'):
+    """Bassin rond : paroi extérieure, margelle en anneau, paroi intérieure, eau en contrebas."""
+    carte.prism(center, outer, sides, base, top, wall, top=False)
     ring = lambda r, y: [(center[0] + r * math.cos(math.pi / sides + 2 * math.pi * k / sides), y,
                           center[1] + r * math.sin(math.pi / sides + 2 * math.pi * k / sides)) for k in range(sides)]
     out, inn, low = ring(outer, top), ring(inner, top), ring(inner, water)
@@ -512,11 +535,40 @@ def basin(center, outer, inner, top, water, wall, rim, sides=8, water_material='
     carte.prism(center, inner, sides, water, water, water_material, walls=False)
 
 
-basin((29, -14), 2.3, 1.95, 0.7, 0.55, 'mosaic', 'stone')
-carte.prism((29, -14), 0.35, 8, 0.6, 1.5, 'stone')
-carte.prism((29, -14), 0.9, 8, 1.5, 1.7, 'mosaic', top_material='water')
-carte.collision((26.8, 0, -16.2), (31.2, 0.8, -11.8), 'stone')
-carte.collision((28.6, 0.8, -14.4), (29.4, 1.7, -13.6), 'stone')
+def annulus(center, r_in, r_out, y, material, sides=ROUND):
+    """Couronne horizontale (dessus d'un anneau), entre deux rayons."""
+    ring = lambda r: [(center[0] + r * math.cos(math.pi / sides + 2 * math.pi * k / sides), y,
+                       center[1] + r * math.sin(math.pi / sides + 2 * math.pi * k / sides)) for k in range(sides)]
+    out, inn = ring(r_out), ring(r_in)
+    t = kit.MATERIALS[material]['tile']
+    for k in range(sides):
+        j = (k + 1) % sides
+        quad = oriented([out[k], out[j], inn[j], inn[k]], (0, 1, 0))
+        carte.face(quad, material, [(p[0] / t, -p[2] / t) for p in quad])
+
+
+def turned(center, profile, material, sides=ROUND):
+    """Pièce tournée (pied, vasque) : anneaux empilés d'après un profil [(rayon, bas, haut)]."""
+    for radius, y1, y2 in profile:
+        carte.prism(center, radius, sides, y1, y2, material)
+
+
+# Marche de pierre tout autour, puis le bassin (margelle au bord arrondi : deux anneaux en retrait).
+carte.prism(FOUNTAIN, 3.3, ROUND, 0, 0.12, 'stone')
+basin(FOUNTAIN, 3.04, 2.6, 0.74, 0.6, 'mosaic', 'stone', base=0.12)
+carte.prism(FOUNTAIN, 3.09, ROUND, 0.58, 0.68, 'stone', top=False)  # bourrelet sous la margelle
+annulus(FOUNTAIN, 3.04, 3.09, 0.68, 'stone')
+# Pied tourné : base, fût, collerette ; vasque bombée (trois anneaux qui s'évasent) et son eau.
+turned(FOUNTAIN, [(0.62, 0.6, 0.78), (0.5, 0.78, 0.86), (0.33, 0.86, 1.55), (0.42, 1.55, 1.63), (0.55, 1.63, 1.7)], 'stone')
+turned(FOUNTAIN, [(0.8, 1.7, 1.78), (1.02, 1.78, 1.86)], 'mosaic')
+basin(FOUNTAIN, 1.18, 1.05, 1.96, 1.92, 'mosaic', 'stone', base=1.86)
+# Fleuron au centre de la vasque, d'où part le jet.
+turned(FOUNTAIN, [(0.16, 1.92, 2.05), (0.11, 2.05, 2.16), (0.07, 2.16, 2.22)], 'stone', sides=16)
+# Collisions : un disque approché par trois boîtes (sans coins qui dépassent), et le pied.
+fx, fz = FOUNTAIN
+for hx, hz in ((3.1, 1.4), (1.4, 3.1), (2.2, 2.2)):
+    carte.collision((fx - hx, 0, fz - hz), (fx + hx, 0.8, fz + hz), 'stone')
+carte.collision((fx - 0.5, 0.8, fz - 0.5), (fx + 0.5, 1.96, fz + 0.5), 'stone')
 # --- Puits de la place du Milieu : socle, paroi à frise de zellige, margelle, conduit sombre, treuil à
 # manivelle avec sa corde et son seau, petit toit de tuiles vertes sur deux poteaux ---
 def hcylinder(y, z, x1, x2, radius, material, sides=8):
@@ -671,7 +723,7 @@ for _ in range(16):
 
 def check_crates():
     """Signale les caisses qui entrent dans un mur, un autre bloc ou une autre caisse (hors piles posées dessus)."""
-    crates = [b for b in carte.boxes if b.material == 'crate']
+    crates = [b for b in carte.boxes if b.material and b.material.startswith('crate')]
     found = 0
     for c in crates:
         for b in carte.boxes:

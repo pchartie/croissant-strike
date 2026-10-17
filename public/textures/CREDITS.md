@@ -18,3 +18,5 @@ Textures de [Poly Haven](https://polyhaven.com), licence **CC0** (domaine public
 | `bluePlanks_diff.webp` | [Blue Painted Planks](https://polyhaven.com/a/blue_painted_planks) | Rob Tuytel | 1 m |
 | `greenPlanks_diff.webp` | [Green Rough Planks](https://polyhaven.com/a/green_rough_planks) | Rob Tuytel | 1,5 m |
 | `roofTiles_diff.webp` | [Clay Roof Tiles 02](https://polyhaven.com/a/clay_roof_tiles_02) | Amal Kumar | 2,5 m |
+| `pineBoards_diff.webp` | [Raw Plank Wall](https://polyhaven.com/a/raw_plank_wall) | Dimitrios Savva | 1,87 m |
+| `weatheredBoards_diff.webp` | [Weathered Brown Planks](https://polyhaven.com/a/weathered_brown_planks) | Dimitrios Savva, Rico Cilliers | 1,8 m |
