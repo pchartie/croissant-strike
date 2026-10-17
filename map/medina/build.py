@@ -42,7 +42,7 @@ TEXTURES = os.path.join(ROOT, 'public', 'textures')
 A_HEIGHT = 1.2  # terrasse A et passerelle
 DOOR = 3.0  # dessous des linteaux
 WALL = 5.0  # murs en travers des rues (portes)
-BIG, SMALL = 1.6, 0.9  # caisses, comme dans CS (la grosse se monte accroupi en sautant)
+BIG, SMALL = 1.85, 1.2  # caisses : la grosse se monte encore accroupi en sautant (1,90 m au plus), la moyenne d'un saut
 
 # Zones jouables (x1, z1, x2, z2) et leur sol : tout le reste est bâti. Ne pas changer le tracé sans
 # refaire jouer la carte (il a été validé en version grise).
@@ -471,8 +471,8 @@ arch(-5, 5, 19.5, 20.5, 3.0, 4.3, 5.5)
 # --- Voie A : escalier vers la terrasse, caisses ---
 carte.stairs('z', -12.2, -1, (-40, -30), 3, 'stone')
 crate(-32, 12)
-crate(-38.2, -4, SMALL)
-crate(-38.2, -3.1, SMALL)
+crate(-38.2, -4.15, SMALL)
+crate(-38.2, -2.95, SMALL)
 crate(-38.2, 22)
 
 # --- Site A : terrasse dallée sur un socle de grès, Plateau, Rampe CT ---
@@ -669,11 +669,26 @@ for _ in range(16):
     floor_decal(x, z, size, y + 0.008, 'decalStains', (k / decals.STAINS, (k + 1) / decals.STAINS))
 
 
+def check_crates():
+    """Signale les caisses qui entrent dans un mur, un autre bloc ou une autre caisse (hors piles posées dessus)."""
+    crates = [b for b in carte.boxes if b.material == 'crate']
+    found = 0
+    for c in crates:
+        for b in carte.boxes:
+            if b is c or not b.solid or b.material is None:
+                continue
+            if all(c.lo[k] + 0.01 < b.hi[k] and b.lo[k] + 0.01 < c.hi[k] for k in range(3)):
+                found += 1
+                print(f'[caisses] {c.lo}..{c.hi} entre dans {b.material} {b.lo}..{b.hi}')
+    print(f'[caisses] {len(crates)} caisses, {found} contact(s) en trop')
+
+
 def check_props_against_blocks():
     """Signale les objets posés au sol qui entrent dans une caisse ou un mur (les objets de façade sont collés au mur)."""
     found = 0
     for spot in PROPS:
-        if spot['id'] in ('aircon', 'windowShutter', 'shopShutter', 'utilityBox', 'lantern'):
+        # Objets de façade (collés au mur) et plaques d'égout (enfoncées dans le sol exprès).
+        if spot['id'] in ('aircon', 'windowShutter', 'shopShutter', 'utilityBox', 'lantern', 'manhole'):
             continue
         x1, y1, z1, x2, y2, z2 = props.footprint(spot)
         for b in carte.boxes:
@@ -745,6 +760,7 @@ for i, (x, z, h) in enumerate(((20.5, -32, 7.5), (38, -31.5, 6.5), (38, 3.5, 7),
 obj = carte.build('medina')
 props.check_overlaps(PROPS)
 check_props_against_blocks()
+check_crates()
 props.place(ROOT, PROPS)
 bake.setup_lighting(SUN_DIRECTION, 2.5, os.path.join(ROOT, 'public', 'sky', 'sky.hdr'), sky_irradiance=1.9)
 density = bake.lightmap_uv(obj, SIZE)
