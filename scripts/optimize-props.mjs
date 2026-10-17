@@ -35,6 +35,14 @@ const PROPS = [
   // Simplifiée plus fort, elle perdait son rebord du bas.
   { id: 'metal_trash_can', file: 'trash-can', triangles: 3000 },
   { id: 'Lantern_01', file: 'lantern', triangles: 800 },
+  // Médina, deuxième passe : rideaux de fer des boutiques et volets roulants des fenêtres (chaque modèle
+  // contient aussi une version taguée, écartée), coffret électrique, plaque d'égout, sac de ciment, banc.
+  { id: 'rollershutter_window_01', file: 'shop-shutter', triangles: 600, skip: '_graffiti' },
+  { id: 'rollershutter_window_03', file: 'window-shutter', triangles: 600, skip: '_graffiti' },
+  { id: 'utility_box_01', file: 'utility-box', triangles: 1200 },
+  { id: 'water_manhole_cover', file: 'manhole', triangles: 600 },
+  { id: 'cement_bag', file: 'cement-bag', triangles: 800 },
+  { id: 'painted_wooden_bench', file: 'bench', triangles: 700 },
 ];
 const ERROR = 0.02;
 
@@ -69,6 +77,13 @@ for (const prop of PROPS) {
     // des objets dessinés ensemble, et l'objet s'affiche de travers selon l'angle.
     if (material.getAlphaMode() === 'BLEND' && material.getBaseColorTexture()?.getMimeType() !== 'image/png') material.setAlphaMode('OPAQUE');
     if (prop.doubleSided) material.setDoubleSided(true);
+  }
+  // Variante écartée (même fichier, autre matériau) : ses faces sont retirées avant tout le reste.
+  if (prop.skip) {
+    for (const mesh of source.getRoot().listMeshes()) {
+      for (const primitive of mesh.listPrimitives()) if (primitive.getMaterial()?.getName().includes(prop.skip)) primitive.dispose();
+    }
+    await source.transform(prune());
   }
   await source.transform(dedup(), flatten(), join(), weld());
   const before = triangles(source);

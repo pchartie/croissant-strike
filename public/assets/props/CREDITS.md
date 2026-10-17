@@ -19,3 +19,9 @@ optimisée pour le navigateur par `scripts/optimize-props.mjs` : maillage simpli
 | `cafe-table.glb` | [Painted Wooden Table](https://polyhaven.com/a/painted_wooden_table) | Kirill Sannikov |
 | `trash-can.glb` | [Metal Trash Can](https://polyhaven.com/a/metal_trash_can) | GurJas Studios |
 | `lantern.glb` | [Lantern 01](https://polyhaven.com/a/Lantern_01) | Rajil Jose Macatangay |
+| `shop-shutter.glb` | [Rollershutter Window 01](https://polyhaven.com/a/rollershutter_window_01) (version sans graffiti) | MP |
+| `window-shutter.glb` | [Rollershutter Window 03](https://polyhaven.com/a/rollershutter_window_03) (version sans graffiti) | MP |
+| `utility-box.glb` | [Utility Box 01](https://polyhaven.com/a/utility_box_01) | James Ray Cock |
+| `manhole.glb` | [Water Manhole Cover](https://polyhaven.com/a/water_manhole_cover) | Raunox |
+| `cement-bag.glb` | [Cement Bag](https://polyhaven.com/a/cement_bag) | PierreB3D |
+| `bench.glb` | [Painted Wooden Bench](https://polyhaven.com/a/painted_wooden_bench) | Kirill Sannikov |

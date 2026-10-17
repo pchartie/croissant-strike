@@ -1,8 +1,10 @@
 """Médina : vieille ville du Maghreb, trois voies et deux sites (plan : voir le README, section Cartes).
 
 Les zones jouables du plan, des maisons partout ailleurs (crépis de plusieurs teintes, soubassement,
-corniche, fenêtres à volets, portes), les sols de chaque zone, les portes, l'arche, la terrasse A, la
-passerelle, le souk sous ses toiles, la fontaine, le puits, le minaret et des palmiers ; éclairage précalculé.
+corniche ; fenêtres et portes de plusieurs modèles, un style par façade : volets, arcs, grilles, volets
+roulants, moucharabiehs, portes cloutées, auvents, boutiques), les sols de chaque zone et leurs détails
+(sable au pied des murs, taches, plaques d'égout), les portes, l'arche, la terrasse A, la passerelle, le
+souk sous ses toiles, la fontaine, le puits, le minaret et des palmiers ; éclairage précalculé.
 
 Lancé par `npm run build-map -- medina`, qui appelle Blender ainsi :
     blender --background --python map/medina/build.py -- <dossier de sortie> <taille> <échantillons>
@@ -162,6 +164,162 @@ def decal(side, at, a, b, y1, y2, material, u=(0.0, 1.0), offset=0.01):
     carte.face(corners, material, uvs)
 
 
+def panel(side, at, outline, material, offset):
+    """Polygone plan convexe plaqué sur une façade : `outline` = [(t le long du mur, y)], à `offset` du mur."""
+    normal, _ = FACING[side]
+    plane = at + offset * (normal[0] + normal[2])
+    tile = kit.MATERIALS[material]['tile']
+    corners = [(plane, y, t) if side[0] == 'x' else (t, y, plane) for t, y in outline]
+    uvs = [(t / tile, y / tile) for t, y in outline]
+    if oriented(corners, normal) is not corners:
+        corners, uvs = corners[::-1], uvs[::-1]
+    carte.face(corners, material, uvs)
+
+
+def rect(t1, t2, y1, y2):
+    return [(t1, y1), (t2, y1), (t2, y2), (t1, y2)]
+
+
+def arch_outline(c, half, y0, spring, segments=8):
+    """Rectangle surmonté d'un demi-cercle (forme convexe) : de `y0` à `spring`, puis l'arc."""
+    return [(c - half, y0), (c + half, y0)] + [
+        (c + half * math.cos(math.pi * k / segments), spring + half * math.sin(math.pi * k / segments)) for k in range(segments + 1)
+    ]
+
+
+# Objets de façade (modèles tournés vers +z) : lacet selon le côté du mur.
+WALL_YAW = {'x+': 90, 'x-': -90, 'z+': 0, 'z-': 180}
+
+
+def wall_prop(pid, side, at, c, y, depth, gap=0.01):
+    """Objet collé à une façade (`depth` : son épaisseur), centré en `c` le long du mur."""
+    normal, _ = FACING[side]
+    offset = (depth / 2 + gap) * (normal[0] + normal[2])
+    x, z = (at + offset, c) if side[0] == 'x' else (c, at + offset)
+    prop(pid, x, z, WALL_YAW[side], y)
+
+
+def floor_strip(side, at, a, b, width, y, material, u):
+    """Décalque au sol le long d'un mur, de `a` à `b`, sur `width` m vers la rue ; haut de l'image contre le mur."""
+    normal, _ = FACING[side]
+    sign = normal[0] + normal[2]
+    def point(t, d):
+        return (at + d * sign, y, t) if side[0] == 'x' else (t, y, at + d * sign)
+    corners = [point(a, 0), point(b, 0), point(b, width), point(a, width)]
+    uvs = [(u[0], 1), (u[1], 1), (u[1], 0), (u[0], 0)]
+    if oriented(corners, (0, 1, 0)) is not corners:
+        corners, uvs = corners[::-1], uvs[::-1]
+    carte.face(corners, material, uvs)
+
+
+def floor_decal(x, z, size, y, material, u):
+    corners = [(x - size / 2, y, z - size / 2), (x + size / 2, y, z - size / 2), (x + size / 2, y, z + size / 2), (x - size / 2, y, z + size / 2)]
+    uvs = [(u[0], 1), (u[1], 1), (u[1], 0), (u[0], 0)]
+    if oriented(corners, (0, 1, 0)) is not corners:
+        corners, uvs = corners[::-1], uvs[::-1]
+    carte.face(corners, material, uvs)
+
+
+# --- Fenêtres et portes : plusieurs modèles, un style par façade pour qu'elle reste cohérente ---
+PLANKS = ['bluePlanks'] * 3 + ['greenPlanks'] * 2 + ['brownPlanks'] * 2 + ['redPlanks']
+WINDOWS = ['shutters'] * 3 + ['open'] * 2 + ['arched'] * 2 + ['rolling', 'grille']
+DOORS = ['planks'] * 2 + ['arched', 'studded', 'awning']
+SHOPS = {0, 1, 2, 8, SOUK}  # spawn T, cours, Milieu, souk : des boutiques au rez-de-chaussée
+AWNINGS = ['fabricRed', 'fabricOrange', 'fabricBlue', 'fabricGreen']
+IRON = 'cable'
+
+
+def opening(side, at, outline, grille=True):
+    """Ouverture sombre, avec ses barreaux (une face ajourée devant)."""
+    panel(side, at, outline, 'shadowGap', 0.062)
+    if grille:
+        panel(side, at, outline, 'decalGrille', 0.075)
+
+
+def window(style, side, at, c, y, planks):
+    """Fenêtre de l'étage centrée en (c, y)."""
+    def sill(half):
+        relief(side, at, c - half, c + half, y - 0.83, y - 0.75, 0.16, 'stone')
+    if style == 'shutters':  # volets fermés
+        relief(side, at, c - 0.6, c + 0.6, y - 0.75, y + 0.75, 0.06, 'stone')
+        relief(side, at, c - 0.45, c + 0.45, y - 0.6, y + 0.6, 0.1, planks)
+        sill(0.7)
+    elif style == 'open':  # volets ouverts à plat contre le mur, barreaux devant l'ouverture
+        relief(side, at, c - 0.6, c + 0.6, y - 0.75, y + 0.75, 0.06, 'stone')
+        opening(side, at, rect(c - 0.45, c + 0.45, y - 0.6, y + 0.6))
+        for t1, t2 in ((c - 1.08, c - 0.62), (c + 0.62, c + 1.08)):
+            relief(side, at, t1, t2, y - 0.6, y + 0.6, 0.05, planks)
+        sill(0.7)
+    elif style == 'arched':  # arc en plein cintre, ouverture sombre et barreaux qui suivent l'arc
+        spring = y + 0.2
+        panel(side, at, arch_outline(c, 0.62, y - 0.78, spring), 'stone', 0.05)
+        opening(side, at, arch_outline(c, 0.45, y - 0.62, spring))
+        sill(0.72)
+    elif style == 'grille':  # petite fenêtre carrée grillagée
+        relief(side, at, c - 0.45, c + 0.45, y - 0.45, y + 0.45, 0.06, 'stone')
+        opening(side, at, rect(c - 0.32, c + 0.32, y - 0.32, y + 0.32))
+        relief(side, at, c - 0.5, c + 0.5, y - 0.53, y - 0.45, 0.14, 'stone')
+    else:  # volet roulant métallique (modèle Poly Haven) dans un encadrement
+        relief(side, at, c - 0.6, c + 0.6, y - 0.85, y + 0.85, 0.03, 'stone')
+        wall_prop('windowShutter', side, at, c, y - 0.78, 0.15, gap=0.035)
+
+
+def mashrabiya(side, at, c, y):
+    """Moucharabieh : caisson de bois en saillie, façade en bois ajouré, petit auvent de tuiles, consoles."""
+    relief(side, at, c - 0.75, c + 0.75, y - 0.95, y + 0.85, 0.42, 'brownPlanks')
+    panel(side, at, rect(c - 0.62, c + 0.62, y - 0.8, y + 0.72), 'shadowGap', 0.425)
+    decal(side, at, c - 0.62, c + 0.62, y - 0.8, y + 0.72, 'decalLattice', (0, 1.24 / 1.52), offset=0.43)
+    relief(side, at, c - 0.88, c + 0.88, y + 0.85, y + 0.97, 0.55, 'greenTiles')
+    for t1, t2 in ((c - 0.68, c - 0.56), (c + 0.56, c + 0.68)):
+        relief(side, at, t1, t2, y - 1.3, y - 0.95, 0.38, 'beam')
+
+
+def studs(side, at, outline, offset):
+    """Clous de porte en fer, sur toute la porte (une face ajourée)."""
+    panel(side, at, outline, 'decalStuds', offset)
+
+
+def door(style, side, at, c, base, planks, rng):
+    """Porte au rez-de-chaussée, centrée en `c` ; toujours une marche de pierre devant."""
+    relief(side, at, c - 0.8, c + 0.8, base, base + 0.1, 0.32, 'stone')
+    if style == 'arched':  # porte en plein cintre, cloutée, avec un heurtoir
+        panel(side, at, arch_outline(c, 0.8, base, base + 2.05), 'stone', 0.05)
+        panel(side, at, arch_outline(c, 0.6, base, base + 1.95), planks, 0.07)
+        studs(side, at, arch_outline(c, 0.6, base + 0.2, base + 1.95), 0.075)
+        relief(side, at, c + 0.32, c + 0.4, base + 1.05, base + 1.2, 0.11, IRON)
+    elif style == 'studded':  # porte de bois brut, pentures de fer et clous
+        relief(side, at, c - 0.75, c + 0.75, base, base + 2.6, 0.06, 'stone')
+        relief(side, at, c - 0.55, c + 0.55, base, base + 2.3, 0.1, 'brownPlanks')
+        for y in (base + 0.45, base + 1.75):
+            panel(side, at, rect(c - 0.55, c + 0.55, y - 0.04, y + 0.04), IRON, 0.102)
+        studs(side, at, rect(c - 0.55, c + 0.55, base + 0.2, base + 2.2), 0.104)
+        relief(side, at, c - 0.85, c + 0.85, base + 2.6, base + 2.75, 0.14, 'beam')
+    else:  # planches, linteau de bois ; auvent de toile rayée pour certaines
+        relief(side, at, c - 0.75, c + 0.75, base, base + 2.6, 0.06, 'stone')
+        relief(side, at, c - 0.55, c + 0.55, base, base + 2.3, 0.1, planks)
+        relief(side, at, c - 0.85, c + 0.85, base + 2.6, base + 2.75, 0.14, 'beam')
+        if style == 'awning':
+            relief(side, at, c - 1.0, c + 1.0, base + 2.8, base + 2.86, 0.8, rng.choice(AWNINGS))
+
+
+def clear_of_props(side, at, c, half_width, reach=1.0):
+    """Vrai si aucun objet déjà posé n'est devant ce bout de façade (boutique, coffret)."""
+    normal, _ = FACING[side]
+    sign = normal[0] + normal[2]
+    for spot in PROPS:
+        along, away = (spot['z'], (spot['x'] - at) * sign) if side[0] == 'x' else (spot['x'], (spot['z'] - at) * sign)
+        if abs(along - c) < half_width + 0.5 and -0.1 < away < reach:
+            return False
+    return True
+
+
+def shop(side, at, c, base, rng):
+    """Boutique : rideau de fer (modèle Poly Haven) dans un encadrement, enseigne peinte au-dessus."""
+    relief(side, at, c - 1.2, c + 1.2, base, base + 2.05, 0.04, 'stone')
+    wall_prop('shopShutter', side, at, c, base, 0.3, gap=0.045)
+    relief(side, at, c - 1.15, c + 1.15, base + 2.15, base + 2.55, 0.06, rng.choice(AWNINGS))
+
+
 def facade_runs(x1, z1, x2, z2):
     """Parties des côtés d'un mur qui donnent sur une zone jouable : (côté, plan, début, fin, zone)."""
     sides = [('x+', x2, z1, z2, lambda t: (x2 + 0.3, t)), ('x-', x1, z1, z2, lambda t: (x1 - 0.3, t)),
@@ -189,7 +347,9 @@ def dress(x1, z1, x2, z2, height, seed):
             continue
         rng = random.Random(f'{x1},{z1},{side},{a}')
         base = A_HEIGHT if zone in RAISED else 0.0
-        planks = 'bluePlanks' if seed < 0.5 else 'greenPlanks'
+        # Un style de fenêtre et une teinte de bois par façade ; une fenêtre sur cinq change de modèle.
+        planks = rng.choice(PLANKS)
+        style = rng.choice(WINDOWS)
         relief(side, at, a, b, base, base + 0.7, 0.05, 'stone')  # soubassement
         relief(side, at, a, b, height - 0.3, height, 0.12, 'stone')  # corniche
         # Saleté au-dessus du soubassement (l'image se répète tous les 2 m), coulures sous la corniche.
@@ -198,31 +358,46 @@ def dress(x1, z1, x2, z2, height, seed):
             w = rng.uniform(1.2, min(3.0, length))
             c = a + rng.uniform(w / 2, length - w / 2)
             decal(side, at, c - w / 2, c + w / 2, height - 0.3 - rng.uniform(1.5, 3.0), height - 0.3, 'decalStreaks')
+        mashrabiya_at = None
+        if zone != SOUK and height - base >= 6.0 and length >= 4.0 and rng.random() < 0.18:
+            mashrabiya_at = a + length * rng.uniform(0.35, 0.65)
+            mashrabiya(side, at, mashrabiya_at, base + 3.9)
         if zone != SOUK and height - base >= 5.0:
             count = int((length - 0.6) // 3.2)
             for i in range(count):
                 if rng.random() < 0.25:
                     continue
                 c = a + length * (i + 0.5) / count
-                y = base + 3.6
-                relief(side, at, c - 0.6, c + 0.6, y - 0.75, y + 0.75, 0.06, 'stone')
-                relief(side, at, c - 0.45, c + 0.45, y - 0.6, y + 0.6, 0.1, planks)
+                if mashrabiya_at is not None and abs(c - mashrabiya_at) < 2.2:
+                    continue
+                window(style if rng.random() > 0.2 else rng.choice(WINDOWS), side, at, c, base + 3.75, planks)
         # Climatiseur au-dessus des fenêtres, tourné vers la rue (le modèle regarde vers +z).
-        if zone != SOUK and length >= 4.0 and height - base >= 5.9 and rng.random() < 0.17:
+        if zone != SOUK and length >= 4.0 and height - base >= 6.0 and rng.random() < 0.17:
             c = a + rng.uniform(1.0, length - 1.0)
-            yaw, offset = {'x+': (90, 0.21), 'x-': (-90, -0.21), 'z+': (0, 0.21), 'z-': (180, -0.21)}[side]
-            x, z = (at + offset, c) if side[0] == 'x' else (c, at + offset)
-            prop('aircon', x, z, yaw, base + 4.6)
-        door = None
+            if mashrabiya_at is None or abs(c - mashrabiya_at) > 1.9:
+                wall_prop('aircon', side, at, c, base + 4.75, 0.38)
+        door_at = None
         if length >= 3.0 and rng.random() < 0.5:
-            door = c = a + length * rng.uniform(0.3, 0.7)
-            relief(side, at, c - 0.75, c + 0.75, base, base + 2.6, 0.06, 'stone')
-            relief(side, at, c - 0.55, c + 0.55, base, base + 2.3, 0.1, planks)
+            door_at = c = a + length * rng.uniform(0.3, 0.7)
+            if zone in SHOPS and length >= 3.4 and rng.random() < 0.45 and clear_of_props(side, at, c, 1.2):
+                shop(side, at, c, base, rng)
+            else:
+                door(rng.choice(DOORS), side, at, c, base, planks, rng)
+        # Coffret électrique au pied du mur, dans les rues, loin de la porte.
+        if zone not in RAISED and length >= 3.0 and rng.random() < 0.1:
+            c = a + rng.uniform(0.6, length - 0.6)
+            if (door_at is None or abs(c - door_at) > 1.6) and clear_of_props(side, at, c, 0.3):
+                wall_prop('utilityBox', side, at, c, base, 0.43)
+        # Sable poussé par le vent au pied du mur, par endroits.
+        if rng.random() < 0.4:
+            w = rng.uniform(1.5, min(5.0, length))
+            c = a + rng.uniform(w / 2, length - w / 2)
+            floor_strip(side, at, c - w / 2, c + w / 2, rng.uniform(0.5, 0.9), base + 0.008, 'decalSand', (0, w / 2))
         # Affiche au-dessus de la saleté du bas des murs (1,6 m), loin de la porte.
         poster = None
         if length >= 2.0 and rng.random() < 0.18:
             c = a + rng.uniform(0.6, length - 0.6)
-            if door is None or abs(c - door) > 1.5:
+            if door_at is None or abs(c - door_at) > 1.7:
                 poster = c
                 k = rng.randrange(decals.POSTERS)
                 y = base + rng.uniform(1.65, 1.8)
@@ -236,8 +411,6 @@ def dress(x1, z1, x2, z2, height, seed):
                 decal(side, at, c - size / 2, c + size / 2, y, y + size, 'decalCracks', offset=0.012)
 
 
-for facade in FACADES:
-    dress(*facade)
 
 
 # --- Portes en travers des rues : mur blanc, linteau de grès sur une poutre, battants ouverts à plat ---
@@ -472,8 +645,51 @@ for x, z in ((-4.2, -2), (-1.8, 2.8), (2.6, -6.6)):
 
 # Étals du souk : jarres et caisses en plastique dessus.
 for x, z1 in ((22.6, 10), (22.6, 20), (22.6, 28), (29.4, 15), (29.4, 25)):
-    prop('jug', x, z1 + 1.5, 0, 0.9)
-    prop('crate', x, z1 + 2.0, 90, 0.9)
+    prop('jug', x, z1 + 1.2, 0, 0.9)
+    prop('crate', x, z1 + 1.75, 90, 0.9)
+
+# --- Détails au sol : plaques d'égout dans les rues pavées, taches, bancs le long des places, sacs de ciment ---
+for x, z in ((-35.5, 4), (-35, 28), (1.2, 20), (1, -24), (-25, 40), (20, 40.5), (14, -3.5), (8, -38)):
+    prop('manhole', x, z)
+for x, z, yaw in ((-9.72, 42.5, 90), (-7, -9.72, 0), (39.72, -12, -90), (-7.5, -45.72, 0), (18, -45.72, 0)):
+    prop('bench', x, z, yaw)
+for x, z, y, yaw in ((-38.5, 36.8, 0, 0), (-38.5, 36.8, 0.18, 6), (-38.5, 36.8, 0.36, -5), (-37.9, 36.8, 0, 3), (-37.9, 36.8, 0.18, -4),
+                     (16.3, -5.6, 0, 90), (16.3, -5.6, 0.18, 84)):
+    prop('cementBag', x, z, yaw, y)
+stain_rng = random.Random('taches')
+paved = [rect_ for rect_, floor in ZONES if floor in ('cobble', 'paving', 'stoneTiles')]
+for _ in range(16):
+    zx1, zz1, zx2, zz2 = stain_rng.choice(paved)
+    size = stain_rng.uniform(0.8, 1.7)
+    if min(zx2 - zx1, zz2 - zz1) < size + 1.2:
+        continue
+    x, z = stain_rng.uniform(zx1 + 0.6 + size / 2, zx2 - 0.6 - size / 2), stain_rng.uniform(zz1 + 0.6 + size / 2, zz2 - 0.6 - size / 2)
+    k = stain_rng.randrange(decals.STAINS)
+    y = A_HEIGHT if zone_at(x, z) in RAISED else 0.0
+    floor_decal(x, z, size, y + 0.008, 'decalStains', (k / decals.STAINS, (k + 1) / decals.STAINS))
+
+
+def check_props_against_blocks():
+    """Signale les objets posés au sol qui entrent dans une caisse ou un mur (les objets de façade sont collés au mur)."""
+    found = 0
+    for spot in PROPS:
+        if spot['id'] in ('aircon', 'windowShutter', 'shopShutter', 'utilityBox', 'lantern'):
+            continue
+        x1, y1, z1, x2, y2, z2 = props.footprint(spot)
+        for b in carte.boxes:
+            if not b.solid or b.material is None:
+                continue
+            if all(lo + 0.02 < bhi and blo + 0.02 < hi for lo, hi, blo, bhi in zip((x1, y1, z1), (x2, y2, z2), b.lo, b.hi)):
+                found += 1
+                print(f"[props] {spot['id']} ({spot['x']}, {spot['z']}) entre dans un bloc {b.material} {b.lo}..{b.hi}")
+                break
+    print(f'[props] {found} objet(s) dans un bloc')
+
+
+# Façades habillées après les objets : boutiques et coffrets évitent ce qui est déjà posé devant.
+for facade in FACADES:
+    dress(*facade)
+
 
 # --- Câbles électriques tendus au-dessus des rues étroites, d'une façade à l'autre ---
 def cable(p1, p2, sag, segments=10, width=0.025):
@@ -528,6 +744,7 @@ for i, (x, z, h) in enumerate(((20.5, -32, 7.5), (38, -31.5, 6.5), (38, 3.5, 7),
 
 obj = carte.build('medina')
 props.check_overlaps(PROPS)
+check_props_against_blocks()
 props.place(ROOT, PROPS)
 bake.setup_lighting(SUN_DIRECTION, 2.5, os.path.join(ROOT, 'public', 'sky', 'sky.hdr'), sky_irradiance=1.9)
 density = bake.lightmap_uv(obj, SIZE)

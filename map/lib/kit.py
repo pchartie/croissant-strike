@@ -65,6 +65,9 @@ MATERIALS = {
     'mosaic': M('mosaic', tile=1),
     'bluePlanks': M('bluePlanks', tile=1),
     'greenPlanks': M('greenPlanks', tile=1.5),
+    # Autres teintes de portes et volets : le bois brut, foncé ou peint en rouge sang-de-bœuf.
+    'brownPlanks': M('wood', 0x9a6a44, tile=1),
+    'redPlanks': M('wood', 0xa8473a, tile=1),
     'beam': M('wood', 0xb98a5a, tile=1),
     'greenTiles': M('roofTiles', 0x8fc49a, tile=1.5),  # tuiles vernissées vertes (toit du puits)
     'fabricRed': M(tint=0xb23a2a, canvas='stripes', tile=2),
@@ -80,6 +83,11 @@ MATERIALS = {
     'decalGrime': M(canvas='decalGrime', blend=True),
     'decalCracks': M(canvas='decalCracks', blend=True),
     'decalPosters': M(canvas='decalPosters', alpha=True),
+    'decalLattice': M(canvas='decalLattice', alpha=True),  # moucharabieh (bois ajouré)
+    'decalGrille': M(canvas='decalGrille', alpha=True, tile=0.6),  # barreaux de fenêtre (une face par grille)
+    'decalStuds': M(canvas='decalStuds', alpha=True, tile=0.4),  # clous de porte
+    'decalSand': M(canvas='decalSand', blend=True),  # sable au pied des murs
+    'decalStains': M(canvas='decalStains', blend=True),  # taches sur le sol
     'cable': M(tint=0x1c1a18),
 }
 

@@ -20,7 +20,13 @@ export type PropId =
   | 'plasticChair'
   | 'cafeTable'
   | 'trashCan'
-  | 'lantern';
+  | 'lantern'
+  | 'shopShutter'
+  | 'windowShutter'
+  | 'utilityBox'
+  | 'manhole'
+  | 'cementBag'
+  | 'bench';
 
 interface PropSpec {
   file: string;
@@ -50,6 +56,14 @@ const SPECS: Record<PropId, PropSpec> = {
   // Deux poubelles côte à côte (l'une sans couvercle).
   trashCan: { file: 'trash-can', size: [1.78, 0.56, 0.91], surface: 'metal' },
   lantern: { file: 'lantern', size: [0.19, 0.16, 0.45], surface: 'metal' },
+  // Façades : rideau de fer d'une boutique, volet roulant d'une fenêtre, coffret électrique.
+  shopShutter: { file: 'shop-shutter', size: [2.1, 0.3, 1.85], surface: 'metal' },
+  windowShutter: { file: 'window-shutter', size: [0.98, 0.15, 1.55], surface: 'metal' },
+  utilityBox: { file: 'utility-box', size: [0.52, 0.43, 1.12], surface: 'metal' },
+  // Sol : plaque d'égout, sacs de ciment, banc.
+  manhole: { file: 'manhole', size: [0.69, 0.69, 0.07], surface: 'metal' },
+  cementBag: { file: 'cement-bag', size: [0.46, 0.7, 0.18], surface: 'sand' },
+  bench: { file: 'bench', size: [1.16, 0.5, 0.89], surface: 'wood' },
 };
 
 export interface PropPlacement {

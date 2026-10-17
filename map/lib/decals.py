@@ -1,4 +1,5 @@
-"""Détails plaqués sur les murs : coulures, saleté au pied des murs, fissures, affiches. Les images (avec
+"""Détails plaqués : coulures, saleté au pied des murs, fissures, affiches, moucharabieh, sable et taches au
+sol. Les images (avec
 transparence) sont dessinées ici et enregistrées dans public/textures/ : Blender et le jeu utilisent les mêmes.
 """
 
@@ -131,8 +132,81 @@ def posters(path, cell_w=256, cell_h=384, seed=4):
     _save(path, rgba)
 
 
+def lattice(path, size=256, cells=8):
+    """Moucharabieh : treillis de bois tourné, losanges ajourés et petits croisillons ; se répète."""
+    yy, xx = np.mgrid[0:size, 0:size].astype(np.float32) / size * cells
+    # Distance aux diagonales d'une grille : barreaux en losanges.
+    u, v = (xx + yy) % 1.0, (xx - yy) % 1.0
+    bars = np.minimum(np.minimum(u, 1 - u), np.minimum(v, 1 - v))
+    # Petits ronds aux croisements (pièces tournées).
+    cx, cy = (xx % 1.0) - 0.5, (yy % 1.0) - 0.5
+    knots = np.hypot(cx, cy)
+    wood = (bars < 0.09) | (knots < 0.16)
+    shade = 0.85 + 0.15 * np.cos(bars * 30)
+    color = np.stack([0.42 * shade, 0.27 * shade, 0.16 * shade], axis=-1).astype(np.float32)
+    alpha = wood.astype(np.float32)
+    _save(path, np.concatenate([color, alpha[..., None]], axis=-1))
+
+
+def grille(path, size=128):
+    """Barreaux de fer : deux montants et une traverse par motif (0,6 m), le reste transparent."""
+    yy, xx = np.mgrid[0:size, 0:size].astype(np.float32) / size
+    bar = (np.abs((xx * 2) % 1.0 - 0.5) > 0.46) | (np.abs(yy - 0.5) < 0.03)
+    color = np.broadcast_to(np.array([0.11, 0.1, 0.09], dtype=np.float32), (size, size, 3))
+    _save(path, np.concatenate([color, bar.astype(np.float32)[..., None]], axis=-1))
+
+
+def studs_image(path, size=128):
+    """Clous de porte en fer, un par motif (0,4 m), avec un reflet."""
+    yy, xx = (np.mgrid[0:size, 0:size].astype(np.float32) / size) - 0.5
+    r = np.hypot(xx, yy)
+    alpha = (r < 0.07).astype(np.float32)
+    shade = np.clip(0.25 + 0.6 * np.clip(-(xx + yy) / 0.1, 0, 1), 0, 1)[..., None]
+    color = (np.array([0.16, 0.14, 0.12], dtype=np.float32) + shade * 0.25).astype(np.float32)
+    _save(path, np.concatenate([color, alpha[..., None]], axis=-1))
+
+
+def sand(path, w=512, h=128, seed=5):
+    """Sable poussé par le vent au pied d'un mur : dense contre le mur (en haut de l'image), s'efface."""
+    rng = np.random.default_rng(seed)
+    y = (np.arange(h) / h)[:, None]
+    noise = _periodic_noise(rng, w, h, ((2, 0.6), (6, 0.4), (17, 0.25)))
+    reach = 0.55 + 0.35 * noise  # le tas avance plus ou moins loin du mur
+    alpha = np.clip(1 - y / np.maximum(reach, 0.15), 0, 1) ** 1.4 * 0.85
+    grain = rng.normal(1, 0.08, (h, w))
+    color = np.stack([0.80 * grain, 0.68 * grain, 0.50 * grain], axis=-1).astype(np.float32)
+    _save(path, np.concatenate([color, alpha[..., None].astype(np.float32)], axis=-1))
+
+
+STAINS = 4
+
+
+def stains(path, cell=256, seed=6):
+    """Taches au sol, côte à côte : eau sale séchée, huile, deux auréoles de sable mouillé."""
+    rng = np.random.default_rng(seed)
+    rgba = np.zeros((cell, cell * STAINS, 4), dtype=np.float32)
+    yy, xx = (np.mgrid[0:cell, 0:cell].astype(np.float32) / cell) - 0.5
+    colors = [(0.20, 0.17, 0.13), (0.08, 0.08, 0.08), (0.35, 0.28, 0.19), (0.25, 0.21, 0.16)]
+    for k in range(STAINS):
+        angle = np.arctan2(yy, xx)
+        radius = 0.33 + 0.06 * np.sin(3 * angle + k) + 0.04 * np.sin(7 * angle + 2 * k) + 0.02 * np.sin(13 * angle)
+        distance = np.hypot(xx, yy) / radius
+        alpha = np.clip(1 - distance, 0, 1) ** 0.7
+        if k in (0, 2):  # auréole : bord plus foncé que le centre
+            alpha *= 0.55 + 0.45 * np.clip((distance - 0.7) / 0.3, 0, 1) * (distance < 1)
+        alpha *= (0.45 if k != 1 else 0.6) * (1 + 0.25 * rng.normal(0, 1, alpha.shape) * 0.3)
+        rgba[:, k * cell:(k + 1) * cell, :3] = colors[k]
+        rgba[:, k * cell:(k + 1) * cell, 3] = np.clip(alpha, 0, 0.7)
+    _save(path, rgba)
+
+
 def make_all(textures):
     streaks(f'{textures}/decalStreaks.png')
     grime(f'{textures}/decalGrime.png')
     cracks(f'{textures}/decalCracks.png')
     posters(f'{textures}/decalPosters.png')
+    lattice(f'{textures}/decalLattice.png')
+    grille(f'{textures}/decalGrille.png')
+    studs_image(f'{textures}/decalStuds.png')
+    sand(f'{textures}/decalSand.png')
+    stains(f'{textures}/decalStains.png')

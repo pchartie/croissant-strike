@@ -40,6 +40,8 @@ def lightmap_uv(obj, size, padding=2):
         frames[poly.index] = ([(a - a0, b - b0) for a, b in coords], max(w, 1e-4), max(h, 1e-4))
         rects.append((poly.index, max(w, 1e-4), max(h, 1e-4)))
 
+    print(f'[bake] {len(rects)} faces à ranger')
+
     def pack(density):
         """Rangement par étagères ; None si ça ne rentre pas."""
         items = []
