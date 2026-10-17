@@ -64,7 +64,7 @@ ${rows.join('\n')}
 );
 
 // --- Caisses : planches de la photo, cadre et écharpe (diagonale) en planches plus sombres posées en
-// travers, joints sombres, clous aux coins. Trois bois pour que les caisses ne soient pas toutes pareilles.
+// travers, joints sombres, clous aux coins. Trois bois (pin clair, vieilli, brun-roux) pour varier.
 const CRATE = 512;
 async function crate(name, source, { frameBrightness = 0.72, tint = null } = {}) {
   const file = path.join(OUT, `${source}_diff.webp`);
@@ -99,4 +99,4 @@ async function crate(name, source, { frameBrightness = 0.72, tint = null } = {})
 }
 await crate('crateLight', 'pineBoards');
 await crate('crateDark', 'weatheredBoards', { frameBrightness: 0.8 });
-await crate('crateGreen', 'pineBoards', { tint: { r: 92, g: 112, b: 70 } });
+await crate('crateWarm', 'pineBoards', { tint: { r: 170, g: 112, b: 72 } });

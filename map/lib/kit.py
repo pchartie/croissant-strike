@@ -48,7 +48,7 @@ MATERIALS = {
     # Caisses en vrai bois (photos Poly Haven assemblées par scripts/fetch-textures.mjs), trois essences.
     'crateLight': M('crateLight', per_box=True),
     'crateDark': M('crateDark', per_box=True),
-    'crateGreen': M('crateGreen', per_box=True),
+    'crateWarm': M('crateWarm', per_box=True),
     'shadowGap': M(tint=0x1b1814),
     # Version grise (quadrillage de 1 m), pour tester un tracé avant de l'habiller.
     'greyWall': M(tint=0xb4b2ac, canvas='grid'),

@@ -83,8 +83,8 @@ def box(x1, z1, x2, z2, y1, y2, material, surface='stone', top=True, solid=True,
     carte.box((x1, y1, z1), (x2, y2, z2), material, tile, surface, solid=solid, top=top, keep=keep)
 
 
-# Bois des caisses : pin clair surtout, bois vieilli, quelques caisses peintes en vert.
-CRATE_WOODS = ['crateLight'] * 9 + ['crateDark'] * 7 + ['crateGreen'] * 4
+# Bois des caisses : pin clair surtout, bois vieilli, quelques caisses en bois brun-roux.
+CRATE_WOODS = ['crateLight'] * 9 + ['crateDark'] * 7 + ['crateWarm'] * 4
 
 
 def crate(x, z, size=BIG, y=0.0):
@@ -247,9 +247,16 @@ IRON = 'cable'
 
 
 def opening(side, at, outline, grille=True):
-    """Fenêtre ouverte : une pièce peinte derrière (faux intérieur), et les barreaux devant (face ajourée)."""
-    k = random.Random(f'intérieur {side},{at},{outline[0]}').randrange(decals.INTERIORS)
-    panel(side, at, outline, 'decalInterior', 0.062, fit=(k / decals.INTERIORS, (k + 1) / decals.INTERIORS))
+    """
+    Fenêtre ouverte, barreaux devant (face ajourée) : une sur deux laisse voir une pièce peinte (faux
+    intérieur), les autres restent sombres.
+    """
+    rng = random.Random(f'intérieur {side},{at},{outline[0]}')
+    if rng.random() < 0.5:
+        k = rng.randrange(decals.INTERIORS)
+        panel(side, at, outline, 'decalInterior', 0.062, fit=(k / decals.INTERIORS, (k + 1) / decals.INTERIORS))
+    else:
+        panel(side, at, outline, 'shadowGap', 0.062)
     if grille:
         panel(side, at, outline, 'decalGrille', 0.075)
 
