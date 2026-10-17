@@ -9,20 +9,22 @@ FPS façon Counter-Strike, directement dans le navigateur : bots, manches avec �
 </p>
 
 <p align="center">
+  <img src="docs/screenshots/longue.jpg" width="49%" alt="Médina : la Longue, moucharabieh et volets roulants">
+  <img src="docs/screenshots/cour.jpg" width="49%" alt="Médina : une cour, fenêtres en arc et volets ouverts">
   <img src="docs/screenshots/fontaine.jpg" width="49%" alt="Médina : la fontaine du site B">
   <img src="docs/screenshots/puits.jpg" width="49%" alt="Médina : le puits et le café de la place du Milieu">
   <img src="docs/screenshots/souk.jpg" width="49%" alt="Médina : le souk couvert">
-  <img src="docs/screenshots/soldats.jpg" width="49%" alt="Les soldats : coéquipiers en sable, ennemis en bleu marine">
+  <img src="docs/screenshots/soldats.jpg" width="49%" alt="Les soldats : coéquipiers T en sable, ennemis CT en bleu marine, casque et gilet porte-plaques">
   <img src="docs/screenshots/menu.jpg" width="49%" alt="Le menu et le choix de la carte">
   <img src="docs/screenshots/achat.jpg" width="49%" alt="Le menu d'achat">
 </p>
 
 ## Au programme
 
-- **2 cartes** : *Médina*, vieille ville du Maghreb façon de_dust2 (éclairage précalculé dans Blender), et *Dunes*, une carte grise pour s'entraîner.
+- **2 cartes** : *Médina*, vieille ville du Maghreb façon de_dust2 (éclairage précalculé dans Blender ; fenêtres, portes et boutiques variées, moucharabiehs, fontaine animée, puits, souk), et *Dunes*, une carte grise pour s'entraîner.
 - **Armes** : M4A1, MP5-SD, Nova, pistolet M1911 et couteau (coups dans le dos compris), avec dégâts, recul et dispersion de CS.
 - **4 grenades** : HE, flash, fumigène et molotov.
-- **Bots** : équipes de même taille comme dans CS, de 1 contre 1 à 5 contre 5 (toi compris), passifs (par défaut, pour s'entraîner à viser) ou en 3 difficultés.
+- **Bots** : soldats animés, équipes de même taille comme dans CS, de 1 contre 1 à 5 contre 5 (toi compris), passifs (par défaut, pour s'entraîner à viser) ou en 3 difficultés ; touche P pour les figer et les inspecter.
 - **Modes** : deathmatch (chaque camp réapparaît dans sa base) ou manches avec l'économie de CS:GO.
 - **1 contre 1 en ligne** : on crée une partie, on envoie le code de 4 caractères à son adversaire.
 - **HUD façon CS2** : radar, fil des éliminations, vie et gilet, menu d'achat illustré.
@@ -38,6 +40,7 @@ FPS façon Counter-Strike, directement dans le navigateur : bots, manches avec �
 | B | Menu d'achat |
 | Espace · C · Maj | Sauter · s'accroupir · marcher |
 | Tab | Scores |
+| P | Figer les bots (pour les inspecter) |
 | Échap | Menu et réglages |
 
 Les touches suivent ton clavier (Z Q S D en AZERTY, W A S D en QWERTY) et se changent toutes dans le menu (**Touches**).
@@ -71,8 +74,7 @@ public/   modèles, textures, sons, ciel
 ```
 
 <p align="center">
-  <img src="docs/screenshots/dunes.jpg" width="49%" alt="Dunes, la carte grise">
-  <img src="docs/screenshots/site-a.jpg" width="49%" alt="Médina : le site A">
+  <img src="docs/screenshots/dunes.jpg" width="60%" alt="Dunes, la carte grise">
 </p>
 
 ## Crédits
