@@ -5,6 +5,7 @@ import {
   type Settings,
 } from '../core/settings';
 import {
+  ACTION_GROUPS,
   ACTIONS,
   BINDING_SLOTS,
   keyName,
@@ -76,33 +77,58 @@ export class SettingsPanel {
    */
   private buildBindingsPage(): HTMLElement {
     const page = document.createElement('div');
-    for (const { action, label } of ACTIONS) {
-      const row = document.createElement('div');
-      row.className = 'setting binding';
-      const name = document.createElement('span');
-      name.className = 'label';
+    page.className = 'bindings';
+    const help = document.createElement('p');
+    help.className = 'bindings-help';
+    help.innerHTML = 'Clique sur une case puis appuie sur une touche, un bouton de souris ou la molette. <kbd>Échap</kbd> annule, <kbd>Retour arrière</kbd> vide la case.';
+    page.append(help);
+
+    const row = (label: string, hint?: string) => {
+      const element = document.createElement('div');
+      element.className = 'binding';
+      const name = document.createElement('div');
+      name.className = 'binding-name';
       name.textContent = label;
-      const control = document.createElement('div');
-      control.className = 'control';
-      for (let slot = 0; slot < BINDING_SLOTS; slot++) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'option key';
-        button.addEventListener('click', () => this.listen(action, slot, button));
-        control.append(button);
-        this.refreshers.push(() => {
-          const code = this.settings.bindings[action][slot];
-          button.textContent = code ? keyName(code, this.layout) : '—';
-          button.classList.remove('listening');
-        });
+      if (hint) name.append(Object.assign(document.createElement('small'), { textContent: hint }));
+      const keys = document.createElement('div');
+      keys.className = 'binding-keys';
+      element.append(name, keys);
+      return { element, keys };
+    };
+
+    for (const group of ACTION_GROUPS) {
+      const section = document.createElement('section');
+      section.className = 'binding-group';
+      section.append(Object.assign(document.createElement('h3'), { textContent: group }));
+      for (const { action, label, hint } of ACTIONS.filter((a) => a.group === group)) {
+        const { element, keys } = row(label, hint);
+        for (let slot = 0; slot < BINDING_SLOTS; slot++) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'keycap';
+          button.addEventListener('click', () => this.listen(action, slot, button));
+          keys.append(button);
+          this.refreshers.push(() => {
+            const code = this.settings.bindings[action][slot];
+            button.textContent = code ? keyName(code, this.layout) : '+';
+            button.title = code ? 'Changer' : 'Ajouter une touche';
+            button.classList.toggle('empty', !code);
+            button.classList.remove('listening');
+          });
+        }
+        section.append(element);
       }
-      row.append(name, control);
-      page.append(row);
+      // Échap ouvre le menu : touche fixe, affichée pour mémoire.
+      if (group === 'Interface') {
+        const { element, keys } = row('Menu et pause', 'non modifiable');
+        keys.append(
+          Object.assign(document.createElement('span'), { className: 'keycap locked', textContent: 'Échap' }),
+          Object.assign(document.createElement('span'), { className: 'keycap spacer' }),
+        );
+        section.append(element);
+      }
+      page.append(section);
     }
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = 'Échap : pause (non modifiable). Clique sur une case puis appuie sur la touche voulue ; Échap annule, Retour arrière vide la case.';
-    page.append(note);
 
     // Lettres selon la disposition du clavier : le navigateur la donne (Chrome, Edge) ;
     // sinon (Firefox), on apprend la lettre de chaque touche dès qu'elle est utilisée.
@@ -127,7 +153,8 @@ export class SettingsPanel {
 
   private listen(action: Action, slot: number, button: HTMLButtonElement): void {
     this.stopListening();
-    button.textContent = 'Appuie sur une touche…';
+    button.textContent = 'Appuie…';
+    button.classList.remove('empty');
     button.classList.add('listening');
 
     const finish = (code: string | null | undefined) => {

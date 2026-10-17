@@ -960,17 +960,115 @@ kbd {
   }
 }
 
-.binding .label {
+/* Menu des touches : groupes titrés, une ligne par action, cases en forme de touches de clavier. */
+.bindings-help {
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  opacity: 0.7;
+}
+
+kbd {
+  padding: 1px 6px;
+  border: 1px solid #4a4f58;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #1b1d22;
+  font: inherit;
+  font-size: 12px;
+}
+
+.binding-group + .binding-group {
+  margin-top: 16px;
+}
+
+.binding-group h3 {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.binding {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+}
+
+.binding:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.binding-name {
   flex: 1;
+  min-width: 0;
 }
 
-.option.key {
-  min-width: 96px;
+.binding-name small {
+  display: block;
+  font-size: 12px;
+  opacity: 0.5;
 }
 
-.option.key.listening {
-  border-color: #ffd34d;
-  color: #ffd34d;
+.binding-keys {
+  display: flex;
+  gap: 6px;
+}
+
+.keycap {
+  width: 104px;
+  padding: 5px 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid #4a4f58;
+  border-bottom: 3px solid #3a3e46;
+  border-radius: 6px;
+  background: linear-gradient(#2d3037, #24272d);
+  color: #f2f2f2;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+
+.keycap:hover {
+  border-color: var(--accent);
+  border-bottom-color: var(--accent-dark);
+}
+
+.keycap.empty {
+  border: 1px dashed #4a4f58;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 400;
+}
+
+.keycap.listening {
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: listening 1s ease-in-out infinite;
+}
+
+@keyframes listening {
+  50% {
+    box-shadow: 0 0 0 3px rgba(255, 154, 60, 0.35);
+  }
+}
+
+.keycap.locked {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.keycap.spacer {
+  visibility: hidden;
 }
 
 .note {

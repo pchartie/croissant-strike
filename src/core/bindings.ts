@@ -23,23 +23,27 @@ export type Bindings = Record<Action, string[]>;
 /** Nombre de touches par action. */
 export const BINDING_SLOTS = 2;
 
-export const ACTIONS: { action: Action; label: string }[] = [
-  { action: 'forward', label: 'Avancer' },
-  { action: 'back', label: 'Reculer' },
-  { action: 'left', label: 'Aller à gauche' },
-  { action: 'right', label: 'Aller à droite' },
-  { action: 'jump', label: 'Sauter' },
-  { action: 'crouch', label: "S'accroupir" },
-  { action: 'walk', label: 'Marcher lentement' },
-  { action: 'attack', label: 'Tirer / lancer loin / coup rapide' },
-  { action: 'attack2', label: 'Lancer en cloche / coup puissant' },
-  { action: 'reload', label: 'Recharger' },
-  { action: 'weapon1', label: 'Arme principale' },
-  { action: 'weapon2', label: 'Pistolet' },
-  { action: 'weapon3', label: 'Couteau' },
-  { action: 'grenades', label: 'Grenades (appuyer à nouveau pour changer)' },
-  { action: 'buy', label: "Menu d'achat" },
-  { action: 'scoreboard', label: 'Tableau des scores (maintenir)' },
+/** Groupes du menu des touches, dans l'ordre d'affichage. */
+export const ACTION_GROUPS = ['Déplacements', 'Combat', 'Équipement', 'Interface'] as const;
+
+/** Actions du menu des touches : nom court, précision éventuelle (en petit dessous) et groupe. */
+export const ACTIONS: { action: Action; label: string; hint?: string; group: (typeof ACTION_GROUPS)[number] }[] = [
+  { action: 'forward', label: 'Avancer', group: 'Déplacements' },
+  { action: 'back', label: 'Reculer', group: 'Déplacements' },
+  { action: 'left', label: 'Gauche', group: 'Déplacements' },
+  { action: 'right', label: 'Droite', group: 'Déplacements' },
+  { action: 'jump', label: 'Sauter', group: 'Déplacements' },
+  { action: 'crouch', label: "S'accroupir", group: 'Déplacements' },
+  { action: 'walk', label: 'Marcher', hint: 'sans bruit', group: 'Déplacements' },
+  { action: 'attack', label: 'Tirer', hint: 'grenade lancée loin · coup de couteau rapide', group: 'Combat' },
+  { action: 'attack2', label: 'Action secondaire', hint: 'grenade en cloche · coup de couteau puissant', group: 'Combat' },
+  { action: 'reload', label: 'Recharger', group: 'Combat' },
+  { action: 'weapon1', label: 'Arme principale', group: 'Équipement' },
+  { action: 'weapon2', label: 'Pistolet', group: 'Équipement' },
+  { action: 'weapon3', label: 'Couteau', group: 'Équipement' },
+  { action: 'grenades', label: 'Grenades', hint: 'appuyer à nouveau pour changer', group: 'Équipement' },
+  { action: 'buy', label: "Menu d'achat", group: 'Interface' },
+  { action: 'scoreboard', label: 'Tableau des scores', hint: 'maintenir', group: 'Interface' },
 ];
 
 // Codes physiques : sur un clavier AZERTY, KeyW est la touche Z et KeyA la touche Q.
