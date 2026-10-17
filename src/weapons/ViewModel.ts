@@ -8,9 +8,25 @@ import { GRENADE_ORDER, type GrenadeType } from '../grenades/definitions';
 import { buildGrenadeModel } from '../grenades/models';
 
 const FLASH_DURATION = 0.05;
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
 /** Durée des animations de coup de couteau (secondes). */
 const LIGHT_SWING_TIME = 0.38;
 const HEAVY_SWING_TIME = 0.8;
+/**
+ * Coup puissant : pose de l'arme (décalage en mètres, inclinaisons en radians) au repos, armée
+ * (en arrière et relevée) puis en fin de coup (poussée vers l'avant, pointe en avant).
+ */
+const STAB_POSES = {
+  rest: { y: 0, z: 0, pitch: 0, yaw: 0 },
+  windup: { y: 0.03, z: 0.045, pitch: 0.35, yaw: -0.12 },
+  thrust: { y: -0.01, z: -0.12, pitch: -0.1, yaw: 0.05 },
+};
+/** Coups rapides : rotation horizontale de l'arme au début et à la fin du balayage (radians). */
+const SLASH_FOREHAND = [0.55, -0.75] as const;
+const SLASH_BACKHAND = [-0.45, 0.3] as const;
+/** Tour du couteau dans la main pendant sa sortie : début et fin, en fraction de la sortie. */
+const FLIP_START = 0.1;
+const FLIP_END = 0.75;
 /**
  * Rangement de l'arme précédente au changement d'arme (secondes) : pris sur le temps de sortie de la
  * nouvelle, pour que l'arme soit prête au même moment qu'avant (comme dans CS, pas de délai en plus).
@@ -54,7 +70,11 @@ export class ViewModel {
   private flashTimer = 0;
   private readonly muzzlePosition = new THREE.Vector3();
 
-  private knifeSwing: { kind: MeleeKind; time: number } | null = null;
+  private knifeSwing: { kind: MeleeKind; time: number; side: number } | null = null;
+  /** Sens du prochain coup rapide : ils alternent droite → gauche puis gauche → droite. */
+  private slashSide = 1;
+  private lastSlash: number | null = null;
+  private readonly flip = new THREE.Quaternion();
   private bobPhase = 0;
   private bobAmount = 0;
   private swayX = 0;
@@ -170,8 +190,13 @@ export class ViewModel {
 
   /** Coup de couteau : balayage de droite à gauche (rapide) ou coup de pointe (puissant). */
   swing(kind: MeleeKind): void {
-    this.knifeSwing = { kind, time: 0 };
+    // Un coup rapide qui en suit un autre de près repart dans l'autre sens.
+    const chained = this.lastSlash !== null && performance.now() - this.lastSlash < 700;
+    this.slashSide = kind === 'light' && chained ? -this.slashSide : 1;
+    if (kind === 'light') this.lastSlash = performance.now();
+    this.knifeSwing = { kind, time: 0, side: this.slashSide };
   }
+
 
   kick(def: WeaponDef): void {
     // Les bras animés ont leur propre recul : on n'ajoute qu'un léger à-coup.
@@ -224,6 +249,7 @@ export class ViewModel {
       weapon.root.position.set(this.swayX, this.swayY, this.kickBack);
       weapon.root.rotation.set(this.kickPitch, 0, 0);
       this.applySwing(weapon.root);
+      this.flipKnife(weapon, state.draw);
       weapon.update(dt, state.speed, state.onGround, state.crouched);
       this.updateFlash(dt, weapon.muzzle);
       return;
@@ -257,6 +283,14 @@ export class ViewModel {
     this.updateFlash(dt, muzzle);
   }
 
+  /** Sortie du couteau : il fait un tour complet dans la main, à plat, avant de se figer en garde. */
+  private flipKnife(weapon: AnimatedWeapon, draw: number): void {
+    if (!weapon.item || this.hiding) return;
+    const t = THREE.MathUtils.smootherstep(1 - draw, FLIP_START, FLIP_END);
+    const { object, rest } = weapon.item;
+    object.quaternion.copy(rest).multiply(this.flip.setFromAxisAngle(Z_AXIS, -Math.PI * 2 * t));
+  }
+
   /** Ajoute le mouvement du coup de couteau en cours à la pose de l'arme. */
   private applySwing(root: THREE.Object3D): void {
     const swing = this.knifeSwing;
@@ -269,24 +303,32 @@ export class ViewModel {
     }
 
     if (swing.kind === 'light') {
-      // Balayage : la lame part de la droite et traverse vers la gauche en s'inclinant.
+      // Balayage : la lame traverse l'écran en s'inclinant, de droite à gauche ou l'inverse.
+      // Le revers, en sens inverse, a une course plus courte : le bras reste dans la moitié droite.
+      const side = swing.side;
       const arc = Math.sin(Math.PI * p);
-      const sweep = 0.55 - 1.3 * THREE.MathUtils.smootherstep(p, 0, 1);
+      const [from, to] = side > 0 ? SLASH_FOREHAND : SLASH_BACKHAND;
+      const sweep = from + (to - from) * THREE.MathUtils.smootherstep(p, 0, 1);
       root.rotation.y += sweep * arc;
-      root.rotation.z -= 0.6 * arc;
+      root.rotation.z -= side * 0.6 * arc;
       root.rotation.x += 0.15 * arc;
       root.position.z -= 0.06 * arc;
       return;
     }
 
-    // Coup de pointe : on arme vers l'arrière, on frappe vers l'avant, puis on revient.
-    let back: number;
-    if (p < 0.45) back = Math.sin((p / 0.45) * (Math.PI / 2));
-    else if (p < 0.6) back = 1 - 3.5 * ((p - 0.45) / 0.15);
-    else back = -2.5 * (1 - THREE.MathUtils.smootherstep(p, 0.6, 1));
-    root.position.z += 0.07 * back;
-    root.position.y += 0.03 * Math.max(back, 0);
-    root.rotation.x += 0.3 * back;
+    // Coup de pointe : on arme (en arrière, relevé), on pique vers l'avant, puis on revient.
+    const { rest, windup, thrust } = STAB_POSES;
+    const [from, to, k] =
+      p < 0.4
+        ? [rest, windup, THREE.MathUtils.smootherstep(p, 0, 0.4)]
+        : p < 0.55
+          ? [windup, thrust, THREE.MathUtils.smoothstep(p, 0.4, 0.55)]
+          : [thrust, rest, THREE.MathUtils.smootherstep(p, 0.55, 1)];
+    const mix = (a: number, b: number) => a + (b - a) * k;
+    root.position.y += mix(from.y, to.y);
+    root.position.z += mix(from.z, to.z);
+    root.rotation.x += mix(from.pitch, to.pitch);
+    root.rotation.y += mix(from.yaw, to.yaw);
   }
 
   resize(aspect: number): void {

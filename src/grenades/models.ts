@@ -154,15 +154,15 @@ function canister(radius: number, half: number): THREE.LatheGeometry {
   ]);
 }
 
-/** Flash (M84) : cylindre gris percé de deux rangées de lumières, bande claire, cerclages. */
+/** Flash (M84) : cylindre gris, une rangée d'évents ronds, bande claire, cerclages. */
 function flash(color: number): Part[] {
   const paint = (geometry: THREE.BufferGeometry, tint = color): Part => ({ geometry, color: tint, finish: 'paint' });
-  const slot = () => new THREE.BoxGeometry(0.0035, 0.018, 0.009);
+  const port = () => new THREE.CylinderGeometry(0.0048, 0.0048, 0.003, 12).rotateZ(Math.PI / 2);
   return [
     paint(canister(0.03, 0.05)),
-    // Lumières par où sort l'éclair (deux rangées décalées).
-    ...around(6, 0.0292, 0.021, slot).map((geometry) => paint(geometry, HOLE)),
-    ...around(6, 0.0292, -0.006, slot, Math.PI / 6).map((geometry) => paint(geometry, HOLE)),
+    // Évents ronds par où sort l'éclair, une rangée sous le détonateur, dans une bague plus sombre.
+    paint(place(new THREE.CylinderGeometry(0.0304, 0.0304, 0.016, 28, 1, true), 0, 0.026), 0x858b91),
+    ...around(8, 0.0298, 0.026, port).map((geometry) => paint(geometry, HOLE)),
     // Bande claire de marquage et cerclages.
     paint(place(new THREE.CylinderGeometry(0.0305, 0.0305, 0.012, 28, 1, true), 0, -0.032), 0xd8d3c2),
     ...around(4, 0.0308, -0.032, () => new THREE.BoxGeometry(0.0012, 0.004, 0.011), Math.PI - 0.5).map((geometry) => paint(geometry, MARKING)),

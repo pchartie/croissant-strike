@@ -59,6 +59,8 @@ type OneShot = string;
 export class AnimatedWeapon {
   /** Point de sortie de la flamme du canon. */
   readonly muzzle = new THREE.Object3D();
+  /** Objet tenu en main qu'on peut faire tourner (le couteau, pour son tour à la sortie), et sa pose. */
+  item: { object: THREE.Object3D; rest: THREE.Quaternion } | null = null;
 
   private readonly armsMixer: THREE.AnimationMixer;
   private readonly gunMixer: THREE.AnimationMixer;
@@ -410,5 +412,7 @@ function buildKnifeArms(
   root.add(pose);
   root.visible = false;
 
-  return new AnimatedWeapon(root, arms, mount, pistolClips, [], [0, 0, 0], [arms.getObjectByName('upperArm_l')!]);
+  const weapon = new AnimatedWeapon(root, arms, mount, pistolClips, [], [0, 0, 0], [arms.getObjectByName('upperArm_l')!]);
+  weapon.item = { object: mount, rest: mount.quaternion.clone() };
+  return weapon;
 }
