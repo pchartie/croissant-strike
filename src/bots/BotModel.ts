@@ -212,7 +212,10 @@ export class BotModel {
     body.traverse((child) => {
       if (child instanceof THREE.SkinnedMesh) {
         child.visible = child.name === OUTFIT[this.team];
-        child.frustumCulled = false; // la boîte du maillage au repos ne suit pas l'animation
+        // Sphère du maillage au repos, doublée pour couvrir toutes les poses (bras tendus, corps
+        // allongé à la mort) : un soldat hors du champ de vision n'est plus dessiné.
+        child.computeBoundingSphere();
+        child.boundingSphere!.radius *= 2;
       }
     });
     // Le modèle regarde vers +z ; le jeu, vers -z.

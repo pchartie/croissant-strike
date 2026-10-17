@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CASING_COLORS, type CasingKind } from './Casings';
 import type { WeaponId } from './definitions';
@@ -180,7 +181,7 @@ export class AnimatedWeapon {
 export interface RetroWeapons {
   /** Bras + arme animés, pour la vue à la première personne. */
   viewModels: Record<WeaponId, AnimatedWeapon>;
-  /** Fusil seul (avec chargeur), à cloner pour les bots. */
+  /** Fusil seul (avec chargeur), figé en un seul maillage, à cloner pour les bots. */
   botRifle: THREE.Object3D;
   /** Douilles éjectées (null si projectiles.fbx manque : cylindres de secours). */
   casings: Record<CasingKind, THREE.Object3D> | null;
@@ -222,7 +223,7 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
       alignRestPose(gun, gunClips);
       if (extra && spec.magazine) attachMagazine(gun, extra, spec.magazine);
       applyMaterials(gun, materials);
-      if (id === 'rifle') botRifle = cloneSkinned(gun);
+      if (id === 'rifle') botRifle = bakeStatic(gun);
       if (id === 'pistol') pistolClips = armsClips;
 
       const arms = cloneSkinned(armsSource);
@@ -264,6 +265,59 @@ function casingModels(source: THREE.Object3D): Record<CasingKind, THREE.Object3D
     return casing;
   };
   return { '556': model('556mm_Shell_Mesh', brass), '9mm': model('9mm_Shell_Mesh', brass), buckshot: model('BuckShot_Shell_Mesh', plastic) };
+}
+
+/**
+ * Fige une arme animée dans sa pose de repos en un seul maillage (un appel de dessin par texture,
+ * sans os) : le fusil d'un bot ne bouge jamais, et ses 9 pièces animées coûtaient 10 appels chacun.
+ * Même repère que l'arme d'origine (centimètres, canon vers +x).
+ */
+function bakeStatic(gun: THREE.Object3D): THREE.Group {
+  gun.updateMatrixWorld(true);
+  const toGun = gun.matrixWorld.clone().invert();
+  const byMaterial = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  const vertex = new THREE.Vector3();
+  const tip = new THREE.Vector3();
+  gun.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const source = child.geometry.index ? child.geometry.toNonIndexed() : child.geometry;
+    const matrix = toGun.clone().multiply(child.matrixWorld);
+    const materials: THREE.Material[] = Array.isArray(child.material) ? child.material : [child.material];
+    const groups = source.groups.length ? source.groups : [{ start: 0, count: source.attributes.position.count, materialIndex: 0 }];
+    for (const group of groups) {
+      const count = group.count;
+      const position = new Float32Array(count * 3);
+      const normal = new Float32Array(count * 3);
+      const uv = new Float32Array(count * 2);
+      const srcPosition = source.attributes.position;
+      const srcNormal = source.attributes.normal;
+      const srcUv = source.attributes.uv;
+      for (let n = 0; n < count; n++) {
+        const i = group.start + n;
+        // Pièce animée : sommet placé par ses os (pose de repos), puis ramené dans le repère de l'arme.
+        vertex.fromBufferAttribute(srcPosition, i);
+        tip.copy(vertex).add(new THREE.Vector3().fromBufferAttribute(srcNormal, i));
+        if (child instanceof THREE.SkinnedMesh) {
+          child.applyBoneTransform(i, vertex);
+          child.applyBoneTransform(i, tip);
+        }
+        vertex.applyMatrix4(matrix);
+        tip.applyMatrix4(matrix).sub(vertex).normalize();
+        vertex.toArray(position, n * 3);
+        tip.toArray(normal, n * 3);
+        if (srcUv) uv.set([srcUv.getX(i), srcUv.getY(i)], n * 2);
+      }
+      const part = new THREE.BufferGeometry();
+      part.setAttribute('position', new THREE.BufferAttribute(position, 3));
+      part.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
+      part.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      const material = materials[group.materialIndex ?? 0];
+      byMaterial.set(material, [...(byMaterial.get(material) ?? []), part]);
+    }
+  });
+  const baked = new THREE.Group();
+  for (const [material, parts] of byMaterial) baked.add(new THREE.Mesh(mergeGeometries(parts)!, material));
+  return baked;
 }
 
 async function loadClips(url: string): Promise<THREE.AnimationClip[]> {

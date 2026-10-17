@@ -926,8 +926,9 @@ export class Game {
     this.settings = settings;
     if (this.duel?.active) return;
     this.bots.setDifficulty(settings.difficulty);
+    // Comme dans CS : deux équipes de même taille, toi compris dans la tienne.
     this.bots.setCount(settings.botCount);
-    this.bots.setAllies(settings.allyCount);
+    this.bots.setAllies(settings.botCount - 1);
     this.bots.setAggressive(settings.botsAggressive);
     this.bots.setEnabled(settings.botsEnabled);
     if (settings.mode !== this.mode) this.startMode(settings.mode);

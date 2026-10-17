@@ -284,7 +284,7 @@ export class SettingsPanel {
         this.refreshers.push(() => {
           const current = this.settings[field.key] as number;
           slider.value = String(current);
-          value.textContent = `${current.toFixed(decimals)}${field.unit ?? ''}`;
+          value.textContent = field.format ? field.format(current) : `${current.toFixed(decimals)}${field.unit ?? ''}`;
         });
         break;
       }

@@ -14,8 +14,8 @@ export interface Settings {
   mode: GameMode;
   botsEnabled: boolean;
   botsAggressive: boolean;
+  /** Taille des équipes, comme dans CS : N ennemis contre toi et N − 1 coéquipiers. */
   botCount: number;
-  allyCount: number;
   difficulty: Difficulty;
   // Contrôles
   /** Sensibilité façon CS : degrés par point de souris = 0,022 × sensibilité. */
@@ -42,8 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   botsEnabled: true,
   // Passifs par défaut : on découvre la carte et on s'entraîne à viser sans se faire tirer dessus.
   botsAggressive: false,
-  botCount: 5,
-  allyCount: 0,
+  botCount: 3,
   difficulty: 'normal',
   sensitivity: 2,
   invertY: true,
@@ -65,7 +64,7 @@ export type SettingField =
   | { key: Key; label: string; type: 'choice'; options: { value: string; label: string }[] }
   /** Grandes cartes avec une image (choix de la carte de jeu). `image` : chemin depuis la racine du site. */
   | { key: Key; label: string; type: 'cards'; hint?: string; options: { value: string; label: string; description: string; image: string }[] }
-  | { key: Key; label: string; type: 'range'; min: number; max: number; step: number; unit?: string };
+  | { key: Key; label: string; type: 'range'; min: number; max: number; step: number; unit?: string; format?: (value: number) => string };
 
 export interface SettingsTab {
   title: string;
@@ -97,8 +96,15 @@ export const SETTINGS_TABS: SettingsTab[] = [
       },
       { key: 'botsEnabled', label: 'Bots', type: 'toggle', on: 'Activés', off: 'Désactivés' },
       { key: 'botsAggressive', label: 'Comportement', type: 'toggle', on: 'Agressifs', off: 'Passifs' },
-      { key: 'botCount', label: "Nombre d'ennemis", type: 'range', min: 1, max: 10, step: 1 },
-      { key: 'allyCount', label: 'Coéquipiers', type: 'range', min: 0, max: 4, step: 1 },
+      {
+        key: 'botCount',
+        label: 'Nombre de bots',
+        type: 'range',
+        min: 1,
+        max: 5,
+        step: 1,
+        format: (n) => `${n} contre ${n}${n > 1 ? ` (${n - 1} coéquipier${n > 2 ? 's' : ''})` : ''}`,
+      },
       {
         key: 'difficulty',
         label: 'Difficulté',
@@ -157,14 +163,14 @@ export const SETTINGS_TABS: SettingsTab[] = [
 
 /** Ces réglages n'ont pas de sens sans bots : ils sont grisés quand les bots sont désactivés. */
 export function isFieldEnabled(key: Key, settings: Settings): boolean {
-  const needsBots: Key[] = ['botsAggressive', 'botCount', 'allyCount', 'difficulty'];
+  const needsBots: Key[] = ['botsAggressive', 'botCount', 'difficulty'];
   return !needsBots.includes(key) || settings.botsEnabled;
 }
 
 const STORAGE_KEY = 'fps1.settings';
 /** Révision des réglages : un réglage listé ici reprend une fois sa valeur par défaut quand elle a changé. */
-const REVISION = 2;
-const RESET_AT: Partial<Record<Key, number>> = { showFps: 2 };
+const REVISION = 3;
+const RESET_AT: Partial<Record<Key, number>> = { showFps: 2, botCount: 3 };
 
 /** Réglages mémorisés dans le navigateur ; toute valeur absente ou invalide reprend sa valeur par défaut. */
 export function loadSettings(): Settings {
