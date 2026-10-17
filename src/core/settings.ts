@@ -1,3 +1,4 @@
+import { CROSSHAIR_COLORS } from '../ui/crosshair';
 import { DEFAULT_BINDINGS, validateBindings, type Bindings } from './bindings';
 import type { MapId } from '../world/maps';
 
@@ -60,7 +61,10 @@ type Key = Exclude<keyof Settings, 'bindings'>;
 /** Description d'un réglage : le panneau est construit à partir de ces descriptions. */
 export type SettingField =
   | { key: Key; label: string; type: 'toggle'; on: string; off: string }
-  | { key: Key; label: string; type: 'choice'; options: { value: string; label: string }[] }
+  /** `swatch` : pastille de couleur devant le libellé. */
+  | { key: Key; label: string; type: 'choice'; options: { value: string; label: string; swatch?: string }[] }
+  /** Aperçu du réticule (couleur et taille choisies), sans valeur propre. */
+  | { key: Key; label: string; type: 'crosshair' }
   /** Grandes cartes avec une image (choix de la carte de jeu). `image` : chemin depuis la racine du site. */
   | { key: Key; label: string; type: 'cards'; hint?: string; options: { value: string; label: string; description: string; image: string }[] }
   | { key: Key; label: string; type: 'range'; min: number; max: number; step: number; unit?: string; format?: (value: number) => string };
@@ -132,11 +136,11 @@ export const SETTINGS_TABS: SettingsTab[] = [
         label: 'Couleur du réticule',
         type: 'choice',
         options: [
-          { value: 'green', label: 'Vert' },
-          { value: 'white', label: 'Blanc' },
-          { value: 'red', label: 'Rouge' },
-          { value: 'cyan', label: 'Cyan' },
-          { value: 'yellow', label: 'Jaune' },
+          { value: 'green', label: 'Vert', swatch: CROSSHAIR_COLORS.green },
+          { value: 'white', label: 'Blanc', swatch: CROSSHAIR_COLORS.white },
+          { value: 'red', label: 'Rouge', swatch: CROSSHAIR_COLORS.red },
+          { value: 'cyan', label: 'Cyan', swatch: CROSSHAIR_COLORS.cyan },
+          { value: 'yellow', label: 'Jaune', swatch: CROSSHAIR_COLORS.yellow },
         ],
       },
       {
@@ -149,6 +153,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
           { value: 'large', label: 'Grand' },
         ],
       },
+      { key: 'crosshairColor', label: 'Aperçu', type: 'crosshair' },
     ],
   },
   {
@@ -204,6 +209,8 @@ function validate(field: SettingField, value: unknown): unknown {
     case 'choice':
     case 'cards':
       return field.options.some((option) => option.value === value) ? value : undefined;
+    case 'crosshair':
+      return undefined;
     case 'range':
       if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
       return Math.min(field.max, Math.max(field.min, Math.round(value / field.step) * field.step));

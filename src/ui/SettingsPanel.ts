@@ -11,6 +11,7 @@ import {
   RESERVED_CODES,
   type Action,
 } from '../core/bindings';
+import { fillCrosshair, styleCrosshair } from './crosshair';
 
 /**
  * Corps du menu, construit à partir de SETTINGS_TABS : les rubriques à gauche (une par
@@ -222,6 +223,7 @@ export class SettingsPanel {
           button.type = 'button';
           button.className = 'option';
           button.textContent = option.label;
+          if (option.swatch) button.prepend(Object.assign(document.createElement('span'), { className: 'swatch', style: `background:${option.swatch}` }));
           button.addEventListener('click', () => set(option.value));
           control.append(button);
           return { button, value: option.value };
@@ -229,6 +231,17 @@ export class SettingsPanel {
         this.refreshers.push(() => {
           for (const { button, value } of buttons) button.classList.toggle('active', this.settings[field.key] === value);
         });
+        break;
+      }
+      case 'crosshair': {
+        const preview = document.createElement('div');
+        preview.className = 'crosshair-preview';
+        preview.style.backgroundImage = `url(${import.meta.env.BASE_URL}maps/medina/preview.webp)`;
+        const crosshair = document.createElement('div');
+        fillCrosshair(crosshair);
+        preview.append(crosshair);
+        control.append(preview);
+        this.refreshers.push(() => styleCrosshair(crosshair, this.settings.crosshairColor, this.settings.crosshairSize));
         break;
       }
       case 'cards': {

@@ -32,7 +32,7 @@ canvas {
 }
 
 /* Réticule façon CS : 4 traits verts avec un espace au centre. */
-#crosshair {
+.crosshair {
   --gap: 5px;
   --len: 7px;
   --thick: 2px;
@@ -42,32 +42,58 @@ canvas {
   top: 50%;
 }
 
-#crosshair span {
+.crosshair span {
   position: absolute;
   background: var(--color);
   box-shadow: 0 0 1px #000;
 }
 
-#crosshair .top,
-#crosshair .bottom {
+.crosshair .top,
+.crosshair .bottom {
   width: var(--thick);
   height: var(--len);
   left: calc(var(--thick) / -2);
 }
 
-#crosshair .top {
+.crosshair .top {
   bottom: var(--gap);
 }
 
-#crosshair .bottom {
+.crosshair .bottom {
   top: var(--gap);
 }
 
-#crosshair .left,
-#crosshair .right {
+.crosshair .left,
+.crosshair .right {
   width: var(--len);
   height: var(--thick);
   top: calc(var(--thick) / -2);
+}
+
+/* Aperçu du réticule dans le menu : sur une image de la carte, comme en jeu. */
+.crosshair-preview {
+  position: relative;
+  width: 160px;
+  height: 90px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: center / cover;
+  overflow: hidden;
+}
+
+/* Boutons de couleur : pastille et libellé, un peu plus serrés pour tenir sur une ligne. */
+.option:has(.swatch) {
+  padding: 5px 9px;
+}
+
+.option .swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: -1px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
 }
 
 #crosshair .left {
