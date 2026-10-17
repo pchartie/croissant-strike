@@ -101,7 +101,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
         min: 1,
         max: 5,
         step: 1,
-        format: (n) => `${n} contre ${n}${n > 1 ? ` (${n - 1} coéquipier${n > 2 ? 's' : ''})` : ''}`,
+        format: (n) => `${n} contre ${n}`,
       },
       {
         key: 'difficulty',
