@@ -59,6 +59,11 @@ export class ViewModel {
   readonly camera = new THREE.PerspectiveCamera(70, 1, 0.01, 10);
 
   private readonly blocks = {} as Record<WeaponId, WeaponModel>;
+  /**
+   * Armes en blocs, cachées tant que les armes animées se chargent (on ne voit rien en main plutôt
+   * qu'un fusil en blocs, qui ressemble à un AK) ; montrées seulement si le chargement échoue.
+   */
+  private readonly blocksGroup = new THREE.Group();
   private animated: Record<WeaponId, AnimatedWeapon> | null = null;
   private currentId: WeaponId = 'rifle';
   /** Arme en train d'être rangée, et celle qui sortira ensuite. */
@@ -91,9 +96,11 @@ export class ViewModel {
     for (const id of Object.keys(MODEL_BUILDERS) as WeaponId[]) {
       const model = MODEL_BUILDERS[id]();
       model.root.visible = false;
-      this.scene.add(model.root);
+      this.blocksGroup.add(model.root);
       this.blocks[id] = model;
     }
+    this.blocksGroup.visible = false;
+    this.scene.add(this.blocksGroup);
     this.scene.add(this.flash);
 
     for (const type of GRENADE_ORDER) {
@@ -102,6 +109,11 @@ export class ViewModel {
       this.scene.add(model);
       this.grenades[type] = model;
     }
+  }
+
+  /** Les armes animées n'ont pas pu se charger : on garde les armes en blocs. */
+  useBlocks(): void {
+    this.blocksGroup.visible = true;
   }
 
   /** Remplace les armes en blocs par les armes animées (une fois chargées). */
@@ -205,6 +217,8 @@ export class ViewModel {
     this.kickPitch += def.viewKick.pitch * scale;
     this.animated?.[def.id].play('fire');
 
+    // Rien en main pendant le chargement des armes : pas d'éclair qui flotterait seul.
+    if (!this.animated && !this.blocksGroup.visible) return;
     this.flashTimer = FLASH_DURATION;
     this.flash.material.rotation = Math.random() * Math.PI * 2;
     this.flash.scale.setScalar((this.animated ? 0.16 : 0.12) + Math.random() * 0.08);

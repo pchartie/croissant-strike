@@ -237,7 +237,7 @@ export class Game {
       [{ title: 'En ligne', element: document.getElementById('online')!, index: 1 }],
     );
     void loadRetroWeapons().then((weapons) => {
-      if (!weapons) return;
+      if (!weapons) return this.viewModel.useBlocks();
       this.viewModel.useAnimated(weapons.viewModels, this.weapons.current.def);
       this.bots.setWeaponModel(weapons.botRifle);
       // L'adversaire en ligne tient le même fusil que les bots.
