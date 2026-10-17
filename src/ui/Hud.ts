@@ -252,6 +252,11 @@ export class Hud {
     this.armor.classList.toggle('empty', value === 0);
   }
 
+  /** Bandeau « bots figés » (inspection), avec la touche pour les relancer. */
+  setFrozen(frozen: boolean): void {
+    document.getElementById('frozen')!.classList.toggle('hidden', !frozen);
+  }
+
   setFps(fps: number): void {
     this.fps.textContent = `${fps} FPS`;
   }

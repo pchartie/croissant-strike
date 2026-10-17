@@ -305,6 +305,10 @@ export class Game {
 
     // Le menu d'achat passe en premier : ses touches 1 à 0 ne doivent pas changer d'arme.
     this.updateBuyMenu();
+    if (this.input.consumePress('freezeBots') && !this.duel?.active) {
+      this.bots.frozen = !this.bots.frozen;
+      this.hud.setFrozen(this.bots.frozen);
+    }
     if (this.player.alive && !frozen) {
       this.player.update(TICK, this.input, [...this.world.colliders, ...this.bots.colliders, ...this.remoteColliders]);
       if (this.player.outOfMap) this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);

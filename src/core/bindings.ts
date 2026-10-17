@@ -17,7 +17,8 @@ export type Action =
   | 'nextWeapon'
   | 'prevWeapon'
   | 'buy'
-  | 'scoreboard';
+  | 'scoreboard'
+  | 'freezeBots';
 
 /** Codes de touches : ceux du clavier (`KeyW`…), `Mouse0` à `Mouse4` et `Wheel` pour la molette. */
 export type Bindings = Record<Action, string[]>;
@@ -48,6 +49,7 @@ export const ACTIONS: { action: Action; label: string; hint?: string; group: (ty
   { action: 'prevWeapon', label: 'Arme précédente', group: 'Équipement' },
   { action: 'buy', label: "Menu d'achat", group: 'Interface' },
   { action: 'scoreboard', label: 'Tableau des scores', hint: 'maintenir', group: 'Interface' },
+  { action: 'freezeBots', label: 'Figer les bots', hint: 'pour les inspecter ; appuyer à nouveau pour relancer', group: 'Interface' },
 ];
 
 // Codes physiques : sur un clavier AZERTY, KeyW est la touche Z et KeyA la touche Q.
@@ -73,6 +75,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   prevWeapon: ['WheelUp'],
   buy: ['KeyB'],
   scoreboard: ['Tab'],
+  freezeBots: ['KeyP'],
 };
 
 /** Touches qu'on ne peut pas assigner : Échap met le jeu en pause ; « Wheel » (ancienne molette sans sens) n'existe plus. */

@@ -208,12 +208,7 @@ export class Bot implements Target {
   }
 
   update(dt: number, ctx: BotContext): void {
-    if (!this.alive) {
-      this.deadTime += dt;
-      this.model.fall(Math.min(this.deadTime / FALL_DURATION, 1));
-      this.model.root.updateMatrixWorld();
-      return;
-    }
+    if (!this.alive) return this.updateDeath(dt);
 
     this.blindTimer = Math.max(0, this.blindTimer - dt);
     this.fleeCooldown = Math.max(0, this.fleeCooldown - dt);
@@ -241,6 +236,22 @@ export class Bot implements Target {
 
     this.turn(dt);
     this.model.pose(this.body.position, this.yaw, this.pitch, this.body.horizontalSpeed / MOVE.maxSpeed, dt, { aiming: this.state === 'combat' });
+    this.model.root.updateMatrixWorld();
+  }
+
+  /** Mort : il tombe, puis attend de réapparaître. */
+  private updateDeath(dt: number): void {
+    this.deadTime += dt;
+    this.model.fall(Math.min(this.deadTime / FALL_DURATION, 1));
+    this.model.root.updateMatrixWorld();
+  }
+
+  /** Figé (inspection) : immobile sur place, en pose de repos, sans réfléchir ni tirer. */
+  hold(dt: number): void {
+    if (!this.alive) return this.updateDeath(dt);
+    this.body.velocity.set(0, 0, 0);
+    this.body.previousPosition.copy(this.body.position);
+    this.model.pose(this.body.position, this.yaw, 0, 0, dt);
     this.model.root.updateMatrixWorld();
   }
 

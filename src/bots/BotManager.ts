@@ -52,6 +52,8 @@ export class BotManager {
   private gunTemplate: THREE.Object3D | null = null;
   /** Faux en mode manches : un bot mort attend la manche suivante. */
   respawnEnabled = true;
+  /** Figés pour être inspectés (touche P) : immobiles, ils ne tirent plus et ne réapparaissent plus. */
+  frozen = false;
   /** Ce qui bloque la vue en plus des murs (les fumigènes). */
   private visionBlocker: (from: THREE.Vector3, to: THREE.Vector3) => boolean = () => false;
   private readonly flashEye = new THREE.Vector3();
@@ -159,6 +161,10 @@ export class BotManager {
   update(dt: number): void {
     if (!this.enabled) return;
     for (const bot of this.bots) {
+      if (this.frozen) {
+        bot.hold(dt);
+        continue;
+      }
       bot.update(dt, this.context);
       if (this.respawnEnabled && !bot.alive && bot.deadTime > BOTS.respawnDelay) bot.spawn(this.spawnPoint(bot.team));
     }
