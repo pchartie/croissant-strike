@@ -39,7 +39,10 @@ import { HELMET_UPGRADE_PRICE, SHOP_ITEMS, type ShopItem } from './shop';
 import { Input } from './Input';
 import { Rounds } from './Rounds';
 import { loadSettings, saveSettings, type GameMode, type Settings } from './settings';
+import { guessLayout, keyName } from './bindings';
 
+/** Disposition du clavier, pour écrire la touche d'achat (voir src/core/bindings.ts). */
+const KEY_LAYOUT = guessLayout(navigator.languages ?? [navigator.language]);
 const MAX_FRAME_TIME = 0.1;
 const MUZZLE_LIGHT_DURATION = 0.04;
 const RESPAWN_DELAY = 3;
@@ -461,6 +464,12 @@ export class Game {
     return phase === 'freeze' || (phase === 'live' && this.rounds.elapsed < ECONOMY.buyTime);
   }
 
+  /** Touche du menu d'achat telle qu'écrite sur le clavier (B, sauf si on l'a changée). */
+  private get buyKeyName(): string {
+    const code = this.settings.bindings.buy[0];
+    return code ? keyName(code, KEY_LAYOUT) : 'B';
+  }
+
   /** Secondes restantes pour acheter (manches), ou null (deathmatch). */
   private get buyTimeLeft(): number | null {
     if (this.mode === 'deathmatch') return null;
@@ -473,6 +482,7 @@ export class Game {
     if (this.input.consumePress('buy') && canBuy) this.buyMenu.toggle();
     if (this.buyMenu.open && !canBuy) this.buyMenu.close();
     // Pendant le menu, le clic sert à acheter ; après, on ne tire qu'une fois les boutons relâchés.
+    this.hud.setBuyHint(canBuy && !this.buyMenu.open, this.buyKeyName);
     if (this.buyMenu.open) this.input.mute(['attack', 'attack2']);
     else if (!this.input.isCodeDown('Mouse0') && !this.input.isCodeDown('Mouse2')) this.input.mute(null);
     if (!this.buyMenu.open) return;

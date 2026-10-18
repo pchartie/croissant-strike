@@ -65,6 +65,9 @@ export class Hud {
   private paused = true;
   private pausedAt = 0;
   private readonly crosshair = document.getElementById('crosshair')!;
+  private readonly buyHint = document.getElementById('buy-hint')!;
+  private readonly buyKey = document.getElementById('buy-key')!;
+  private lastBuyHint: string | null = null;
   private readonly scope = document.getElementById('scope-overlay')!;
   private lastScope = '';
   private readonly money = document.getElementById('money')!;
@@ -309,6 +312,15 @@ export class Hud {
     this.armorIcon.src = helmet ? HUD_ICONS.helmet : HUD_ICONS.armor;
     this.armorIcon.alt = helmet ? 'Gilet + casque' : 'Gilet';
     this.armor.classList.toggle('empty', value === 0);
+  }
+
+  /** Rappel sous le radar : la touche du menu d'achat, tant qu'on peut acheter et que le menu est fermé. */
+  setBuyHint(visible: boolean, key: string): void {
+    const text = visible ? key : '';
+    if (text === this.lastBuyHint) return;
+    this.lastBuyHint = text;
+    this.buyHint.classList.toggle('hidden', !visible);
+    if (visible) this.buyKey.textContent = key;
   }
 
   /** Bandeau « bots figés » (inspection), avec la touche pour les relancer. */

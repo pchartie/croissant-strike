@@ -4,7 +4,7 @@ Les zones jouables du plan, des maisons partout ailleurs (crépis de plusieurs t
 corniche ; fenêtres et portes de plusieurs modèles, un style par façade : volets, arcs, grilles, volets
 roulants, moucharabiehs, portes cloutées, auvents, boutiques), les sols de chaque zone et leurs détails
 (sable au pied des murs, taches, plaques d'égout), les portes, l'arche, la terrasse A, la passerelle, le
-souk sous ses toiles, la fontaine, le puits, une maison ouverte (pièce meublée, éclairée par une lanterne),
+souk sous ses toiles, la fontaine, le puits, deux maisons ouvertes (pièces meublées, éclairées par une lanterne),
 le minaret et des palmiers ; éclairage précalculé.
 
 Lancé par `npm run build-map -- medina`, qui appelle Blender ainsi :
@@ -117,17 +117,19 @@ CLAYS = ['clayOchre'] * 5 + ['clayWhite'] * 3 + ['clayPink'] * 2 + ['clayRed'] *
 FACADES = []  # (x1, z1, x2, z2, hauteur, graine) : murs dont on habille les côtés tournés vers une rue
 
 
-# Maison ouverte, au coin du Milieu et de la place : on entre par la rue, on voit la place par la fenêtre.
-INTERIOR = (5.0, 6.0, 10.0, 13.0)
-INTERIOR_SHELL = {}  # hauteur et crépi de la maison ouverte (construite plus bas, avec ses façades)
+# Maisons ouvertes (construites plus bas, avec leurs façades) : au coin du Milieu et de la place, et
+# côté CT au coin de l'esplanade et du couloir des Portes CT.
+INTERIORS = {}  # (x1, z1, x2, z2) → hauteur et crépi
+for rect_ in ((5.0, 6.0, 10.0, 13.0), (6.0, -34.0, 12.0, -28.0)):
+    INTERIORS[rect_] = {}
 
 
 def house(x1, z1, x2, z2):
     rng = random.Random(f'{x1},{z1},{x2},{z2}')
     height = rng.choice([5.0, 5.5, 6.0, 6.5, 7.0, 7.5])
     material = rng.choice(CLAYS)
-    if (x1, z1, x2, z2) == INTERIOR:
-        INTERIOR_SHELL.update(height=height, material=material)
+    if (x1, z1, x2, z2) in INTERIORS:
+        INTERIORS[(x1, z1, x2, z2)].update(height=height, material=material)
     else:
         box(x1, z1, x2, z2, 0, height, material, 'plaster', top=False)
     FACADES.append((x1, z1, x2, z2, height, rng.random()))
@@ -855,40 +857,45 @@ def check_props_against_blocks():
     print(f'[props] {found} objet(s) dans un bloc')
 
 
-# --- Maison ouverte (INTERIOR) : pièce de séjour au rez-de-chaussée, porte à deux battants ouverts sur le
-# Milieu, fenêtre sans barreaux sur la place (on y voit et on y tire, sans passer). Murs de 30 cm doublés à
-# l'intérieur (zellige en bas, chaux au-dessus), plafond de planches sur poutres, sol carrelé ; banquette,
-# caisse et sa lanterne (une lampe dans l'éclairage précalculé), jarres et faïences qui se cassent.
+# --- Maisons ouvertes : une pièce au rez-de-chaussée, porte à deux battants ouverts sur une rue, fenêtre
+# sans barreaux sur une autre (on y voit et on y tire, sans passer). Murs de 30 cm doublés à l'intérieur
+# (soubassement en bas, chaux au-dessus), plafond de planches sur poutres, sol carrelé ; une lanterne (une
+# lampe dans l'éclairage précalculé), des caisses et des jarres qui se cassent.
 WALL_IN = 0.3  # épaisseur des murs
 LINING = 0.03  # doublage intérieur
 CEILING = 3.0
-DADO = 1.1  # haut du zellige
-DOOR_SPAN, DOOR_TOP = (10.2, 11.8), 2.45  # porte (z) : 1,6 m, deux cases de passage pour les bots
-WINDOW_SPAN, WINDOW_SILL, WINDOW_TOP = (6.4, 7.6), 1.05, 2.15  # fenêtre (x) : trop basse pour s'y glisser
-LANTERN_LIGHT = (9.06, 1.85, 12.06)  # au-dessus de la lanterne (posée sur la caisse du coin)
+DADO = 1.1  # haut du soubassement intérieur
+DOOR_WIDTH, DOOR_TOP = 1.6, 2.45  # deux cases de passage pour les bots
+WINDOW_WIDTH, WINDOW_SILL, WINDOW_TOP = 1.2, 1.05, 2.15  # trop basse pour s'y glisser
+LANTERN_LIGHTS = []  # au-dessus de chaque lanterne
 
 
-def interior():
-    x1, z1, x2, z2 = INTERIOR
-    height, material = INTERIOR_SHELL['height'], INTERIOR_SHELL['material']
+def interior(rect_, door, window, dado, planks):
+    """Maison ouverte : `door` et `window` = (côté, centre le long du mur) ; renvoie la pièce (i1, j1, i2, j2)."""
+    x1, z1, x2, z2 = rect_
+    height, material = INTERIORS[rect_]['height'], INTERIORS[rect_]['material']
     i1, j1, i2, j2 = x1 + WALL_IN, z1 + WALL_IN, x2 - WALL_IN, z2 - WALL_IN  # la pièce
-    door = (DOOR_SPAN[0], DOOR_SPAN[1], 0, DOOR_TOP)
-    win = (WINDOW_SPAN[0], WINDOW_SPAN[1], WINDOW_SILL, WINDOW_TOP)
-    OPENINGS[('x-', x1)] = [door]
-    OPENINGS[('z-', z1)] = [win]
-    # Murs : (axe du plan, plan extérieur, plan intérieur, début, fin, trous). Les murs nord et sud
-    # vont d'un coin à l'autre, ceux d'est et d'ouest entre les deux.
-    walls = (('x', x1, i1, j1, j2, [door]), ('x', x2, i2, j1, j2, []),
-             ('z', z1, j1, x1, x2, [win]), ('z', z2, j2, x1, x2, []))
-    for axis, outer, inner, a, b, holes in walls:
+    plane = {'x-': x1, 'x+': x2, 'z-': z1, 'z+': z2}
+    holes = {side: [] for side in plane}
+    (door_side, dc), (win_side, wc) = door, window
+    holes[door_side].append((dc - DOOR_WIDTH / 2, dc + DOOR_WIDTH / 2, 0, DOOR_TOP))
+    holes[win_side].append((wc - WINDOW_WIDTH / 2, wc + WINDOW_WIDTH / 2, WINDOW_SILL, WINDOW_TOP))
+    for side in plane:
+        if holes[side]:
+            OPENINGS[(side, plane[side])] = holes[side]
+    # Murs : (côté, plan intérieur, début, fin). Ceux du nord et du sud vont d'un coin à l'autre, ceux
+    # d'est et d'ouest entre les deux.
+    walls = (('x-', i1, j1, j2), ('x+', i2, j1, j2), ('z-', j1, x1, x2), ('z+', j2, x1, x2))
+    for side, inner, a, b in walls:
+        outer = plane[side]
         lining = inner + (LINING if inner > outer else -LINING)
-        la, lb = (j1 + LINING, j2 - LINING) if axis == 'x' else (i1, i2)
+        la, lb = (j1 + LINING, j2 - LINING) if side[0] == 'x' else (i1, i2)
         layers = [(outer, inner, a, b, 0, CEILING, material, 'plaster')]
-        layers += [(inner, lining, la, lb, 0, DADO, 'mosaic', 'stone'), (inner, lining, la, lb, DADO, CEILING - LINING, 'clayWhite', 'plaster')]
+        layers += [(inner, lining, la, lb, 0, DADO, dado, 'stone'), (inner, lining, la, lb, DADO, CEILING - LINING, 'clayWhite', 'plaster')]
         for p, q, t1, t2, y1, y2, mat, surface in layers:
             p, q = sorted((p, q))
-            for ta, tb, ya, yb in cut(t1, t2, y1, y2, holes):
-                if axis == 'x':
+            for ta, tb, ya, yb in cut(t1, t2, y1, y2, holes[side]):
+                if side[0] == 'x':
                     box(p, ta, q, tb, ya, yb, mat, surface)
                 else:
                     box(ta, p, tb, q, ya, yb, mat, surface)
@@ -899,40 +906,60 @@ def interior():
         z = j1 + 0.55 + k * (j2 - j1 - 1.1) / 4
         box(i1 + LINING, z - 0.08, i2 - LINING, z + 0.08, CEILING - 0.2, CEILING - LINING, 'beam', 'wood', solid=False)
     box(i1, j1, i2, j2, -1, 0, 'stoneTiles')
-    box(x1, DOOR_SPAN[0], i1, DOOR_SPAN[1], -1, 0, 'stone')
+    d1, d2 = dc - DOOR_WIDTH / 2, dc + DOOR_WIDTH / 2
+    threshold = {'x-': (x1, d1, i1, d2), 'x+': (i2, d1, x2, d2), 'z-': (d1, z1, d2, j1), 'z+': (d1, j2, d2, z2)}[door_side]
+    box(*threshold, -1, 0, 'stone')
     # Porte : encadrement de grès, linteau de bois, battants cloutés ouverts à plat contre la façade.
-    c, half = sum(DOOR_SPAN) / 2, (DOOR_SPAN[1] - DOOR_SPAN[0]) / 2
-    relief('x-', x1, c - half - 0.18, c - half, 0, DOOR_TOP, 0.07, 'stone')
-    relief('x-', x1, c + half, c + half + 0.18, 0, DOOR_TOP, 0.07, 'stone')
-    relief('x-', x1, c - half - 0.25, c + half + 0.25, DOOR_TOP, DOOR_TOP + 0.18, 0.15, 'beam')
-    for t1, t2 in ((c - 2 * half - 0.18, c - half - 0.18), (c + half + 0.18, c + 2 * half + 0.18)):
-        box(x1 - 0.13, t1, x1 - 0.07, t2, 0, DOOR_TOP - 0.1, 'greenPlanks', 'wood')
-        studs('x-', x1, rect(t1 + 0.06, t2 - 0.06, 0.2, DOOR_TOP - 0.3), 0.132)
+    at, half = plane[door_side], DOOR_WIDTH / 2
+    relief(door_side, at, dc - half - 0.18, dc - half, 0, DOOR_TOP, 0.07, 'stone')
+    relief(door_side, at, dc + half, dc + half + 0.18, 0, DOOR_TOP, 0.07, 'stone')
+    relief(door_side, at, dc - half - 0.25, dc + half + 0.25, DOOR_TOP, DOOR_TOP + 0.18, 0.15, 'beam')
+    for t1, t2 in ((dc - 2 * half - 0.18, dc - half - 0.18), (dc + half + 0.18, dc + 2 * half + 0.18)):
+        relief(door_side, at, t1, t2, 0, DOOR_TOP - 0.1, 0.13, planks)
+        studs(door_side, at, rect(t1 + 0.06, t2 - 0.06, 0.2, DOOR_TOP - 0.3), 0.132)
     # Fenêtre : encadrement, appui, volets ouverts contre le mur.
-    c, half = sum(WINDOW_SPAN) / 2, (WINDOW_SPAN[1] - WINDOW_SPAN[0]) / 2
-    relief('z-', z1, c - half - 0.15, c - half, WINDOW_SILL, WINDOW_TOP, 0.06, 'stone')
-    relief('z-', z1, c + half, c + half + 0.15, WINDOW_SILL, WINDOW_TOP, 0.06, 'stone')
-    relief('z-', z1, c - half - 0.15, c + half + 0.15, WINDOW_TOP, WINDOW_TOP + 0.15, 0.06, 'stone')
-    relief('z-', z1, c - half - 0.25, c + half + 0.25, WINDOW_SILL - 0.08, WINDOW_SILL, 0.16, 'stone')
-    for t1, t2 in ((c - 2 * half - 0.17, c - half - 0.17), (c + half + 0.17, c + 2 * half + 0.17)):
-        relief('z-', z1, t1, t2, WINDOW_SILL, WINDOW_TOP, 0.05, 'greenPlanks')
-    # Banquette le long du mur est : socle de zellige, matelas, coussins contre le mur.
-    k1, k2 = j1 + 0.5, j2 - 1.45
-    box(i2 - 0.68, k1, i2 - LINING, k2, 0, 0.32, 'mosaic', 'stone')
-    box(i2 - 0.7, k1, i2 - LINING, k2, 0.32, 0.45, 'fabricBlue', 'sand')
-    box(i2 - 0.2, k1 + 0.05, i2 - LINING, k2 - 0.05, 0.45, 0.85, 'fabricRed', 'sand', solid=False)
-    # Tapis (sans collision) ; caisses et lanterne dans le coin, jarres et vases.
-    box(i1 + 1.1, j1 + 1.6, i2 - 0.9, j2 - 1.4, 0, 0.012, 'fabricRed', solid=False)
-    crate(i2 - LINING - 0.61, j2 - LINING - 0.61, SMALL)
-    prop('lantern', LANTERN_LIGHT[0], LANTERN_LIGHT[2], 0, SMALL)
-    prop('crate', i2 - 1.6, j2 - 0.3, 0)
-    prop('crate', i2 - 1.6, j2 - 0.3, 6, 0.25)
-    for pid, x, z in (('faienceVase', i1 + 0.3, j1 + 0.3), ('jug', i1 + 0.28, j2 - 0.3),
-                      ('faienceVase', i2 - 0.3, j1 + 0.3), ('brassPot', i1 + 1.95, j2 - 0.28)):
-        prop(pid, x, z)
+    at, half = plane[win_side], WINDOW_WIDTH / 2
+    relief(win_side, at, wc - half - 0.15, wc - half, WINDOW_SILL, WINDOW_TOP, 0.06, 'stone')
+    relief(win_side, at, wc + half, wc + half + 0.15, WINDOW_SILL, WINDOW_TOP, 0.06, 'stone')
+    relief(win_side, at, wc - half - 0.15, wc + half + 0.15, WINDOW_TOP, WINDOW_TOP + 0.15, 0.06, 'stone')
+    relief(win_side, at, wc - half - 0.25, wc + half + 0.25, WINDOW_SILL - 0.08, WINDOW_SILL, 0.16, 'stone')
+    for t1, t2 in ((wc - 2 * half - 0.17, wc - half - 0.17), (wc + half + 0.17, wc + 2 * half + 0.17)):
+        relief(win_side, at, t1, t2, WINDOW_SILL, WINDOW_TOP, 0.05, planks)
+    return i1, j1, i2, j2
 
 
-interior()
+def lantern_on_crate(x, z):
+    """Caisse moyenne dans un coin, lanterne posée dessus (et sa lampe)."""
+    crate(x, z, SMALL)
+    prop('lantern', x, z, 0, SMALL)
+    LANTERN_LIGHTS.append((x, SMALL + 0.65, z))
+
+
+# Milieu : séjour. Porte sur la rue, fenêtre sur la place ; banquette, tapis, faïences.
+i1, j1, i2, j2 = interior((5.0, 6.0, 10.0, 13.0), ('x-', 11.0), ('z-', 7.0), 'mosaic', 'greenPlanks')
+k1, k2 = j1 + 0.5, j2 - 1.45  # banquette le long du mur est : socle de zellige, matelas, coussins contre le mur
+box(i2 - 0.68, k1, i2 - LINING, k2, 0, 0.32, 'mosaic', 'stone')
+box(i2 - 0.7, k1, i2 - LINING, k2, 0.32, 0.45, 'fabricBlue', 'sand')
+box(i2 - 0.2, k1 + 0.05, i2 - LINING, k2 - 0.05, 0.45, 0.85, 'fabricRed', 'sand', solid=False)
+box(i1 + 1.1, j1 + 1.6, i2 - 0.9, j2 - 1.4, 0, 0.012, 'fabricRed', solid=False)  # tapis (sans collision)
+lantern_on_crate(i2 - LINING - 0.61, j2 - LINING - 0.61)
+prop('crate', i2 - 1.6, j2 - 0.3, 0)
+prop('crate', i2 - 1.6, j2 - 0.3, 6, 0.25)
+for pid, x, z in (('faienceVase', i1 + 0.3, j1 + 0.3), ('jug', i1 + 0.28, j2 - 0.3),
+                  ('faienceVase', i2 - 0.3, j1 + 0.3), ('brassPot', i1 + 1.95, j2 - 0.28)):
+    prop(pid, x, z)
+
+# Côté CT : remise. Porte sur l'esplanade CT, fenêtre sur le couloir des Portes CT (on y guette les T qui
+# arrivent) ; grosse caisse, fûts, bonbonnes, sacs de ciment, jarres.
+i1, j1, i2, j2 = interior((6.0, -34.0, 12.0, -28.0), ('z-', 9.5), ('x-', -30.5), 'stone', 'bluePlanks')
+crate(i2 - LINING - BIG / 2, j2 - LINING - BIG / 2)
+lantern_on_crate(i2 - LINING - BIG - SMALL / 2 - 0.02, j2 - LINING - SMALL / 2)
+for pid, x, z, yaw, y in (('barrelBlue', i2 - 0.37, j1 + 0.37, 20, 0), ('barrelRed', i2 - 0.35, j1 + 1.05, 140, 0),
+                          ('gasBottle', i2 - 0.27, j1 + 2.0, 0, 0), ('gasBottle', i2 - 0.27, j1 + 2.5, 0, 0),
+                          ('jug', i1 + 0.25, j1 + 0.25, 0, 0), ('clayPot', i1 + 0.4, j1 + 0.9, 0, 0),
+                          ('cementBag', i1 + 0.3, j2 - 0.4, 0, 0), ('cementBag', i1 + 0.3, j2 - 0.4, 6, 0.18),
+                          ('crate', i1 + 1.2, j2 - 0.32, 90, 0), ('jerrycan', i1 + 1.8, j2 - 0.15, 0, 0)):
+    prop(pid, x, z, yaw, y)
 
 
 # Façades habillées après les objets : boutiques et coffrets évitent ce qui est déjà posé devant.
@@ -997,7 +1024,8 @@ check_props_against_blocks()
 check_crates()
 props.place(ROOT, PROPS)
 bake.setup_lighting(SUN_DIRECTION, 2.5, os.path.join(ROOT, 'public', 'sky', 'sky.hdr'), sky_irradiance=1.9)
-bake.point_light(LANTERN_LIGHT, (1.0, 0.72, 0.42), 70)
+for light in LANTERN_LIGHTS:
+    bake.point_light(light, (1.0, 0.72, 0.42), 70)
 density = bake.lightmap_uv(obj, SIZE)
 image = bake.bake(obj, SIZE, SAMPLES)
 os.makedirs(OUT, exist_ok=True)

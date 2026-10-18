@@ -1536,9 +1536,37 @@ kbd {
   display: none;
 }
 
-#fps {
+/* Rappel sous le radar : la touche du menu d'achat. */
+#buy-hint {
   position: absolute;
   top: 204px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
+  border-radius: 6px;
+  background: rgba(10, 12, 15, 0.55);
+  color: #e8e8e8;
+  font-size: 13px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px #000;
+}
+
+#buy-hint kbd {
+  margin: 0;
+  min-width: 0;
+  color: #fff;
+  text-align: center;
+}
+
+#buy-hint.hidden {
+  display: none;
+}
+
+#fps {
+  position: absolute;
+  top: 240px;
   left: 16px;
   color: #fff;
   font-size: 13px;
