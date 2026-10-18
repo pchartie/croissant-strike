@@ -4,7 +4,8 @@ Les zones jouables du plan, des maisons partout ailleurs (crépis de plusieurs t
 corniche ; fenêtres et portes de plusieurs modèles, un style par façade : volets, arcs, grilles, volets
 roulants, moucharabiehs, portes cloutées, auvents, boutiques), les sols de chaque zone et leurs détails
 (sable au pied des murs, taches, plaques d'égout), les portes, l'arche, la terrasse A, la passerelle, le
-souk sous ses toiles, la fontaine, le puits, le minaret et des palmiers ; éclairage précalculé.
+souk sous ses toiles, la fontaine, le puits, une maison ouverte (pièce meublée, éclairée par une lanterne),
+le minaret et des palmiers ; éclairage précalculé.
 
 Lancé par `npm run build-map -- medina`, qui appelle Blender ainsi :
     blender --background --python map/medina/build.py -- <dossier de sortie> <taille> <échantillons>
@@ -116,11 +117,19 @@ CLAYS = ['clayOchre'] * 5 + ['clayWhite'] * 3 + ['clayPink'] * 2 + ['clayRed'] *
 FACADES = []  # (x1, z1, x2, z2, hauteur, graine) : murs dont on habille les côtés tournés vers une rue
 
 
+# Maison ouverte, au coin du Milieu et de la place : on entre par la rue, on voit la place par la fenêtre.
+INTERIOR = (5.0, 6.0, 10.0, 13.0)
+INTERIOR_SHELL = {}  # hauteur et crépi de la maison ouverte (construite plus bas, avec ses façades)
+
+
 def house(x1, z1, x2, z2):
     rng = random.Random(f'{x1},{z1},{x2},{z2}')
     height = rng.choice([5.0, 5.5, 6.0, 6.5, 7.0, 7.5])
     material = rng.choice(CLAYS)
-    box(x1, z1, x2, z2, 0, height, material, 'plaster', top=False)
+    if (x1, z1, x2, z2) == INTERIOR:
+        INTERIOR_SHELL.update(height=height, material=material)
+    else:
+        box(x1, z1, x2, z2, 0, height, material, 'plaster', top=False)
     FACADES.append((x1, z1, x2, z2, height, rng.random()))
 
 
@@ -135,8 +144,37 @@ for x1, z1, x2, z2 in ((X0 - 1, Z0 - 1, X0, Z1 + 1), (X1, Z0 - 1, X1 + 1, Z1 + 1
             FACADES.append((px1, pz1, px2, pz2, height, rng.random()))
 
 
+# Ouvertures percées dans une façade : (côté, plan) → [(t1, t2, y1, y2)]. Les décors (soubassement, saleté,
+# fissures) s'arrêtent au bord.
+OPENINGS = {}
+
+
+def cut(t1, t2, y1, y2, holes):
+    """Le rectangle (t1, t2, y1, y2) moins les trous : liste de rectangles."""
+    rects = [(t1, t2, y1, y2)]
+    for h1, h2, hy1, hy2 in holes:
+        out = []
+        for a, b, c, d in rects:
+            if h1 >= b or h2 <= a or hy1 >= d or hy2 <= c:
+                out.append((a, b, c, d))
+                continue
+            m1, m2 = max(a, h1), min(b, h2)
+            out += [r for r in ((a, m1, c, d), (m2, b, c, d), (m1, m2, c, max(c, hy1)), (m1, m2, min(d, hy2), d)) if r[1] > r[0] + 1e-6 and r[3] > r[2] + 1e-6]
+        rects = out
+    return rects
+
+
 def relief(side, at, a, b, y1, y2, depth, material):
     """Décor collé sur une façade (sans collision) : de `a` à `b` le long du mur, de `y1` à `y2`."""
+    holes = OPENINGS.get((side, at))
+    if holes:
+        for p in cut(a, b, y1, y2, holes):
+            relief_piece(side, at, *p, depth, material)
+    else:
+        relief_piece(side, at, a, b, y1, y2, depth, material)
+
+
+def relief_piece(side, at, a, b, y1, y2, depth, material):
     if side == 'x+':
         box(at, a, at + depth, b, y1, y2, material, solid=False)
     elif side == 'x-':
@@ -151,11 +189,27 @@ def relief(side, at, a, b, y1, y2, depth, material):
 FACING = {'x+': ((1, 0, 0), (0, 0, -1)), 'x-': ((-1, 0, 0), (0, 0, 1)), 'z+': ((0, 0, 1), (1, 0, 0)), 'z-': ((0, 0, -1), (-1, 0, 0))}
 
 
-def decal(side, at, a, b, y1, y2, material, u=(0.0, 1.0), offset=0.01):
+def decal(side, at, a, b, y1, y2, material, u=(0.0, 1.0), offset=0.01, v=(0.0, 1.0)):
     """
     Image plaquée sur une façade, de `a` à `b` le long du mur et de `y1` à `y2` ; `u` = partie de
     l'image en largeur (affiches côte à côte), dans le sens de lecture vu de la rue.
     """
+    normal, right = FACING[side]
+    holes = OPENINGS.get((side, at))
+    if holes and cut(a, b, y1, y2, holes) != [(a, b, y1, y2)]:
+        flip = right[0] + right[2] < 0
+        def along(t):
+            f = (t - a) / (b - a)
+            return u[0] + (1 - f if flip else f) * (u[1] - u[0])
+        for pa, pb, py1, py2 in cut(a, b, y1, y2, holes):
+            pu = (along(pb), along(pa)) if flip else (along(pa), along(pb))
+            pv = tuple(v[0] + (y - y1) / (y2 - y1) * (v[1] - v[0]) for y in (py1, py2))
+            decal_piece(side, at, pa, pb, py1, py2, material, pu, offset, pv)
+        return
+    decal_piece(side, at, a, b, y1, y2, material, u, offset, v)
+
+
+def decal_piece(side, at, a, b, y1, y2, material, u, offset, v):
     normal, right = FACING[side]
     plane = at + offset * (normal[0] + normal[2])
     def point(t, y):
@@ -163,7 +217,7 @@ def decal(side, at, a, b, y1, y2, material, u=(0.0, 1.0), offset=0.01):
     # De gauche à droite vu de la rue : t croît vers la droite si `right` est positif.
     left, rightmost = (a, b) if right[0] + right[2] > 0 else (b, a)
     corners = [point(left, y1), point(rightmost, y1), point(rightmost, y2), point(left, y2)]
-    uvs = [(u[0], 0), (u[1], 0), (u[1], 1), (u[0], 1)]
+    uvs = [(u[0], v[0]), (u[1], v[0]), (u[1], v[1]), (u[0], v[1])]
     if oriented(corners, normal) is not corners:
         corners, uvs = corners[::-1], uvs[::-1]
     carte.face(corners, material, uvs)
@@ -422,8 +476,10 @@ def dress(x1, z1, x2, z2, height, seed):
                 wall_prop('aircon', side, at, c, base + 4.75, 0.38)
         # Objets ajoutés après coup : leur propre tirage, pour ne pas changer le reste des façades.
         extra = random.Random(f'{x1},{z1},{side},{a},objets')
-        door_at = None
-        if length >= 3.0 and rng.random() < 0.5:
+        # Une façade percée (maison ouverte) n'a pas d'autre porte, et rien ne se pose devant le trou.
+        holes = [h for h in OPENINGS.get((side, at), []) if a <= h[0] and h[1] <= b]
+        door_at = (holes[0][0] + holes[0][1]) / 2 if holes else None
+        if door_at is None and length >= 3.0 and rng.random() < 0.5:
             door_at = c = a + length * rng.uniform(0.3, 0.7)
             if zone in SHOPS and length >= 3.4 and rng.random() < 0.45 and clear_of_props(side, at, c, 1.2):
                 shop(side, at, c, base, rng)
@@ -707,7 +763,7 @@ for x, z, yaw in ((9.6, 37.4, 90), (-14, 43.6, 0), (-39.6, 6, 90), (39.6, -1, 90
 for x, z, pid, yaw in (
     (-4.6, 13.0, 'barrelBlue', 20), (-4.6, 13.7, 'barrelRed', 140), (4.6, 23.0, 'barrelRed', 60),
     (4.6, 23.7, 'barrelBlue', 300), (4.0, 23.35, 'barrelBlue', 200), (-4.6, 30.5, 'barrelRed', 10),
-    (4.6, 9.0, 'barrelBlue', 90),
+    (4.6, 8.4, 'barrelBlue', 90),
     (-5.6, -14.5, 'barrelRed', 30), (-5.6, -15.2, 'barrelBlue', 250), (5.6, -21.5, 'barrelBlue', 120),
     (5.6, -22.2, 'barrelRed', 330), (5.0, -21.85, 'barrelRed', 80), (-5.6, -28.0, 'barrelBlue', 45),
     (-13.5, 5.5, 'barrelRed', 15), (-12.8, 5.5, 'barrelBlue', 200),
@@ -799,6 +855,89 @@ def check_props_against_blocks():
     print(f'[props] {found} objet(s) dans un bloc')
 
 
+# --- Maison ouverte (INTERIOR) : pièce de séjour au rez-de-chaussée, porte à deux battants ouverts sur le
+# Milieu, fenêtre sans barreaux sur la place (on y voit et on y tire, sans passer). Murs de 30 cm doublés à
+# l'intérieur (zellige en bas, chaux au-dessus), plafond de planches sur poutres, sol carrelé ; banquette,
+# table basse et lanterne (une lampe dans l'éclairage précalculé), caisses, jarres qui se cassent.
+WALL_IN = 0.3  # épaisseur des murs
+LINING = 0.03  # doublage intérieur
+CEILING = 3.0
+DADO = 1.1  # haut du zellige
+DOOR_SPAN, DOOR_TOP = (10.2, 11.8), 2.45  # porte (z) : 1,6 m, deux cases de passage pour les bots
+WINDOW_SPAN, WINDOW_SILL, WINDOW_TOP = (6.4, 7.6), 1.05, 2.15  # fenêtre (x) : trop basse pour s'y glisser
+LANTERN_LIGHT = (7.6, 1.4, 9.6)  # au-dessus de la lanterne (posée sur la table)
+
+
+def interior():
+    x1, z1, x2, z2 = INTERIOR
+    height, material = INTERIOR_SHELL['height'], INTERIOR_SHELL['material']
+    i1, j1, i2, j2 = x1 + WALL_IN, z1 + WALL_IN, x2 - WALL_IN, z2 - WALL_IN  # la pièce
+    door = (DOOR_SPAN[0], DOOR_SPAN[1], 0, DOOR_TOP)
+    win = (WINDOW_SPAN[0], WINDOW_SPAN[1], WINDOW_SILL, WINDOW_TOP)
+    OPENINGS[('x-', x1)] = [door]
+    OPENINGS[('z-', z1)] = [win]
+    # Murs : (axe du plan, plan extérieur, plan intérieur, début, fin, trous). Les murs nord et sud
+    # vont d'un coin à l'autre, ceux d'est et d'ouest entre les deux.
+    walls = (('x', x1, i1, j1, j2, [door]), ('x', x2, i2, j1, j2, []),
+             ('z', z1, j1, x1, x2, [win]), ('z', z2, j2, x1, x2, []))
+    for axis, outer, inner, a, b, holes in walls:
+        lining = inner + (LINING if inner > outer else -LINING)
+        la, lb = (j1 + LINING, j2 - LINING) if axis == 'x' else (i1, i2)
+        layers = [(outer, inner, a, b, 0, CEILING, material, 'plaster')]
+        layers += [(inner, lining, la, lb, 0, DADO, 'mosaic', 'stone'), (inner, lining, la, lb, DADO, CEILING - LINING, 'clayWhite', 'plaster')]
+        for p, q, t1, t2, y1, y2, mat, surface in layers:
+            p, q = sorted((p, q))
+            for ta, tb, ya, yb in cut(t1, t2, y1, y2, holes):
+                if axis == 'x':
+                    box(p, ta, q, tb, ya, yb, mat, surface)
+                else:
+                    box(ta, p, tb, q, ya, yb, mat, surface)
+    # Étage plein au-dessus, plafond de planches et poutres, sol carrelé (et le seuil de la porte).
+    box(x1, z1, x2, z2, CEILING, height, material, 'plaster', top=False)
+    box(i1, j1, i2, j2, CEILING - LINING, CEILING, 'brownPlanks', 'wood')
+    for k in range(5):
+        z = j1 + 0.55 + k * (j2 - j1 - 1.1) / 4
+        box(i1 + LINING, z - 0.08, i2 - LINING, z + 0.08, CEILING - 0.2, CEILING - LINING, 'beam', 'wood', solid=False)
+    box(i1, j1, i2, j2, -1, 0, 'stoneTiles')
+    box(x1, DOOR_SPAN[0], i1, DOOR_SPAN[1], -1, 0, 'stone')
+    # Porte : encadrement de grès, linteau de bois, battants cloutés ouverts à plat contre la façade.
+    c, half = sum(DOOR_SPAN) / 2, (DOOR_SPAN[1] - DOOR_SPAN[0]) / 2
+    relief('x-', x1, c - half - 0.18, c - half, 0, DOOR_TOP, 0.07, 'stone')
+    relief('x-', x1, c + half, c + half + 0.18, 0, DOOR_TOP, 0.07, 'stone')
+    relief('x-', x1, c - half - 0.25, c + half + 0.25, DOOR_TOP, DOOR_TOP + 0.18, 0.15, 'beam')
+    for t1, t2 in ((c - 2 * half - 0.18, c - half - 0.18), (c + half + 0.18, c + 2 * half + 0.18)):
+        box(x1 - 0.13, t1, x1 - 0.07, t2, 0, DOOR_TOP - 0.1, 'greenPlanks', 'wood')
+        studs('x-', x1, rect(t1 + 0.06, t2 - 0.06, 0.2, DOOR_TOP - 0.3), 0.132)
+    # Fenêtre : encadrement, appui, volets ouverts contre le mur.
+    c, half = sum(WINDOW_SPAN) / 2, (WINDOW_SPAN[1] - WINDOW_SPAN[0]) / 2
+    relief('z-', z1, c - half - 0.15, c - half, WINDOW_SILL, WINDOW_TOP, 0.06, 'stone')
+    relief('z-', z1, c + half, c + half + 0.15, WINDOW_SILL, WINDOW_TOP, 0.06, 'stone')
+    relief('z-', z1, c - half - 0.15, c + half + 0.15, WINDOW_TOP, WINDOW_TOP + 0.15, 0.06, 'stone')
+    relief('z-', z1, c - half - 0.25, c + half + 0.25, WINDOW_SILL - 0.08, WINDOW_SILL, 0.16, 'stone')
+    for t1, t2 in ((c - 2 * half - 0.17, c - half - 0.17), (c + half + 0.17, c + 2 * half + 0.17)):
+        relief('z-', z1, t1, t2, WINDOW_SILL, WINDOW_TOP, 0.05, 'greenPlanks')
+    # Banquette le long du mur est : socle de zellige, matelas, coussins contre le mur.
+    k1, k2 = j1 + 0.5, j2 - 1.45
+    box(i2 - 0.68, k1, i2 - LINING, k2, 0, 0.32, 'mosaic', 'stone')
+    box(i2 - 0.7, k1, i2 - LINING, k2, 0.32, 0.45, 'fabricBlue', 'sand')
+    box(i2 - 0.2, k1 + 0.05, i2 - LINING, k2 - 0.05, 0.45, 0.85, 'fabricRed', 'sand', solid=False)
+    # Tapis (sans collision), table, lanterne, sièges ; caisses dans le coin, jarres et vases.
+    box(i1 + 1.1, j1 + 1.6, i2 - 0.9, j2 - 1.4, 0, 0.012, 'fabricRed', solid=False)
+    prop('cafeTable', 7.5, 9.6, 90)
+    prop('lantern', 7.6, 9.6, 0, 0.75)
+    prop('blueChair', 6.75, 8.9, 90)
+    prop('woodenStool', 6.8, 10.35, 90)
+    crate(i2 - LINING - 0.61, j2 - LINING - 0.61, SMALL)
+    prop('crate', i2 - 1.6, j2 - 0.3, 0)
+    prop('crate', i2 - 1.6, j2 - 0.3, 6, 0.25)
+    for pid, x, z in (('jug', i1 + 0.3, j1 + 0.32), ('clayPot', i1 + 0.42, j1 + 0.95), ('jug', i1 + 0.28, j2 - 0.3),
+                      ('faienceVase', i2 - 0.3, j1 + 0.3), ('brassPot', i1 + 1.95, j2 - 0.28)):
+        prop(pid, x, z)
+
+
+interior()
+
+
 # Façades habillées après les objets : boutiques et coffrets évitent ce qui est déjà posé devant.
 for facade in FACADES:
     dress(*facade)
@@ -861,6 +1000,7 @@ check_props_against_blocks()
 check_crates()
 props.place(ROOT, PROPS)
 bake.setup_lighting(SUN_DIRECTION, 2.5, os.path.join(ROOT, 'public', 'sky', 'sky.hdr'), sky_irradiance=1.9)
+bake.point_light(LANTERN_LIGHT, (1.0, 0.72, 0.42), 70)
 density = bake.lightmap_uv(obj, SIZE)
 image = bake.bake(obj, SIZE, SAMPLES)
 os.makedirs(OUT, exist_ok=True)

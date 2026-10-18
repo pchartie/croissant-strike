@@ -134,6 +134,17 @@ def setup_lighting(sun_direction, sun_strength, sky_path, sky_irradiance, sky_cl
     print(f'[bake] ciel : {irradiance:.2f} reçu brut, intensité {sky_irradiance / irradiance:.3f}')
 
 
+def point_light(position, color, watts, radius=0.12):
+    """Lampe (lanterne, coordonnées du jeu) : elle n'éclaire que la carte d'éclairage."""
+    data = bpy.data.lights.new('lampe', 'POINT')
+    data.energy = watts
+    data.color = color
+    data.shadow_soft_size = radius
+    lamp = bpy.data.objects.new('lampe', data)
+    lamp.location = to_blender(position)
+    bpy.context.scene.collection.objects.link(lamp)
+
+
 # --- Calcul ---
 
 def bake(obj, size, samples, bounces=4):

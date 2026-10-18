@@ -21,7 +21,7 @@ FPS façon Counter-Strike, directement dans le navigateur : bots, manches avec �
 
 ## Au programme
 
-- **2 cartes** : *Médina*, vieille ville du Maghreb façon de_dust2 (éclairage précalculé dans Blender ; fenêtres, portes et boutiques variées, moucharabiehs, fontaine animée, puits, souk et sa dinanderie, café, jarres et faïences qui se cassent sous les balles), et *Dunes*, une carte grise pour s'entraîner.
+- **2 cartes** : *Médina*, vieille ville du Maghreb façon de_dust2 (éclairage précalculé dans Blender ; fenêtres, portes et boutiques variées, moucharabiehs, fontaine animée, puits, souk et sa dinanderie, café, une maison ouverte façon Inferno où l'on entre par la rue et d'où l'on surveille la place par la fenêtre, jarres et faïences qui se cassent sous les balles), et *Dunes*, une carte grise pour s'entraîner.
 - **Armes** : M4A1, MP5-SD, Nova, sniper Barrett M82 (lunette à deux crans au clic droit, valeurs de l'AWP), pistolet M1911 et couteau (coups dans le dos compris), avec dégâts, recul et dispersion de CS.
 - **4 grenades** : HE, flash, fumigène et molotov.
 - **Bots** : soldats animés, équipes de même taille comme dans CS, de 1 contre 1 à 5 contre 5 (toi compris), passifs (par défaut, pour s'entraîner à viser) ou en 3 difficultés ; tir allié activé ; touche P pour les figer et les inspecter.
