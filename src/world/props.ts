@@ -35,8 +35,7 @@ export type PropId =
   | 'woodenStool'
   | 'blueChair'
   | 'gasBottle'
-  | 'tyre'
-  | 'doorShutter';
+  | 'tyre';
 
 interface PropSpec {
   file: string;
@@ -77,17 +76,16 @@ const SPECS: Record<PropId, PropSpec> = {
   manhole: { file: 'manhole', size: [0.69, 0.69, 0.07], surface: 'metal', flat: true },
   cementBag: { file: 'cement-bag', size: [0.46, 0.7, 0.18], surface: 'sand' },
   bench: { file: 'bench', size: [1.16, 0.5, 0.89], surface: 'wood' },
-  // Troisième passe : dinanderie des étals (agrandie), faïence bleue (cassable), bac en bois, mobilier du
-  // café, bonbonne de gaz, vieux pneu appuyé au mur, rideau de fer d'une porte.
+  // Troisième passe : dinanderie des étals (agrandie), faïence bleue (cassable), bac en bois et bonbonne
+  // de gaz (agrandis), mobilier du café, vieux pneu appuyé au mur.
   brassPot: { file: 'brass-pot', size: [0.39, 0.39, 0.38], surface: 'metal' },
   brassVase: { file: 'brass-vase', size: [0.17, 0.17, 0.4], surface: 'metal' },
   faienceVase: { file: 'faience-vase', size: [0.36, 0.36, 0.62], surface: 'stone' },
-  planterBox: { file: 'planter-box', size: [0.91, 0.41, 0.42], surface: 'wood' },
+  planterBox: { file: 'planter-box', size: [1.28, 0.58, 0.59], surface: 'wood' },
   woodenStool: { file: 'wooden-stool', size: [0.38, 0.41, 0.58], surface: 'wood' },
   blueChair: { file: 'blue-chair', size: [0.51, 0.52, 1.0], surface: 'wood' },
-  gasBottle: { file: 'gas-bottle', size: [0.34, 0.34, 0.55], surface: 'metal' },
+  gasBottle: { file: 'gas-bottle', size: [0.44, 0.44, 0.72], surface: 'metal' },
   tyre: { file: 'tyre', size: [0.6, 0.165, 0.6], surface: 'sand' },
-  doorShutter: { file: 'door-shutter', size: [1.08, 0.3, 2.4], surface: 'metal' },
 };
 
 export interface PropPlacement {

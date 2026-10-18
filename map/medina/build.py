@@ -208,12 +208,31 @@ def arch_outline(c, half, y0, spring, segments=8):
 WALL_YAW = {'x+': 90, 'x-': -90, 'z+': 0, 'z-': 180}
 
 
-def wall_prop(pid, side, at, c, y, depth, gap=0.01):
-    """Objet collé à une façade (`depth` : son épaisseur), centré en `c` le long du mur."""
+def wall_spot(pid, side, at, c, y, depth, gap=0.01):
+    """Place d'un objet collé à une façade (`depth` : son épaisseur), centré en `c` le long du mur."""
     normal, _ = FACING[side]
     offset = (depth / 2 + gap) * (normal[0] + normal[2])
     x, z = (at + offset, c) if side[0] == 'x' else (c, at + offset)
-    prop(pid, x, z, WALL_YAW[side], y)
+    return {'id': pid, 'x': x, 'z': z, 'y': y, 'yaw': WALL_YAW[side]}
+
+
+def wall_prop(pid, side, at, c, y, depth, gap=0.01):
+    """Objet collé à une façade (`depth` : son épaisseur), centré en `c` le long du mur."""
+    PROPS.append(wall_spot(pid, side, at, c, y, depth, gap))
+
+
+def in_block(spot):
+    """Vrai si l'objet entre dans un bloc plein de la carte (mur, marche, caisse)."""
+    x1, y1, z1, x2, y2, z2 = props.footprint(spot)
+    return any(b.solid and b.material is not None and all(lo + 0.02 < bhi and blo + 0.02 < hi for lo, hi, blo, bhi in zip((x1, y1, z1), (x2, y2, z2), b.lo, b.hi))
+               for b in carte.boxes)
+
+
+def ground_props(spots):
+    """Pose des objets au pied d'un mur, seulement si aucun n'entre dans un bloc de la carte."""
+    if any(in_block(spot) for spot in spots):
+        return
+    PROPS.extend(spots)
 
 
 def floor_strip(side, at, a, b, width, y, material, u):
@@ -345,13 +364,6 @@ def shop(side, at, c, base, rng):
     relief(side, at, c - 1.15, c + 1.15, base + 2.15, base + 2.55, 0.06, rng.choice(AWNINGS))
 
 
-def shuttered_door(side, at, c, base):
-    """Porte fermée par un rideau de fer (modèle Poly Haven), dans un encadrement de pierre, sous un linteau."""
-    relief(side, at, c - 0.7, c + 0.7, base, base + 2.5, 0.04, 'stone')
-    wall_prop('doorShutter', side, at, c, base, 0.3, gap=0.045)
-    relief(side, at, c - 0.8, c + 0.8, base + 2.5, base + 2.68, 0.12, 'beam')
-
-
 def facade_runs(x1, z1, x2, z2):
     """Parties des côtés d'un mur qui donnent sur une zone jouable : (côté, plan, début, fin, zone)."""
     sides = [('x+', x2, z1, z2, lambda t: (x2 + 0.3, t)), ('x-', x1, z1, z2, lambda t: (x1 - 0.3, t)),
@@ -411,13 +423,7 @@ def dress(x1, z1, x2, z2, height, seed):
         # Objets ajoutés après coup : leur propre tirage, pour ne pas changer le reste des façades.
         extra = random.Random(f'{x1},{z1},{side},{a},objets')
         door_at = None
-        # Portes à rideau de fer dans les rues sans boutiques (les boutiques gardent leurs façades).
-        if zone not in RAISED and zone not in SHOPS and length >= 3.0 and extra.random() < 0.1:
-            c = a + length * extra.uniform(0.35, 0.65)
-            if clear_of_props(side, at, c, 0.8):
-                door_at = c
-                shuttered_door(side, at, c, base)
-        if door_at is None and length >= 3.0 and rng.random() < 0.5:
+        if length >= 3.0 and rng.random() < 0.5:
             door_at = c = a + length * rng.uniform(0.3, 0.7)
             if zone in SHOPS and length >= 3.4 and rng.random() < 0.45 and clear_of_props(side, at, c, 1.2):
                 shop(side, at, c, base, rng)
@@ -447,13 +453,12 @@ def dress(x1, z1, x2, z2, height, seed):
             roll = extra.random()
             c = a + extra.uniform(0.7, length - 0.7)
             if door_at is None or abs(c - door_at) > 1.5:
-                if roll < 0.06 and clear_of_props(side, at, c, 0.45):
-                    for dc in (-0.19, 0.19):
-                        wall_prop('gasBottle', side, at, c + dc, base, 0.34, gap=0.07)
-                elif roll < 0.1 and zone != SOUK and clear_of_props(side, at, c, 0.35):
-                    wall_prop('tyre', side, at, c, base, 0.165, gap=0.07)
-                elif roll < 0.2 and clear_of_props(side, at, c, 0.5):
-                    wall_prop('planterBox', side, at, c, base, 0.41, gap=0.07)
+                if roll < 0.1 and clear_of_props(side, at, c, 0.55):
+                    ground_props([wall_spot('gasBottle', side, at, c + dc, base, 0.44, gap=0.07) for dc in (-0.24, 0.24)])
+                elif roll < 0.14 and zone != SOUK and clear_of_props(side, at, c, 0.35):
+                    ground_props([wall_spot('tyre', side, at, c, base, 0.165, gap=0.07)])
+                elif roll < 0.34 and clear_of_props(side, at, c, 0.7):
+                    ground_props([wall_spot('planterBox', side, at, c, base, 0.58, gap=0.07)])
         # Fissure, jamais sur l'affiche.
         if rng.random() < 0.3:
             c = a + rng.uniform(0.8, max(0.8, length - 0.8))
@@ -781,7 +786,7 @@ def check_props_against_blocks():
     found = 0
     for spot in PROPS:
         # Objets de façade (collés au mur) et plaques d'égout (enfoncées dans le sol exprès).
-        if spot['id'] in ('aircon', 'windowShutter', 'shopShutter', 'utilityBox', 'lantern', 'manhole', 'doorShutter'):
+        if spot['id'] in ('aircon', 'windowShutter', 'shopShutter', 'utilityBox', 'lantern', 'manhole'):
             continue
         x1, y1, z1, x2, y2, z2 = props.footprint(spot)
         for b in carte.boxes:

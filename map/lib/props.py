@@ -37,14 +37,14 @@ MODELS = {
     'brassPot': ('brass_pot_01', 0.38, (0.39, 0.39)),
     'brassVase': ('brass_vase_03', 0.4, (0.17, 0.17)),
     'faienceVase': ('antique_ceramic_vase_01', 0.62, (0.36, 0.36)),
-    'planterBox': ('planter_box_01', 0.42, (0.91, 0.41)),
+    # Agrandis ×1,4 (bac) et ×1,3 (bonbonne) : à taille réelle, ils paraissaient petits en jeu.
+    'planterBox': ('planter_box_01', 0.59, (1.28, 0.58)),
     'woodenStool': ('painted_wooden_stool', 0.58, (0.38, 0.41)),
     # Dossier très haut dans le modèle (1,26 m) : réduit.
     'blueChair': ('painted_wooden_chair_02', 1.0, (0.51, 0.52)),
-    'gasBottle': ('propane_tank', 0.55, (0.34, 0.34)),
+    'gasBottle': ('propane_tank', 0.72, (0.44, 0.44)),
     # Debout, appuyé contre un mur (son épaisseur face à la rue).
     'tyre': ('old_tyre', 0.6, (0.6, 0.165)),
-    'doorShutter': ('rollershutter_door', 2.4, (1.08, 0.3), '_graffiti'),
 }
 
 
