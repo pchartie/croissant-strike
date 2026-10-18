@@ -177,13 +177,14 @@ export class Audio {
     }
   }
 
-  /** Une balle frappe une surface : tintement sur le métal, coup sourd sur le bois, craquement sur la pierre. */
+  /** Une balle frappe une surface : choc sec sur le métal, coup sourd sur le bois, craquement sur la pierre. */
   impact(surface: Surface, loudness: number, pan: number): void {
     const v = loudness * (0.8 + Math.random() * 0.4);
     switch (surface) {
       case 'metal':
-        this.tone(1800 + Math.random() * 1500, 0.25, 0.18 * v, 'triangle', pan);
+        // Choc sec, sans note (une note aléatoire sonnait comme un xylophone).
         this.click(0, 4200, 0.4 * v, pan);
+        this.noiseBurst('bandpass', 1500, 1.2, 0.35 * v, 0.06, 0, pan);
         break;
       case 'wood':
         this.noiseBurst('bandpass', 700, 1.5, 0.6 * v, 0.1, 0, pan);
@@ -209,10 +210,9 @@ export class Audio {
     this.sweep(160, 60, 0.12, 0.6, 0);
   }
 
-  /** Lame contre un mur : tintement métallique. */
+  /** Lame contre un mur : choc métallique sec. */
   knifeWall(): void {
     this.click(0, 3800, 0.6);
-    this.tone(5200, 0.15, 0.12, 'triangle');
   }
 
   // --- Grenades (sons synthétisés) ---
