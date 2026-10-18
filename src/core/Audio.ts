@@ -128,15 +128,6 @@ export class Audio {
     this.click(0, 2400);
   }
 
-  /** Douille qui tombe : tintement de laiton, ou choc sourd de la cartouche en plastique. */
-  casing(plastic: boolean, volume: number, pan: number): void {
-    if (plastic) this.click(0, 700 + Math.random() * 300, 0.35 * volume, pan);
-    else {
-      this.tone(3200 + Math.random() * 1800, 0.07, 0.07 * volume, 'triangle', pan);
-      this.click(0, 5000, 0.12 * volume, pan);
-    }
-  }
-
   dryFire(): void {
     this.click(0, 3200, 0.3);
   }

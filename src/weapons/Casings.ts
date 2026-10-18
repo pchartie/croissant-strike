@@ -42,11 +42,9 @@ interface Casing {
 export interface CasingHooks {
   /** Hauteur du sol sous un point. */
   floorBelow(position: THREE.Vector3): number;
-  /** Choc sur le sol (pour le tintement), `strength` entre 0 et 1. */
-  landed(position: THREE.Vector3, kind: CasingKind, strength: number): void;
 }
 
-/** Douilles éjectées à chaque tir : elles volent, rebondissent en tintant et restent un moment au sol. */
+/** Douilles éjectées à chaque tir : elles volent, rebondissent (sans bruit) et restent un moment au sol. */
 export class Casings {
   private readonly casings: Casing[] = [];
   private readonly models: Record<CasingKind, THREE.Object3D>;
@@ -115,7 +113,6 @@ export class Casings {
       if (mesh.position.y > ground || velocity.y > 0) continue;
       mesh.position.y = ground;
       const impact = -velocity.y;
-      if (impact > 0.3) this.hooks.landed(mesh.position, casing.kind, Math.min(impact / 4, 1));
       if (impact < REST_SPEED) {
         // Couchée sur le flanc (son axe x reste à l'horizontale), tournée au hasard.
         casing.resting = true;

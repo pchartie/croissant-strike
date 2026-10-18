@@ -209,12 +209,6 @@ export class Game {
     this.grenades = this.createGrenades();
     this.casings = new Casings(this.scene, {
       floorBelow: (position) => this.floorBelow(position),
-      landed: (position, kind, strength) => {
-        const distance = position.distanceTo(this.camera.position);
-        if (distance > CASING_DISTANCE) return;
-        const { pan } = this.hearing(position);
-        this.audio.casing(kind === 'buckshot', strength * (1 - distance / CASING_DISTANCE), pan);
-      },
     });
     this.bots.setVisionBlocker((from, to) => this.grenades.blocksVision(from, to));
     this.duel = this.createDuel();
