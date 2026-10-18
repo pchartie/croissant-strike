@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BREAKABLE } from './breakables';
 import type { Surface } from './surfaces';
 import { sunShade, sunVisibility } from './sunlight';
 import type { World } from './World';
@@ -103,7 +104,25 @@ export function placeProps(world: World, placements: PropPlacement[], fallbackBa
     const cos = Math.abs(Math.cos(yaw));
     const sin = Math.abs(Math.sin(yaw));
     const half = new THREE.Vector3((w * cos + d * sin) / 2, 0, (w * sin + d * cos) / 2);
-    world.addCollider(new THREE.Vector3(place.x - half.x, y, place.z - half.z), new THREE.Vector3(place.x + half.x, y + height, place.z + half.z), spec.surface);
+    const collider = world.addCollider(
+      new THREE.Vector3(place.x - half.x, y, place.z - half.z),
+      new THREE.Vector3(place.x + half.x, y + height, place.z + half.z),
+      spec.surface,
+    );
+    if (BREAKABLE.has(place.id)) {
+      const breakable = {
+        spot: place,
+        collider,
+        center: new THREE.Vector3(place.x, y + height / 2, place.z),
+        radius: Math.min(width, depth) / 2,
+        height,
+        instances: [],
+        broken: false,
+        brokenAt: 0,
+      };
+      collider.mesh.userData.breakable = breakable;
+      world.breakables.push(breakable);
+    }
   }
   return placements;
 }
@@ -161,8 +180,14 @@ export async function loadProps(world: World, placements: PropPlacement[]): Prom
       const mesh = new THREE.InstancedMesh(child.geometry, material, spots.length);
       spots.forEach((spot, i) => {
         place.makeRotationY(THREE.MathUtils.degToRad(spot.yaw ?? 0)).setPosition(spot.x, spot.y ?? 0, spot.z);
-        mesh.setMatrixAt(i, instance.multiplyMatrices(place, fit).multiply(child.matrixWorld));
+        instance.multiplyMatrices(place, fit).multiply(child.matrixWorld);
+        mesh.setMatrixAt(i, instance);
         mesh.setColorAt(i, shade.setScalar(shadeOf(spot)));
+        // Objet cassable : on garde son exemplaire pour le cacher quand il se casse (déjà cassé : caché).
+        const breakable = world.breakables.find((candidate) => candidate.spot === spot);
+        if (!breakable) return;
+        breakable.instances.push({ mesh, index: i, matrix: instance.clone() });
+        if (breakable.broken) mesh.setMatrixAt(i, new THREE.Matrix4().makeScale(0, 0, 0));
       });
       mesh.computeBoundingSphere();
       world.scene.add(mesh);

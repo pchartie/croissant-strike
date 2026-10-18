@@ -7,6 +7,8 @@ const HIDDEN_Y = -1000;
 /** Éclats du pack (Wallhit_Debris) : nombre maximal par forme, distance au-delà de laquelle on n'en lance pas. */
 const DEBRIS_MAX = 48;
 const DEBRIS_RANGE = 25;
+/** Éclats d'une jarre qui se casse. */
+const SHATTER_SHARDS = 24;
 /** Couleur des éclats selon la matière touchée (pas d'éclats sur le métal ni le sable). */
 const DEBRIS_COLORS: Partial<Record<Surface, number>> = { stone: 0xa8977a, plaster: 0xb9a184, wood: 0x6b4526 };
 
@@ -33,6 +35,7 @@ export class Impacts {
   private readonly normal = new THREE.Vector3();
   private readonly probe = new THREE.Vector3();
   private static readonly FORWARD = new THREE.Vector3(0, 0, 1);
+  private static readonly UP = new THREE.Vector3(0, 1, 0);
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -85,6 +88,15 @@ export class Impacts {
     // Sol touché : il est là ; mur : on le cherche juste dessous (un seul rayon par impact).
     const floor = normal.y > 0.7 ? point.y : this.world.floorBelow(this.probe.copy(point).addScaledVector(normal, 0.05));
     this.debris.burst(point, normal, color, surface === 'wood' ? 3 : 4, floor);
+  }
+
+  /**
+   * Un objet en terre cuite éclate (jarre, pot) : gros éclats projetés tout autour, qui retombent et
+   * restent un instant au sol, et un nuage de poussière.
+   */
+  shatter(center: THREE.Vector3, radius: number, height: number, color: number, floor: number): void {
+    this.dust.burst(center, Impacts.UP, 30, 0.3, 1.4, 0.9);
+    this.debris?.shatter(center, radius, height, color, SHATTER_SHARDS, floor);
   }
 
   /** Balle dans un bot : giclée de sang dans le sens du tir. */
@@ -190,6 +202,31 @@ class Debris {
       // Teinte légèrement variée d'un éclat à l'autre.
       const mesh = this.meshes[i % this.meshes.length];
       mesh.setColorAt(Math.floor(i / this.meshes.length), this.color.set(color).multiplyScalar(0.8 + Math.random() * 0.35));
+      mesh.instanceColor!.needsUpdate = true;
+    }
+  }
+
+  /** Éclats d'un objet qui se casse : partis de toute sa surface, projetés vers l'extérieur et vers le haut. */
+  shatter(center: THREE.Vector3, radius: number, height: number, color: number, count: number, floor: number): void {
+    const total = this.life.length;
+    for (let n = 0; n < count; n++) {
+      const i = this.next;
+      this.next = (this.next + 1) % total;
+      if (this.life[i] <= 0) this.alive++;
+      const angle = Math.random() * Math.PI * 2;
+      const dx = Math.cos(angle);
+      const dz = Math.sin(angle);
+      const speed = 1.2 + Math.random() * 2.3;
+      this.position.set([center.x + dx * radius, center.y + (Math.random() - 0.5) * height * 0.8, center.z + dz * radius], i * 3);
+      this.velocity.set([dx * speed, 1.2 + Math.random() * 2.2, dz * speed], i * 3);
+      this.spin.set([(Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20], i * 3);
+      this.rotation[i].random();
+      this.size[i] = 0.05 + Math.random() * 0.07;
+      this.floor[i] = floor;
+      // Les morceaux restent quelques secondes au sol.
+      this.life[i] = 5 + Math.random() * 2;
+      const mesh = this.meshes[i % this.meshes.length];
+      mesh.setColorAt(Math.floor(i / this.meshes.length), this.color.set(color).multiplyScalar(0.75 + Math.random() * 0.4));
       mesh.instanceColor!.needsUpdate = true;
     }
   }

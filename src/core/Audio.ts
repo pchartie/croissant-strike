@@ -279,6 +279,14 @@ export class Audio {
     }
   }
 
+  /** Jarre en terre cuite qui éclate : choc mat, puis cliquetis des morceaux qui retombent. */
+  shatter(loudness: number, pan: number): void {
+    this.noiseBurst('bandpass', 1400, 0.9, 0.9 * loudness, 0.12, 0, pan);
+    this.noiseBurst('lowpass', 420, 0.7, 0.6 * loudness, 0.1, 0, pan);
+    for (let i = 0; i < 7; i++) this.click(0.02 + Math.random() * 0.12, 1800 + Math.random() * 2600, 0.35 * loudness, pan);
+    for (let i = 0; i < 5; i++) this.click(0.25 + Math.random() * 0.35, 2200 + Math.random() * 2000, 0.15 * loudness, pan);
+  }
+
   private async loadSamples(ctx: AudioContext): Promise<void> {
     const names = new Set(Object.values(SAMPLES).flat());
     await Promise.all(

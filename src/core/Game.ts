@@ -24,6 +24,7 @@ import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
 import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem';
+import { breakableOf, breakProp, restoreProp, SHARD_COLOR, type Breakable } from '../world/breakables';
 import { ACTIVE_MAP, buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN, type Animated } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { MAPS } from '../world/maps';
@@ -73,6 +74,10 @@ const SPOT_MEMORY_MS = 1500;
 const BACKSTAB_DOT = 0.4;
 /** Au-delà, on n'éjecte pas les douilles des bots (invisibles d'aussi loin). */
 const CASING_DISTANCE = 25;
+/** Une explosion casse les jarres jusqu'à cette part de son rayon (environ 3,5 m pour une HE). */
+const BLAST_BREAK = 0.4;
+/** Deathmatch : une jarre cassée revient après ce temps (secondes). */
+const BREAKABLE_RESPAWN = 60;
 const UP = new THREE.Vector3(0, 1, 0);
 
 export class Game {
@@ -115,6 +120,9 @@ export class Game {
   private readonly forward = new THREE.Vector3();
   private readonly eye = new THREE.Vector3();
   private readonly toSound = new THREE.Vector3();
+  private readonly shardProbe = new THREE.Vector3();
+  /** Temps de jeu écoulé (secondes, au rythme des ticks). */
+  private clock = 0;
   private readonly right = new THREE.Vector3();
 
   private kills = 0;
@@ -318,6 +326,8 @@ export class Game {
   }
 
   private tick(): void {
+    this.clock += TICK;
+    if (!this.roundBased) this.restoreBreakables(false);
     // Pendant le gel de début de manche, on peut regarder autour mais pas bouger ni tirer.
     const frozen = this.roundBased && this.rounds.frozen;
 
@@ -544,6 +554,9 @@ export class Game {
    */
   private applyAreaDamage(center: THREE.Vector3, radius: number, maxDamage: number, weapon: string, thrower: Bot | null = null): void {
     const hits = (feet: THREE.Vector3, height: number) => this.blastDamage(center, radius, maxDamage, feet, height);
+    for (const breakable of this.world.breakables) {
+      if (breakable.center.distanceTo(center) < radius * BLAST_BREAK) this.shatter(breakable);
+    }
 
     // Tir allié : une grenade blesse tout le monde, son lanceur et ses coéquipiers compris.
     for (const bot of this.bots.bots) {
@@ -634,6 +647,10 @@ export class Game {
         this.impacts.addBlood(hit.point, direction, shots.length > 1 ? 4 : part === 'head' ? 18 : 10);
         continue;
       }
+      if (breakableOf(hit.object)) {
+        this.shatter(breakableOf(hit.object)!);
+        continue;
+      }
       if (!hit.object.userData.bot) {
         // Un seul bruit d'impact par tir (les plombs d'un fusil à pompe frappent ensemble).
         this.impactSound(this.impacts.add(hit), hit.point, wallHits++ === 0);
@@ -675,6 +692,11 @@ export class Game {
       this.duel.sendHit(def, hit.object.userData.part as HitPart, damage, backstab ? `${def.name} · dans le dos` : undefined);
       return;
     }
+    const breakable = breakableOf(hit.object);
+    if (breakable) {
+      this.shatter(breakable);
+      return;
+    }
     if (!hit.object.userData.bot) {
       this.impactSound(this.impacts.add(hit), hit.point, true);
       this.audio.knifeWall();
@@ -690,6 +712,32 @@ export class Game {
     this.damageBot(bot, damage, zone, def.armorRatio, backstab ? `${def.name} · dans le dos` : def.name, def.killReward);
   }
 
+  /** Une jarre ou un pot se casse : il disparaît, éclats de terre cuite, poussière et bruit. */
+  private shatter(breakable: Breakable): void {
+    if (!breakProp(this.world, breakable, this.clock)) return;
+    // Sa collision est déjà retirée : le rayon trouve le sol (ou l'étal) dessous.
+    const floor = this.floorBelow(this.shardProbe.copy(breakable.center));
+    this.impacts.shatter(breakable.center, breakable.radius, breakable.height, SHARD_COLOR, floor);
+    const { loudness, pan } = this.hearing(breakable.center);
+    this.audio.shatter(loudness, pan);
+  }
+
+  /**
+   * Remet les jarres cassées : toutes au début d'une manche ; en deathmatch, une minute après, si
+   * personne n'est debout à leur place.
+   */
+  private restoreBreakables(all: boolean): void {
+    for (const breakable of this.world.breakables) {
+      if (!breakable.broken) continue;
+      if (!all) {
+        if (this.clock - breakable.brokenAt < BREAKABLE_RESPAWN) continue;
+        const near = (position: THREE.Vector3) => Math.hypot(position.x - breakable.center.x, position.z - breakable.center.z) < breakable.radius + 0.6;
+        if (near(this.player.position) || this.bots.bots.some((bot) => bot.alive && near(bot.body.position))) continue;
+      }
+      restoreProp(this.world, breakable);
+    }
+  }
+
   /** Vrai si le joueur est derrière sa cible (qui regarde vers `facing` et lui tourne le dos). */
   private isBehind(facing: THREE.Vector3, position: THREE.Vector3): boolean {
     facing.setY(0).normalize();
@@ -702,7 +750,11 @@ export class Game {
     this.audio.shot(RIFLE, { distant: distance > CLOSE_SHOT_DISTANCE, loudness: Math.min(loudness, 0.8), pan });
     this.tracers.add(shot.origin, shot.end);
     if (distance < CASING_DISTANCE) this.ejectBotCasing(shot.origin, shot.end);
-    if (shot.worldHit) this.impactSound(this.impacts.add(shot.worldHit), shot.worldHit.point, true);
+    if (shot.worldHit) {
+      const breakable = breakableOf(shot.worldHit.object);
+      if (breakable) this.shatter(breakable);
+      else this.impactSound(this.impacts.add(shot.worldHit), shot.worldHit.point, true);
+    }
     if (shot.playerDamage > 0) this.damagePlayer(shot.playerDamage, shot.part ?? 'body', RIFLE.armorRatio, shot.bot.name, RIFLE.name, shot.headshot, shot.bot);
     if (shot.victim) {
       this.impacts.addBlood(shot.end, this.toSound.subVectors(shot.end, shot.origin).normalize(), shot.headshot ? 18 : 10);
@@ -769,7 +821,10 @@ export class Game {
       this.raycaster.set(from, direction.divideScalar(length));
       this.raycaster.far = length + 0.05;
       const wall = this.raycaster.intersectObjects(this.world.meshes, false)[0];
-      if (wall && wall.distance > length - 0.3) this.impactSound(this.impacts.add(wall), wall.point, i === 0);
+      if (!wall || wall.distance <= length - 0.3) return;
+      const breakable = breakableOf(wall.object);
+      if (breakable) this.shatter(breakable);
+      else this.impactSound(this.impacts.add(wall), wall.point, i === 0);
     });
   }
 
@@ -1013,6 +1068,7 @@ export class Game {
 
   private startMode(mode: GameMode): void {
     this.mode = mode;
+    this.restoreBreakables(true);
     this.resetStats();
     this.hud.setScore(0, 0);
     this.bots.respawnEnabled = mode === 'deathmatch';
@@ -1044,6 +1100,7 @@ export class Game {
     this.respawnTimer = null;
     this.killer = '';
     this.flashTime = 0;
+    this.restoreBreakables(true);
     const offset = new THREE.Vector3((Math.random() - 0.5) * 8, 0, (Math.random() - 0.5) * 2);
     this.player.spawn(PLAYER_SPAWN.position.clone().add(offset), PLAYER_SPAWN.yaw);
     this.weapons.reset();
