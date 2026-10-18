@@ -858,14 +858,14 @@ def check_props_against_blocks():
 # --- Maison ouverte (INTERIOR) : pièce de séjour au rez-de-chaussée, porte à deux battants ouverts sur le
 # Milieu, fenêtre sans barreaux sur la place (on y voit et on y tire, sans passer). Murs de 30 cm doublés à
 # l'intérieur (zellige en bas, chaux au-dessus), plafond de planches sur poutres, sol carrelé ; banquette,
-# table basse et lanterne (une lampe dans l'éclairage précalculé), caisses, jarres qui se cassent.
+# caisse et sa lanterne (une lampe dans l'éclairage précalculé), jarres et faïences qui se cassent.
 WALL_IN = 0.3  # épaisseur des murs
 LINING = 0.03  # doublage intérieur
 CEILING = 3.0
 DADO = 1.1  # haut du zellige
 DOOR_SPAN, DOOR_TOP = (10.2, 11.8), 2.45  # porte (z) : 1,6 m, deux cases de passage pour les bots
 WINDOW_SPAN, WINDOW_SILL, WINDOW_TOP = (6.4, 7.6), 1.05, 2.15  # fenêtre (x) : trop basse pour s'y glisser
-LANTERN_LIGHT = (7.6, 1.4, 9.6)  # au-dessus de la lanterne (posée sur la table)
+LANTERN_LIGHT = (9.06, 1.85, 12.06)  # au-dessus de la lanterne (posée sur la caisse du coin)
 
 
 def interior():
@@ -921,16 +921,13 @@ def interior():
     box(i2 - 0.68, k1, i2 - LINING, k2, 0, 0.32, 'mosaic', 'stone')
     box(i2 - 0.7, k1, i2 - LINING, k2, 0.32, 0.45, 'fabricBlue', 'sand')
     box(i2 - 0.2, k1 + 0.05, i2 - LINING, k2 - 0.05, 0.45, 0.85, 'fabricRed', 'sand', solid=False)
-    # Tapis (sans collision), table, lanterne, sièges ; caisses dans le coin, jarres et vases.
+    # Tapis (sans collision) ; caisses et lanterne dans le coin, jarres et vases.
     box(i1 + 1.1, j1 + 1.6, i2 - 0.9, j2 - 1.4, 0, 0.012, 'fabricRed', solid=False)
-    prop('cafeTable', 7.5, 9.6, 90)
-    prop('lantern', 7.6, 9.6, 0, 0.75)
-    prop('blueChair', 6.75, 8.9, 90)
-    prop('woodenStool', 6.8, 10.35, 90)
     crate(i2 - LINING - 0.61, j2 - LINING - 0.61, SMALL)
+    prop('lantern', LANTERN_LIGHT[0], LANTERN_LIGHT[2], 0, SMALL)
     prop('crate', i2 - 1.6, j2 - 0.3, 0)
     prop('crate', i2 - 1.6, j2 - 0.3, 6, 0.25)
-    for pid, x, z in (('jug', i1 + 0.3, j1 + 0.32), ('clayPot', i1 + 0.42, j1 + 0.95), ('jug', i1 + 0.28, j2 - 0.3),
+    for pid, x, z in (('faienceVase', i1 + 0.3, j1 + 0.3), ('jug', i1 + 0.28, j2 - 0.3),
                       ('faienceVase', i2 - 0.3, j1 + 0.3), ('brassPot', i1 + 1.95, j2 - 0.28)):
         prop(pid, x, z)
 
