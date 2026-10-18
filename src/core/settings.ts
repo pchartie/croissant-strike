@@ -50,7 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   invertY: true,
   fov: 75,
   volume: 70,
-  footstepVolume: 100,
+  footstepVolume: 80,
   crosshairColor: 'green',
   crosshairSize: 'medium',
   renderScale: 100,
@@ -177,8 +177,8 @@ export function isFieldEnabled(key: Key, settings: Settings): boolean {
 
 const STORAGE_KEY = 'fps1.settings';
 /** Révision des réglages : un réglage listé ici reprend une fois sa valeur par défaut quand elle a changé. */
-const REVISION = 4;
-const RESET_AT: Partial<Record<Key, number>> = { showFps: 2, botCount: 3, difficulty: 4 };
+const REVISION = 5;
+const RESET_AT: Partial<Record<Key, number>> = { showFps: 2, botCount: 3, difficulty: 4, footstepVolume: 5 };
 
 /** Réglages mémorisés dans le navigateur ; toute valeur absente ou invalide reprend sa valeur par défaut. */
 export function loadSettings(): Settings {
