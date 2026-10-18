@@ -24,7 +24,7 @@ FPS façon Counter-Strike, directement dans le navigateur : bots, manches avec �
 - **2 cartes** : *Médina*, vieille ville du Maghreb façon de_dust2 (éclairage précalculé dans Blender ; fenêtres, portes et boutiques variées, moucharabiehs, fontaine animée, puits, souk), et *Dunes*, une carte grise pour s'entraîner.
 - **Armes** : M4A1, MP5-SD, Nova, pistolet M1911 et couteau (coups dans le dos compris), avec dégâts, recul et dispersion de CS.
 - **4 grenades** : HE, flash, fumigène et molotov.
-- **Bots** : soldats animés, équipes de même taille comme dans CS, de 1 contre 1 à 5 contre 5 (toi compris), passifs (par défaut, pour s'entraîner à viser) ou en 3 difficultés ; touche P pour les figer et les inspecter.
+- **Bots** : soldats animés, équipes de même taille comme dans CS, de 1 contre 1 à 5 contre 5 (toi compris), passifs (par défaut, pour s'entraîner à viser) ou en 3 difficultés ; tir allié activé ; touche P pour les figer et les inspecter.
 - **Modes** : deathmatch (chaque camp réapparaît dans sa base) ou manches avec l'économie de CS:GO.
 - **1 contre 1 en ligne** : on crée une partie, on envoie le code de 4 caractères à son adversaire.
 - **HUD façon CS2** : radar, fil des éliminations, vie et gilet, menu d'achat illustré.

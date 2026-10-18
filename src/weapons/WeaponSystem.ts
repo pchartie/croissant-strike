@@ -152,9 +152,10 @@ export class WeaponSystem {
     }
 
     const ready = this.cooldown === 0 && !this.reload && this.drawTimer === 0;
-    if (trigger && ready) {
+    // Chargeur vide : on recharge tout seul, dès que l'arme est prête.
+    if (ready && weapon.def.magazine > 0 && weapon.ammo === 0 && weapon.reserve > 0) this.startReload();
+    else if (trigger && ready) {
       if (weapon.ammo > 0) this.fire();
-      else if (weapon.reserve > 0) this.startReload();
       else if (pressed) this.effects.dryFired(weapon.def);
     }
 

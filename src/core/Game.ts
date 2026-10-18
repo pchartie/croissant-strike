@@ -52,6 +52,8 @@ const HURT_SOUND_INTERVAL = 0.35;
 const RANGE_UNIT = 500 * UNIT;
 /** Prime d'élimination à la grenade (CS:GO). */
 const GRENADE_KILL_REWARD = 300;
+/** Amende pour avoir tué un coéquipier (manches), comme dans CS. */
+const TEAM_KILL_PENALTY = 300;
 /** Durée d'affichage d'un gain d'argent (« +300 $ Élimination »). */
 const GAIN_DISPLAY_MS = 2500;
 /** Pas : bruit au-dessus de cette vitesse (on court ; en marchant ou accroupi, silence comme dans CS), tous les `STRIDE` mètres. */
@@ -369,7 +371,7 @@ export class Game {
     if (this.player.alive) return;
 
     this.deaths++;
-    if (killer) killer.kills++;
+    if (killer) killer.kills += killer.team === 'ally' ? -1 : 1;
     this.killer = attacker;
     this.hud.addKill(attacker, this.playerName, weapon, headshot, { me: true });
     this.hud.setScore(this.kills, this.deaths);
@@ -412,11 +414,17 @@ export class Game {
   }
 
   private onBotKilled(bot: Bot, weapon: string, reward: number, headshot: boolean): void {
-    if (headshot) this.stats.headshots++;
-    this.kills++;
     this.hud.addKill(this.playerName, bot.name, weapon, headshot, { mine: true });
+    if (bot.team === 'ally') {
+      // Tir allié, comme dans CS : une élimination en moins et une amende.
+      this.kills--;
+      if (this.roundBased) this.economy.earn(-TEAM_KILL_PENALTY, 'Tir allié');
+    } else {
+      if (headshot) this.stats.headshots++;
+      this.kills++;
+      if (this.roundBased) this.economy.earn(reward, 'Élimination');
+    }
     this.hud.setScore(this.kills, this.deaths);
-    if (this.roundBased) this.economy.earn(reward, 'Élimination');
   }
 
   private resetStats(): void {
@@ -519,17 +527,15 @@ export class Game {
   private applyAreaDamage(center: THREE.Vector3, radius: number, maxDamage: number, weapon: string, thrower: Bot | null = null): void {
     const hits = (feet: THREE.Vector3, height: number) => this.blastDamage(center, radius, maxDamage, feet, height);
 
-    // Pas de tir ami : une grenade ne blesse que le camp adverse (et le joueur qui l'a lancée).
-    const throwerTeam = thrower ? thrower.team : 'ally';
+    // Tir allié : une grenade blesse tout le monde, son lanceur et ses coéquipiers compris.
     for (const bot of this.bots.bots) {
-      if (!bot.alive || bot.team === throwerTeam) continue;
+      if (!bot.alive) continue;
       const damage = hits(bot.body.position, bot.body.height);
       if (damage < 1) continue;
       if (thrower) this.botHurtsBot(thrower, bot, damage, 'blast', BLAST_ARMOR_RATIO, weapon, false);
       else this.damageBot(bot, damage, 'blast', BLAST_ARMOR_RATIO, weapon, GRENADE_KILL_REWARD);
     }
-    // Le joueur : touché par ses propres grenades et celles des ennemis, pas par celles de ses coéquipiers.
-    if (this.player.alive && thrower?.team !== 'ally') {
+    if (this.player.alive) {
       const damage = hits(this.player.position, this.player.height);
       if (damage >= 1) this.damagePlayer(damage, 'blast', BLAST_ARMOR_RATIO, thrower?.name ?? this.playerName, weapon, false, thrower ?? undefined);
     }
@@ -567,10 +573,10 @@ export class Game {
     const fire = this.player.alive ? this.grenades.burning(this.player.position) : null;
     if (fire && this.duel.active && fire.owner === this.duel.remote) this.hurtByRemote(damage, 'fire', 1, GRENADES.molotov.name, false);
     else if (fire) this.damagePlayer(damage, 'fire', 1, this.playerName, GRENADES.molotov.name);
-    // Le feu (toujours lancé par le joueur) fait fuir tout le monde mais ne blesse pas ses coéquipiers.
+    // Le feu (toujours lancé par le joueur) fait fuir tout le monde et brûle aussi ses coéquipiers.
     this.bots.burn(
       (feet) => this.grenades.fireAt(feet),
-      (bot) => bot.team === 'enemy' && this.damageBot(bot, damage, 'fire', 1, GRENADES.molotov.name, GRENADE_KILL_REWARD),
+      (bot) => this.damageBot(bot, damage, 'fire', 1, GRENADES.molotov.name, GRENADE_KILL_REWARD),
     );
   }
 
@@ -686,10 +692,10 @@ export class Game {
     }
   }
 
-  /** Un bot blesse un bot de l'autre camp (grenade) ; le tueur est crédité. */
+  /** Un bot blesse un bot (grenade) ; le tueur est crédité, ou perd une élimination s'il tue un coéquipier. */
   private botHurtsBot(attacker: Bot, victim: Bot, amount: number, zone: DamageZone, armorRatio: number, weapon: string, headshot: boolean): void {
     if (!this.bots.damageBot(victim, amount, zone, armorRatio, attacker.body.position)) return;
-    attacker.kills++;
+    attacker.kills += attacker.team === victim.team ? -1 : 1;
     this.hud.addKill(attacker.name, victim.name, weapon, headshot);
   }
 

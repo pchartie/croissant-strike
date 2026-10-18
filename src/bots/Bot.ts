@@ -48,7 +48,8 @@ export interface BotContext {
   colliders(bot: Bot): readonly THREE.Box3[];
   /** Vrai si rien ne bloque la ligne entre deux points. */
   lineOfSight(from: THREE.Vector3, to: THREE.Vector3): boolean;
-  shoot(bot: Bot, origin: THREE.Vector3, direction: THREE.Vector3): void;
+  /** Faux si le bot retient son tir (un coéquipier est dans la ligne). */
+  shoot(bot: Bot, origin: THREE.Vector3, direction: THREE.Vector3): boolean;
   /** Lance une grenade vers `target`. */
   throwGrenade(bot: Bot, type: 'he' | 'flash', target: THREE.Vector3): void;
 }
@@ -520,8 +521,7 @@ export class Bot implements Target {
     this.aim.setFromEuler(this.euler);
     this.shotDir.set(Math.cos(angle) * radius, Math.sin(angle) * radius, -1).normalize().applyQuaternion(this.aim);
 
-    this.model.showFlash();
-    ctx.shoot(this, this.eyePosition(this.eye), this.shotDir);
+    if (ctx.shoot(this, this.eyePosition(this.eye), this.shotDir)) this.model.showFlash();
   }
 
   /** Tourne la tête vers le joueur en combat, sinon vers là où il marche. */

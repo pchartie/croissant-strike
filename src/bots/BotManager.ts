@@ -132,9 +132,9 @@ export class BotManager {
     Object.assign(BOTS, DIFFICULTY[difficulty]);
   }
 
-  /** Zones touchables des bots ennemis vivants (les balles du joueur traversent ses coéquipiers). */
+  /** Zones touchables des bots vivants, coéquipiers compris (tir allié). */
   get hitboxes(): THREE.Mesh[] {
-    return this.enemies.filter((bot) => bot.alive).flatMap((bot) => bot.model.hitboxes);
+    return this.bots.filter((bot) => bot.alive).flatMap((bot) => bot.model.hitboxes);
   }
 
   /** Boîtes des bots vivants, pour que le joueur ne leur passe pas au travers. */
@@ -299,26 +299,31 @@ export class BotManager {
   }
 
   /**
-   * Une balle de bot : elle s'arrête sur le premier mur, joueur ou bot adverse
-   * touché (elle traverse les coéquipiers du tireur).
+   * Une balle de bot : elle s'arrête sur le premier mur, joueur ou bot touché,
+   * coéquipiers compris (tir allié). Le bot retient son tir si un coéquipier est
+   * le premier dans la ligne ; renvoie vrai s'il a tiré.
    */
-  private shoot(bot: Bot, origin: THREE.Vector3, direction: THREE.Vector3): void {
-    this.heardShot(origin, bot.team);
+  private shoot(bot: Bot, origin: THREE.Vector3, direction: THREE.Vector3): boolean {
     this.raycaster.set(origin, direction);
     this.raycaster.far = RIFLE.range;
     const worldHit = this.raycaster.intersectObjects(this.world.meshes, false)[0] ?? null;
     let nearest = worldHit ? worldHit.distance : RIFLE.range;
 
-    const opponents = this.bots.filter((other) => other.team !== bot.team && other.alive);
-    const botHit = this.raycaster.intersectObjects(opponents.flatMap((other) => other.model.hitboxes), false)[0] ?? null;
+    const others = this.bots.filter((other) => other !== bot && other.alive);
+    const botHit = this.raycaster.intersectObjects(others.flatMap((other) => other.model.hitboxes), false)[0] ?? null;
     if (botHit && botHit.distance < nearest) nearest = botHit.distance;
 
     this.ray.set(origin, direction);
-    const hitPlayer = bot.team === 'enemy' && this.player.alive && this.ray.intersectBox(this.player.box, this.playerHit);
+    const hitPlayer = this.player.alive && this.ray.intersectBox(this.player.box, this.playerHit) !== null;
+    const playerFirst = hitPlayer && origin.distanceTo(this.playerHit) < nearest;
+    const teammateFirst = playerFirst ? bot.team === 'ally' : botHit?.distance === nearest && (botHit.object.userData.bot as Bot).team === bot.team;
+    if (teammateFirst) return false;
+
+    this.heardShot(origin, bot.team);
     const muzzle = bot.model.muzzle.getWorldPosition(new THREE.Vector3());
     const base = { bot, origin: muzzle, worldHit: null, playerDamage: 0, victim: null, killed: false };
 
-    if (hitPlayer && origin.distanceTo(this.playerHit) < nearest) {
+    if (playerFirst) {
       const height = this.playerHit.y - this.player.position.y;
       // Tête : les 32 cm du haut, debout comme accroupi. Jambes : sous 80 cm (debout seulement).
       const top = this.player.height;
@@ -330,7 +335,7 @@ export class BotManager {
         part,
         headshot: part === 'head',
       });
-      return;
+      return true;
     }
 
     if (botHit && botHit.distance === nearest) {
@@ -340,11 +345,12 @@ export class BotManager {
       const killed = victim.damage(health, bot.body.position);
       if (killed) bot.kills++;
       this.events.shot({ ...base, end: botHit.point.clone(), victim, killed, part, headshot: part === 'head' });
-      return;
+      return true;
     }
 
     const end = origin.clone().addScaledVector(direction, nearest);
     this.events.shot({ ...base, end, worldHit, part: null, headshot: false });
+    return true;
   }
 
   /** Point de réapparition du joueur : dans la base de son camp, hors de vue des ennemis et loin d'eux. */

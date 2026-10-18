@@ -210,7 +210,7 @@ export class Hud {
 
   /** Argent (mode manches) et dernier gain récent ; null pour cacher (deathmatch). */
   setMoney(money: number | null, gain: { amount: number; reason: string } | null): void {
-    const text = money === null ? '' : `${money} $${gain ? `|+${gain.amount} $ ${gain.reason}` : ''}`;
+    const text = money === null ? '' : `${money} $${gain ? `|${gain.amount > 0 ? '+' : '−'}${Math.abs(gain.amount)} $ ${gain.reason}` : ''}`;
     if (text === this.lastMoney) return;
     this.lastMoney = text;
     const [amount, extra] = text.split('|');

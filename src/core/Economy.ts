@@ -15,8 +15,8 @@ export class Economy {
   }
 
   earn(amount: number, reason: string): void {
-    if (amount <= 0) return;
-    this.money = Math.min(ECONOMY.max, this.money + amount);
+    if (amount === 0) return;
+    this.money = Math.max(0, Math.min(ECONOMY.max, this.money + amount));
     this.lastGain = { amount, reason, time: performance.now() };
   }
 
