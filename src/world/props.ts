@@ -118,7 +118,6 @@ export function placeProps(world: World, placements: PropPlacement[], fallbackBa
         height,
         instances: [],
         broken: false,
-        brokenAt: 0,
       };
       collider.mesh.userData.breakable = breakable;
       world.breakables.push(breakable);

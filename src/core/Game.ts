@@ -24,7 +24,7 @@ import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
 import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem';
-import { breakableOf, breakProp, restoreProp, SHARD_COLOR, type Breakable } from '../world/breakables';
+import { breakableOf, breakProp, restoreProp, SHARD_COLORS, type Breakable } from '../world/breakables';
 import { ACTIVE_MAP, buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN, type Animated } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { MAPS } from '../world/maps';
@@ -76,8 +76,6 @@ const BACKSTAB_DOT = 0.4;
 const CASING_DISTANCE = 25;
 /** Une explosion casse les jarres jusqu'à cette part de son rayon (environ 3,5 m pour une HE). */
 const BLAST_BREAK = 0.4;
-/** Deathmatch : une jarre cassée revient après ce temps (secondes). */
-const BREAKABLE_RESPAWN = 60;
 const UP = new THREE.Vector3(0, 1, 0);
 
 export class Game {
@@ -121,8 +119,6 @@ export class Game {
   private readonly eye = new THREE.Vector3();
   private readonly toSound = new THREE.Vector3();
   private readonly shardProbe = new THREE.Vector3();
-  /** Temps de jeu écoulé (secondes, au rythme des ticks). */
-  private clock = 0;
   private readonly right = new THREE.Vector3();
 
   private kills = 0;
@@ -326,8 +322,6 @@ export class Game {
   }
 
   private tick(): void {
-    this.clock += TICK;
-    if (!this.roundBased) this.restoreBreakables(false);
     // Pendant le gel de début de manche, on peut regarder autour mais pas bouger ni tirer.
     const frozen = this.roundBased && this.rounds.frozen;
 
@@ -714,28 +708,19 @@ export class Game {
 
   /** Une jarre ou un pot se casse : il disparaît, éclats de terre cuite, poussière et bruit. */
   private shatter(breakable: Breakable): void {
-    if (!breakProp(this.world, breakable, this.clock)) return;
+    if (!breakProp(this.world, breakable)) return;
     // Sa collision est déjà retirée : le rayon trouve le sol (ou l'étal) dessous.
     const floor = this.floorBelow(this.shardProbe.copy(breakable.center));
-    this.impacts.shatter(breakable.center, breakable.radius, breakable.height, SHARD_COLOR, floor);
+    // Posé en hauteur (jarre sur un étal) : les morceaux éclatent et s'effacent aussitôt.
+    const grounded = (breakable.spot.y ?? 0) < 0.05;
+    this.impacts.shatter(breakable.center, breakable.radius, breakable.height, SHARD_COLORS[breakable.spot.id] ?? 0xa65f3c, floor, grounded);
     const { loudness, pan } = this.hearing(breakable.center);
     this.audio.shatter(loudness, pan);
   }
 
-  /**
-   * Remet les jarres cassées : toutes au début d'une manche ; en deathmatch, une minute après, si
-   * personne n'est debout à leur place.
-   */
-  private restoreBreakables(all: boolean): void {
-    for (const breakable of this.world.breakables) {
-      if (!breakable.broken) continue;
-      if (!all) {
-        if (this.clock - breakable.brokenAt < BREAKABLE_RESPAWN) continue;
-        const near = (position: THREE.Vector3) => Math.hypot(position.x - breakable.center.x, position.z - breakable.center.z) < breakable.radius + 0.6;
-        if (near(this.player.position) || this.bots.bots.some((bot) => bot.alive && near(bot.body.position))) continue;
-      }
-      restoreProp(this.world, breakable);
-    }
+  /** Remet les jarres cassées : au début de chaque manche, ou d'une nouvelle partie (deathmatch : jamais en cours). */
+  private restoreBreakables(): void {
+    for (const breakable of this.world.breakables) restoreProp(this.world, breakable);
   }
 
   /** Vrai si le joueur est derrière sa cible (qui regarde vers `facing` et lui tourne le dos). */
@@ -1068,7 +1053,7 @@ export class Game {
 
   private startMode(mode: GameMode): void {
     this.mode = mode;
-    this.restoreBreakables(true);
+    this.restoreBreakables();
     this.resetStats();
     this.hud.setScore(0, 0);
     this.bots.respawnEnabled = mode === 'deathmatch';
@@ -1100,7 +1085,7 @@ export class Game {
     this.respawnTimer = null;
     this.killer = '';
     this.flashTime = 0;
-    this.restoreBreakables(true);
+    this.restoreBreakables();
     const offset = new THREE.Vector3((Math.random() - 0.5) * 8, 0, (Math.random() - 0.5) * 2);
     this.player.spawn(PLAYER_SPAWN.position.clone().add(offset), PLAYER_SPAWN.yaw);
     this.weapons.reset();

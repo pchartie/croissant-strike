@@ -91,12 +91,12 @@ export class Impacts {
   }
 
   /**
-   * Un objet en terre cuite éclate (jarre, pot) : gros éclats projetés tout autour, qui retombent et
-   * restent un instant au sol, et un nuage de poussière.
+   * Un objet éclate (jarre, pot) : gros éclats projetés tout autour et un nuage de poussière. Posé au
+   * sol (`lingering`), ses morceaux y restent quelques secondes ; sinon ils s'effacent aussitôt.
    */
-  shatter(center: THREE.Vector3, radius: number, height: number, color: number, floor: number): void {
+  shatter(center: THREE.Vector3, radius: number, height: number, color: number, floor: number, lingering: boolean): void {
     this.dust.burst(center, Impacts.UP, 30, 0.3, 1.4, 0.9);
-    this.debris?.shatter(center, radius, height, color, SHATTER_SHARDS, floor);
+    this.debris?.shatter(center, radius, height, color, SHATTER_SHARDS, floor, lingering);
   }
 
   /** Balle dans un bot : giclée de sang dans le sens du tir. */
@@ -207,7 +207,7 @@ class Debris {
   }
 
   /** Éclats d'un objet qui se casse : partis de toute sa surface, projetés vers l'extérieur et vers le haut. */
-  shatter(center: THREE.Vector3, radius: number, height: number, color: number, count: number, floor: number): void {
+  shatter(center: THREE.Vector3, radius: number, height: number, color: number, count: number, floor: number, lingering: boolean): void {
     const total = this.life.length;
     for (let n = 0; n < count; n++) {
       const i = this.next;
@@ -223,8 +223,8 @@ class Debris {
       this.rotation[i].random();
       this.size[i] = 0.05 + Math.random() * 0.07;
       this.floor[i] = floor;
-      // Les morceaux restent quelques secondes au sol.
-      this.life[i] = 5 + Math.random() * 2;
+      // Au sol, les morceaux restent quelques secondes ; en hauteur, juste le temps de l'explosion.
+      this.life[i] = lingering ? 5 + Math.random() * 2 : 0.35 + Math.random() * 0.25;
       const mesh = this.meshes[i % this.meshes.length];
       mesh.setColorAt(Math.floor(i / this.meshes.length), this.color.set(color).multiplyScalar(0.75 + Math.random() * 0.4));
       mesh.instanceColor!.needsUpdate = true;

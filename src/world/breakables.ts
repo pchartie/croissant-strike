@@ -5,8 +5,8 @@ import type { Collider, World } from './World';
 /** Objets qui se cassent sous les balles : les jarres et les pots vides (pas ceux qui ont une plante). */
 export const BREAKABLE: ReadonlySet<PropId> = new Set<PropId>(['clayPot', 'jug']);
 
-/** Couleur des éclats : terre cuite. */
-export const SHARD_COLOR = 0xa65f3c;
+/** Couleur des éclats, celle de l'objet : terre cuite des pots, faïence blanche des jarres. */
+export const SHARD_COLORS: Partial<Record<PropId, number>> = { clayPot: 0xa65f3c, jug: 0xe6e1d6 };
 
 export interface Breakable {
   spot: PropPlacement;
@@ -18,8 +18,6 @@ export interface Breakable {
   /** Exemplaires dessinés (un par morceau du modèle), avec leur placement pour les remettre. */
   instances: { mesh: THREE.InstancedMesh; index: number; matrix: THREE.Matrix4 }[];
   broken: boolean;
-  /** Moment de la casse (secondes de jeu). */
-  brokenAt: number;
 }
 
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -30,10 +28,9 @@ export function breakableOf(object: THREE.Object3D): Breakable | null {
 }
 
 /** Casse l'objet : il disparaît avec sa collision. Faux s'il l'était déjà. */
-export function breakProp(world: World, breakable: Breakable, time: number): boolean {
+export function breakProp(world: World, breakable: Breakable): boolean {
   if (breakable.broken) return false;
   breakable.broken = true;
-  breakable.brokenAt = time;
   for (const { mesh, index } of breakable.instances) {
     mesh.setMatrixAt(index, HIDDEN);
     mesh.instanceMatrix.needsUpdate = true;
