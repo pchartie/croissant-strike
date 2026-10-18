@@ -374,6 +374,7 @@ function iconImage(src: string, name: string, className = 'weapon-icon'): HTMLIm
 /** Silhouette d'une arme à feu, du couteau ou d'une grenade, d'après son nom ; null si aucune. */
 function itemIcon(name: string): string | null {
   if (name === 'Couteau') return HUD_ICONS.knife;
+  if (name === 'Baril explosif') return shopIcon('barrel');
   const grenade = { 'Grenade HE': 'he', Flash: 'flash', Fumigène: 'smoke', Molotov: 'molotov' } as const;
   if (name in grenade) return shopIcon(grenade[name as keyof typeof grenade]);
   return weaponIcon(name);

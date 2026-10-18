@@ -18,8 +18,10 @@ const ICONS = {
   flash: svg(32, `<rect x="6" y="14" width="20" height="32" rx="3"/><rect x="10" y="6" width="12" height="9" rx="2"/><path d="M22 8h8l-1 16-3-1v-12h-4z"/><rect x="6" y="22" width="20" height="3" fill="#000" opacity=".35"/>`),
   smoke: svg(32, `<rect x="5" y="12" width="22" height="34" rx="3"/><rect x="10" y="4" width="12" height="9" rx="2"/><path d="M22 6h8l-1 16-3-1v-12h-4z"/><g fill="#000" opacity=".4"><circle cx="11" cy="22" r="2"/><circle cx="21" cy="22" r="2"/><circle cx="11" cy="38" r="2"/><circle cx="21" cy="38" r="2"/></g>`),
   molotov: svg(36, `<path d="M10 46V24c0-5 4-7 4-11V9h8v4c0 4 4 6 4 11v22z"/><rect x="13" y="4" width="10" height="6" rx="1"/><path d="M18 4c-4-3-2-6 0-8 1 3 5 4 3 8z"/><rect x="10" y="30" width="16" height="7" fill="#000" opacity=".35"/>`),
-} satisfies Record<'armor' | 'helmet' | GrenadeType, string>;
+  // Baril (fil des éliminations) : fût cerclé, flamme au-dessus.
+  barrel: svg(40, `<rect x="8" y="18" width="24" height="28" rx="3"/><g fill="#000" opacity=".35"><rect x="8" y="24" width="24" height="3"/><rect x="8" y="37" width="24" height="3"/></g><path d="M20 2c3 5 9 8 6 15h-12c-3-6 2-9 3-13 1 3 2 4 3 5z"/>`),
+} satisfies Record<'armor' | 'helmet' | 'barrel' | GrenadeType, string>;
 
-export function shopIcon(kind: 'armor' | 'helmet' | GrenadeType): string {
+export function shopIcon(kind: 'armor' | 'helmet' | 'barrel' | GrenadeType): string {
   return ICONS[kind];
 }

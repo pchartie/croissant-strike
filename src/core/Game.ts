@@ -24,7 +24,8 @@ import { loadRetroWeapons } from '../weapons/RetroWeapons';
 import { Tracers } from '../weapons/Tracers';
 import { ViewModel } from '../weapons/ViewModel';
 import { WeaponSystem, type MeleeKind, type Shot } from '../weapons/WeaponSystem';
-import { breakableOf, breakProp, restoreProp, SHARD_COLORS, type Breakable } from '../world/breakables';
+import { breakableOf, breakProp, EXPLOSIVE, restoreProp, SHARD_COLORS, type Breakable } from '../world/breakables';
+import type { GrenadeOwner } from '../grenades/Projectile';
 import { ACTIVE_MAP, buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN, type Animated } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { MAPS } from '../world/maps';
@@ -79,6 +80,12 @@ const BACKSTAB_DOT = 0.4;
 const CASING_DISTANCE = 25;
 /** Une explosion casse les jarres jusqu'à cette part de son rayon (environ 3,5 m pour une HE). */
 const BLAST_BREAK = 0.4;
+/** Baril rouge qui explose : un peu moins fort et moins large qu'une HE. */
+const BARREL_BLAST = { damage: 90, radius: 300 * UNIT, weapon: 'Baril explosif' };
+/** Délai d'un baril à l'autre quand une explosion en fait sauter un autre (réaction en chaîne). */
+const CHAIN_DELAY = 0.25;
+/** Éclats de tôle d'un baril qui saute. */
+const BARREL_SHARDS = 0x7a2a20;
 const UP = new THREE.Vector3(0, 1, 0);
 
 export class Game {
@@ -113,6 +120,8 @@ export class Game {
   private mode: GameMode = 'deathmatch';
   private readonly economy = new Economy();
   private readonly buyMenu = new BuyMenu();
+  /** Barils pris dans une explosion : ils sautent à leur tour, un instant après. */
+  private readonly pendingBlasts: { breakable: Breakable; owner: GrenadeOwner | null; delay: number }[] = [];
 
   /** Éclaire brièvement les alentours à chaque tir. */
   private readonly muzzleLight = new THREE.PointLight(0xffb060, 0, 8, 2);
@@ -353,6 +362,7 @@ export class Game {
     }
 
     if (!frozen) this.bots.update(TICK);
+    this.updatePendingBlasts();
     this.grenades.update(TICK);
     this.applyFire();
     this.updateFootsteps();
@@ -559,7 +569,9 @@ export class Game {
   private applyAreaDamage(center: THREE.Vector3, radius: number, maxDamage: number, weapon: string, thrower: Bot | null = null): void {
     const hits = (feet: THREE.Vector3, height: number) => this.blastDamage(center, radius, maxDamage, feet, height);
     for (const breakable of this.world.breakables) {
-      if (breakable.center.distanceTo(center) < radius * BLAST_BREAK) this.shatter(breakable);
+      if (breakable.broken || breakable.center.distanceTo(center) >= radius * BLAST_BREAK) continue;
+      if (EXPLOSIVE[breakable.spot.id] === undefined) this.shatter(breakable);
+      else if (!this.pendingBlasts.some((pending) => pending.breakable === breakable)) this.pendingBlasts.push({ breakable, owner: thrower, delay: CHAIN_DELAY });
     }
 
     // Tir allié : une grenade blesse tout le monde, son lanceur et ses coéquipiers compris.
@@ -573,6 +585,29 @@ export class Game {
     if (this.player.alive) {
       const damage = hits(this.player.position, this.player.height);
       if (damage >= 1) this.damagePlayer(damage, 'blast', BLAST_ARMOR_RATIO, thrower?.name ?? this.playerName, weapon, false, thrower ?? undefined);
+    }
+  }
+
+  /** Explosion (HE, baril) : bruit, dégâts, les bots l'entendent, la vue tremble si elle est proche. */
+  private detonate(position: THREE.Vector3, owner: GrenadeOwner | null, radius: number, damage: number, weapon: string): void {
+    const { loudness, pan, distance } = this.hearing(position);
+    this.audio.explosion(loudness, pan);
+    if (owner && owner === this.duel.remote) this.remoteAreaDamage(position, radius, damage, weapon);
+    else this.applyAreaDamage(position, radius, damage, weapon, owner as Bot | null);
+    this.bots.playerFired(position);
+    const shake = Math.max(0, 1 - distance / 15) * 0.06;
+    this.weapons.punch.pitch += (Math.random() - 0.3) * shake;
+    this.weapons.punch.yaw += (Math.random() - 0.5) * shake;
+  }
+
+  /** Barils pris dans une explosion : ils sautent l'un après l'autre. */
+  private updatePendingBlasts(): void {
+    for (let i = this.pendingBlasts.length - 1; i >= 0; i--) {
+      const pending = this.pendingBlasts[i];
+      pending.delay -= TICK;
+      if (pending.delay > 0) continue;
+      this.pendingBlasts.splice(i, 1);
+      this.shatter(pending.breakable, pending.owner);
     }
   }
 
@@ -652,7 +687,7 @@ export class Game {
         continue;
       }
       if (breakableOf(hit.object)) {
-        this.shatter(breakableOf(hit.object)!);
+        this.hitProp(breakableOf(hit.object)!, hit, null, wallHits++ === 0);
         continue;
       }
       if (!hit.object.userData.bot) {
@@ -698,7 +733,7 @@ export class Game {
     }
     const breakable = breakableOf(hit.object);
     if (breakable) {
-      this.shatter(breakable);
+      this.hitProp(breakable, hit, null);
       return;
     }
     if (!hit.object.userData.bot) {
@@ -716,11 +751,30 @@ export class Game {
     this.damageBot(bot, damage, zone, def.armorRatio, backstab ? `${def.name} · dans le dos` : def.name, def.killReward);
   }
 
-  /** Une jarre ou un pot se casse : il disparaît, éclats de terre cuite, poussière et bruit. */
-  private shatter(breakable: Breakable): void {
+  /**
+   * Balle (ou coup de couteau) dans un objet cassable : une jarre se casse tout de suite, un baril rouge
+   * encaisse quelques balles (étincelles, sans trou) puis explose. `owner` : qui a tiré (null : le joueur).
+   */
+  private hitProp(breakable: Breakable, hit: THREE.Intersection, owner: GrenadeOwner | null, audible = true): void {
+    const toughness = EXPLOSIVE[breakable.spot.id];
+    if (toughness !== undefined && ++breakable.hits < toughness) {
+      this.impactSound(this.impacts.add(hit, false), hit.point, audible);
+      return;
+    }
+    this.shatter(breakable, owner);
+  }
+
+  /** Une jarre ou un pot se casse : il disparaît, éclats de terre cuite, poussière et bruit. Un baril rouge explose. */
+  private shatter(breakable: Breakable, owner: GrenadeOwner | null = null): void {
     if (!breakProp(this.world, breakable)) return;
     // Sa collision est déjà retirée : le rayon trouve le sol (ou l'étal) dessous.
     const floor = this.floorBelow(this.shardProbe.copy(breakable.center));
+    if (EXPLOSIVE[breakable.spot.id] !== undefined) {
+      this.impacts.shatter(breakable.center, breakable.radius, breakable.height, BARREL_SHARDS, floor, true);
+      this.grenades.blast(breakable.center);
+      this.detonate(breakable.center, owner, BARREL_BLAST.radius, BARREL_BLAST.damage, BARREL_BLAST.weapon);
+      return;
+    }
     // Posé en hauteur (jarre sur un étal) : les morceaux éclatent et s'effacent aussitôt.
     const grounded = (breakable.spot.y ?? 0) < 0.05;
     this.impacts.shatter(breakable.center, breakable.radius, breakable.height, SHARD_COLORS[breakable.spot.id] ?? 0xa65f3c, floor, grounded);
@@ -730,6 +784,7 @@ export class Game {
 
   /** Remet les jarres cassées : au début de chaque manche, ou d'une nouvelle partie (deathmatch : jamais en cours). */
   private restoreBreakables(): void {
+    this.pendingBlasts.length = 0;
     for (const breakable of this.world.breakables) restoreProp(this.world, breakable);
   }
 
@@ -747,7 +802,7 @@ export class Game {
     if (distance < CASING_DISTANCE) this.ejectBotCasing(shot.origin, shot.end);
     if (shot.worldHit) {
       const breakable = breakableOf(shot.worldHit.object);
-      if (breakable) this.shatter(breakable);
+      if (breakable) this.hitProp(breakable, shot.worldHit, shot.bot);
       else this.impactSound(this.impacts.add(shot.worldHit), shot.worldHit.point, true);
     }
     if (shot.playerDamage > 0) this.damagePlayer(shot.playerDamage, shot.part ?? 'body', RIFLE.armorRatio, shot.bot.name, RIFLE.name, shot.headshot, shot.bot);
@@ -818,7 +873,7 @@ export class Game {
       const wall = this.raycaster.intersectObjects(this.world.meshes, false)[0];
       if (!wall || wall.distance <= length - 0.3) return;
       const breakable = breakableOf(wall.object);
-      if (breakable) this.shatter(breakable);
+      if (breakable) this.hitProp(breakable, wall, this.duel.remote, i === 0);
       else this.impactSound(this.impacts.add(wall), wall.point, i === 0);
     });
   }
@@ -861,17 +916,7 @@ export class Game {
         const { loudness, pan } = this.hearing(position);
         this.audio.bounce(loudness * Math.min(speed / 8, 1), pan);
       },
-      explode: (position, owner) => {
-        const { loudness, pan, distance } = this.hearing(position);
-        this.audio.explosion(loudness, pan);
-        if (owner && owner === this.duel.remote) this.remoteAreaDamage(position, HE.radius, HE.damage, GRENADES.he.name);
-        else this.applyAreaDamage(position, HE.radius, HE.damage, GRENADES.he.name, owner as Bot | null);
-        this.bots.playerFired(position);
-        // Secousse de la vue si l'explosion est proche.
-        const shake = Math.max(0, 1 - distance / 15) * 0.06;
-        this.weapons.punch.pitch += (Math.random() - 0.3) * shake;
-        this.weapons.punch.yaw += (Math.random() - 0.5) * shake;
-      },
+      explode: (position, owner) => this.detonate(position, owner, HE.radius, HE.damage, GRENADES.he.name),
       flashbang: (position, owner) => {
         const { loudness, pan } = this.hearing(position);
         this.audio.flashbang(loudness, pan);

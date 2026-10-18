@@ -50,12 +50,12 @@ export class Impacts {
     this.blood = new Particles(scene, 600, 0x7d0d08, 0.025);
   }
 
-  /** Balle dans un mur ou un objet : trou, et éclats selon la matière (renvoyée pour le son). */
-  add(hit: THREE.Intersection): Surface {
+  /** Balle dans un mur ou un objet : trou (sauf `hole` faux), et éclats selon la matière (renvoyée pour le son). */
+  add(hit: THREE.Intersection, hole = true): Surface {
     const surface = surfaceOf(hit.object);
     if (!hit.face) return surface;
     this.normal.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
-    this.addDecal(hit.point, this.normal);
+    if (hole) this.addDecal(hit.point, this.normal);
     this.addDebris(hit.point, this.normal, surface);
     switch (surface) {
       case 'metal':

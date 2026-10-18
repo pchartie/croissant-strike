@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { BREAKABLE } from './breakables';
+import { BREAKABLE, type Breakable } from './breakables';
 import type { Surface } from './surfaces';
 import { sunShade, sunVisibility } from './sunlight';
-import type { World } from './World';
+import type { Collider, World } from './World';
 
 // Objets posés sur les cartes (barils, voiture bâchée, climatiseurs, jarres, café…) : modèles Poly Haven optimisés par
 // `npm run optimize-props`. Leurs collisions sont posées dès la construction de la carte (pour la
@@ -111,8 +111,9 @@ export function placeProps(world: World, placements: PropPlacement[], fallbackBa
     const [width, depth, height] = spec.size;
     if (place.id === 'barrelBlue' || place.id === 'barrelRed') {
       const barrel = world.addCylinder(place.x, y, place.z, width / 2, height, fallbackBarrel[place.id]);
-      barrel.userData.fallback = place.id;
-      barrel.userData.surface = spec.surface;
+      barrel.mesh.userData.fallback = place.id;
+      barrel.mesh.userData.surface = spec.surface;
+      if (BREAKABLE.has(place.id)) addBreakable(world, place, barrel, y, Math.min(width, depth), height);
       continue;
     }
     if (spec.flat) continue;
@@ -127,21 +128,25 @@ export function placeProps(world: World, placements: PropPlacement[], fallbackBa
       new THREE.Vector3(place.x + half.x, y + height, place.z + half.z),
       spec.surface,
     );
-    if (BREAKABLE.has(place.id)) {
-      const breakable = {
-        spot: place,
-        collider,
-        center: new THREE.Vector3(place.x, y + height / 2, place.z),
-        radius: Math.min(width, depth) / 2,
-        height,
-        instances: [],
-        broken: false,
-      };
-      collider.mesh.userData.breakable = breakable;
-      world.breakables.push(breakable);
-    }
+    if (BREAKABLE.has(place.id)) addBreakable(world, place, collider, y, Math.min(width, depth), height);
   }
   return placements;
+}
+
+/** Objet qui se casse (ou explose) sous les balles : sa collision le désigne aux tirs. */
+function addBreakable(world: World, spot: PropPlacement, collider: Collider, y: number, size: number, height: number): void {
+  const breakable: Breakable = {
+    spot,
+    collider,
+    center: new THREE.Vector3(spot.x, y + height / 2, spot.z),
+    radius: size / 2,
+    height,
+    instances: [],
+    broken: false,
+    hits: 0,
+  };
+  collider.mesh.userData.breakable = breakable;
+  world.breakables.push(breakable);
 }
 
 /** Charge les modèles et les affiche ; en cas d'échec, les cylindres des barils restent. */
@@ -213,7 +218,12 @@ export async function loadProps(world: World, placements: PropPlacement[]): Prom
 
   // Les barils qui ont leur modèle : leurs cylindres ne servent plus qu'aux collisions et aux balles.
   const shown = new Set(loaded.map((model) => model?.id));
-  for (const mesh of world.meshes) if (shown.has(mesh.userData.fallback)) mesh.visible = false;
+  // Barils déjà cassés compris (leur cylindre n'est plus parmi les cibles) : il ne doit pas revenir avec eux.
+  for (const mesh of [...world.meshes, ...world.breakables.map((b) => b.collider.mesh)]) {
+    if (!shown.has(mesh.userData.fallback)) continue;
+    mesh.userData.modelShown = true;
+    mesh.visible = false;
+  }
 }
 
 /**
