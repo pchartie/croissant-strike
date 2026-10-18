@@ -1118,92 +1118,210 @@ kbd {
   opacity: 0.85;
 }
 
+/* Menu d'achat : fenêtre centrée comme le menu principal, articles en cartes par rubrique. */
 #buy-menu {
-  position: absolute;
-  /* Sous la minimap (180 px + marge), sans jamais dépasser du bas de l'écran. */
-  left: 16px;
-  top: 212px;
-  max-height: calc(100% - 228px);
-  overflow-y: auto;
-  min-width: 300px;
-  padding: 14px 18px;
-  border-radius: 8px;
-  background: rgba(15, 17, 20, 0.88);
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
   color: #eee;
-  font-size: 15px;
+  /* Par-dessus le reste du HUD (minimap, munitions). */
+  z-index: 5;
 }
 
 #buy-menu.hidden {
   display: none;
 }
 
-#buy-menu h2 {
-  margin-bottom: 8px;
-  font-size: 18px;
-  letter-spacing: 1px;
-}
-
-#buy-menu .item {
+.buy-panel {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 2px 0;
-}
-
-#buy-menu .item .key {
-  min-width: 22px;
-  color: var(--accent);
-  font-weight: 700;
-}
-
-/* Miniature de chaque article : silhouette blanche dans une case sombre. */
-#buy-menu .item .thumb {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 76px;
-  height: 30px;
-  padding: 3px 8px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.07);
-}
-
-#buy-menu .item .thumb img {
-  max-width: 100%;
+  flex-direction: column;
+  gap: 18px;
+  width: min(860px, 100%);
   max-height: 100%;
-  object-fit: contain;
+  padding: 24px 28px 20px;
+  border-radius: 8px;
+  background: rgba(20, 22, 26, 0.94);
+  overflow-y: auto;
 }
 
-#buy-menu .item .price {
-  min-width: 56px;
-  text-align: right;
+.buy-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #3a3d44;
+}
+
+.buy-header h2 {
+  flex: 1;
+  font-size: 30px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.buy-wallet {
+  font-size: 15px;
+  color: #b9bdc4;
+}
+
+.buy-wallet b {
+  font-size: 24px;
+  color: #7fd67f;
   font-variant-numeric: tabular-nums;
 }
 
-#buy-menu .item .name {
-  flex: 1;
+.buy-time {
+  width: 100%;
+  text-align: right;
+  font-size: 13px;
+  color: #ffd34d;
 }
 
-#buy-menu .item.expensive {
-  opacity: 0.4;
+.buy-group h3 {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #8a8f98;
 }
 
-#buy-menu .item.owned .name::after {
-  content: ' ✓';
+.buy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.buy-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 4fr);
+  gap: 18px;
+}
+
+.buy-group.gear .buy-grid {
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+.buy-group.grenade .buy-grid {
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+}
+
+.buy-group.grenade .name {
+  font-size: 14px;
+}
+
+.buy-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: 54px auto auto;
+  gap: 4px;
+  padding: 10px 12px 10px;
+  border-radius: 6px;
+  background: #23262c;
+  box-shadow: inset 0 0 0 1px #30333a;
+}
+
+.buy-card .key {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  min-width: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #15171b;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.buy-card .thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px 0 22px;
+}
+
+.buy-card .thumb img {
+  max-width: 100%;
+  max-height: 44px;
+  object-fit: contain;
+}
+
+.buy-card .name {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.buy-card .price {
+  font-size: 14px;
+  color: #7fd67f;
+  font-variant-numeric: tabular-nums;
+}
+
+.buy-card .status {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.buy-card.owned {
+  box-shadow: inset 0 0 0 1px var(--accent-dark);
+}
+
+.buy-card.owned .status {
   color: var(--accent);
 }
 
-#buy-menu .footer {
-  margin-top: 10px;
-  font-size: 13px;
-  opacity: 0.8;
+.buy-card.expensive {
+  opacity: 0.45;
 }
 
-#buy-menu .message {
-  margin-top: 6px;
+.buy-card.expensive .price,
+.buy-card.expensive .status {
+  color: #e57373;
+}
+
+.buy-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-top: 14px;
+  border-top: 1px solid #3a3d44;
+  font-size: 13px;
+}
+
+.buy-footer .message {
   min-height: 18px;
   color: #ffd34d;
-  font-size: 13px;
+}
+
+.buy-footer .hint {
+  color: #777c84;
+}
+
+@media (max-width: 640px) {
+  .buy-panel {
+    padding: 18px 16px;
+  }
+
+  .buy-columns {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Tableau des scores façon CS2 : un bloc par camp aux couleurs des tenues (sable, bleu). */

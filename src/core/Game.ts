@@ -1219,6 +1219,7 @@ export class Game {
         label: item.label,
         price: this.priceOf(item),
         state: this.itemState(item),
+        group: item.kind === 'weapon' ? 'weapon' : item.kind === 'grenade' ? 'grenade' : 'gear',
         icon: item.kind === 'weapon' ? weaponIcon(item.weapon.id) : shopIcon(item.kind === 'grenade' ? item.grenade : item.kind),
       })),
       this.roundBased ? this.economy.money : null,
