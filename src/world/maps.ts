@@ -30,6 +30,8 @@ export interface GameMap {
   spawn: { position: THREE.Vector3; yaw: number };
   /** Mode manches : les ennemis apparaissent au nord de `enemyZ`, les coéquipiers au sud de `allyZ`. */
   roundSpawnZ: { enemy: number; ally: number };
+  /** Écho des murs (0 : plein air, 1 : ruelles étroites). */
+  echo: number;
   /** Fontaines à animer (dimensions de celles construites par Blender). */
   fountains?: FountainSpec[];
 }
@@ -42,6 +44,7 @@ export const MAPS: Record<MapId, GameMap> = {
     bounds: new THREE.Box3(new THREE.Vector3(-36, 0, -36), new THREE.Vector3(36, 7, 36)),
     spawn: { position: new THREE.Vector3(0, 0, 31), yaw: 0 },
     roundSpawnZ: { enemy: -26, ally: 24 },
+    echo: 0.3,
   },
   medina: {
     id: 'medina',
@@ -50,6 +53,7 @@ export const MAPS: Record<MapId, GameMap> = {
     bounds: new THREE.Box3(new THREE.Vector3(-40, 0, -46), new THREE.Vector3(40, 8, 46)),
     spawn: { position: new THREE.Vector3(0, 0, 40), yaw: 0 },
     roundSpawnZ: { enemy: -35, ally: 35 },
+    echo: 0.6,
     fountains: [{ x: 29, z: -14, basinRadius: 2.6, basinWater: 0.6, bowlRadius: 1.05, bowlTop: 1.94, bowlLip: 1.18 }],
   },
 };

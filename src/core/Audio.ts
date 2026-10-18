@@ -5,6 +5,15 @@ import type { Surface } from '../world/surfaces';
 /** Gain général à 100 % de volume (70 % donne le niveau d'origine du jeu). */
 const MAX_GAIN = 0.57;
 const BASE = `${import.meta.env.BASE_URL}sounds/`;
+/** Vitesse du son (m/s) : un tir lointain arrive en retard. */
+const SOUND_SPEED = 340;
+/** En deçà (mètres), pas de retard : on ne le percevrait pas. */
+const DELAY_FROM = 8;
+/** Fréquence de coupure de l'air : les aigus s'éteignent avec la distance (Hz, et mètres pour la diviser par 2). */
+const AIR_CUTOFF = 20000;
+const AIR_HALVING = 15;
+/** Derrière un mur, seuls les graves passent. */
+const WALL_CUTOFF = 800;
 
 /** Enregistrements (public/sounds/), plusieurs variantes par son pour éviter la répétition. */
 const SAMPLES: Record<string, string[]> = {
@@ -12,45 +21,76 @@ const SAMPLES: Record<string, string[]> = {
   'rifle-far': ['rifle-far'],
   pistol: ['pistol-1', 'pistol-2'],
   'pistol-far': ['pistol-far'],
+  shotgun: ['shotgun-1', 'shotgun-2'],
+  'shotgun-far': ['shotgun-far'],
+  // MP5-SD : ses prises lointaines sont des rafales, on éloigne le son proche (filtre de distance).
+  smg: ['smg-1', 'smg-2'],
+  'smg-far': ['smg-1', 'smg-2'],
   'reload-rifle': ['reload-rifle'],
   'reload-pistol': ['reload-pistol'],
+  'step-stone': ['step-stone-1', 'step-stone-2', 'step-stone-3', 'step-stone-4'],
+  'step-wood': ['step-wood-1', 'step-wood-2', 'step-wood-3', 'step-wood-4'],
+  'step-sand': ['step-sand-1', 'step-sand-2', 'step-sand-3'],
+  'step-metal': ['step-metal-1', 'step-metal-2'],
+  'impact-stone': ['impact-stone-1', 'impact-stone-2', 'impact-stone-3'],
+  'impact-wood': ['impact-wood-1', 'impact-wood-2', 'impact-wood-3'],
+  'impact-sand': ['impact-sand-1', 'impact-sand-2'],
+  'impact-metal': ['impact-metal-1', 'impact-metal-2', 'impact-metal-3'],
 };
 
-/**
- * Sons de chaque arme. Le SMG et le fusil à pompe n'ont pas d'enregistrement à eux :
- * ils reprennent ceux de l'AR-15 et du 1911, accélérés ou ralentis.
- */
+/** Sons de chaque arme. Le Barrett reprend l'AR-15, ralenti. */
 const SHOT_STYLES: Partial<Record<WeaponId, { samples: string; rate: number; volume: number; reload: string }>> = {
   rifle: { samples: 'rifle', rate: 1, volume: 1, reload: 'rifle' },
-  // MP5-SD silencieux : plus aigu et plus discret.
-  smg: { samples: 'rifle', rate: 1.35, volume: 0.42, reload: 'rifle' },
-  // Nova : détonation plus grave et plus forte.
-  shotgun: { samples: 'pistol', rate: 0.62, volume: 1.25, reload: 'pistol' },
+  // MP5-SD : vraie mitraillette 9 mm, filtrée comme par un silencieux.
+  smg: { samples: 'smg', rate: 1, volume: 0.6, reload: 'rifle' },
+  shotgun: { samples: 'shotgun', rate: 1, volume: 1, reload: 'pistol' },
   pistol: { samples: 'pistol', rate: 1, volume: 1, reload: 'pistol' },
   // Barrett : la détonation du fusil, bien plus grave et plus forte.
   sniper: { samples: 'rifle', rate: 0.62, volume: 1.5, reload: 'rifle' },
 };
+
+/** Le sol sous les pieds → famille d'enregistrements de pas et d'impacts. */
+const SURFACE_SOUND: Record<Surface, string> = { stone: 'stone', plaster: 'stone', sand: 'sand', wood: 'wood', metal: 'metal' };
+
+/**
+ * Où se trouve un son par rapport au joueur (calculé par le jeu) : position dans le monde (null pour
+ * un son du joueur lui-même, sans direction), distance, et s'il y a un mur entre les deux.
+ */
+export interface Place {
+  position: { x: number; y: number; z: number } | null;
+  distance: number;
+  occluded: boolean;
+}
+
+/** Les sons du joueur lui-même : dans la tête, sans direction ni retard. */
+export const HERE: Place = { position: null, distance: 0, occluded: false };
 
 export interface ShotOptions {
   /** Tir lointain (bot) : prise de son à distance. */
   distant?: boolean;
   /** Volume relatif (0 à 1), selon la distance. */
   loudness?: number;
-  /** Position gauche/droite, de -1 à 1. */
-  pan?: number;
+  at?: Place;
 }
 
 /**
- * Sons du jeu : les enregistrements de public/sounds/ une fois chargés, et
- * des sons synthétisés à la volée en attendant (ou s'ils manquent).
+ * Sons du jeu : les enregistrements de public/sounds/ une fois chargés, et des sons synthétisés à la
+ * volée en attendant (ou s'ils manquent). Chaque son placé passe par : retard (distance), filtre (air
+ * et murs), position 3D (HRTF, au casque on entend devant ou derrière), et une part vers l'écho des
+ * murs. Tout finit dans un compresseur, pour qu'une rafale pendant une explosion ne sature pas.
  */
 export class Audio {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
+  /** Entrée de l'écho (une réverbération partagée par tous les sons). */
+  private echo!: ConvolverNode;
+  private echoLevel!: GainNode;
   private noise!: AudioBuffer;
   private readonly buffers = new Map<string, AudioBuffer>();
   private reloadSource: AudioBufferSourceNode | null = null;
   private volume = 0.7;
+  /** Force de l'écho de la carte (ruelles de la médina : fort ; dunes : plus sec). */
+  private space = 0.5;
 
   /** Volume général, de 0 à 1. */
   setVolume(volume: number): void {
@@ -58,32 +98,73 @@ export class Audio {
     if (this.ctx) this.master.gain.value = volume * MAX_GAIN;
   }
 
+  /** Écho des murs de la carte, de 0 (plein air) à 1 (ruelles étroites). */
+  setSpace(amount: number): void {
+    this.space = amount;
+    if (this.ctx) this.echoLevel.gain.value = amount;
+  }
+
+  /** Oreilles du joueur : position et orientation de la caméra, à chaque image. */
+  setListener(position: { x: number; y: number; z: number }, forward: { x: number; y: number; z: number }, up: { x: number; y: number; z: number }): void {
+    const listener = this.ctx?.listener;
+    if (!listener || !listener.positionX) return;
+    const t = this.ctx!.currentTime;
+    listener.positionX.setValueAtTime(position.x, t);
+    listener.positionY.setValueAtTime(position.y, t);
+    listener.positionZ.setValueAtTime(position.z, t);
+    listener.forwardX.setValueAtTime(forward.x, t);
+    listener.forwardY.setValueAtTime(forward.y, t);
+    listener.forwardZ.setValueAtTime(forward.z, t);
+    listener.upX.setValueAtTime(up.x, t);
+    listener.upY.setValueAtTime(up.y, t);
+    listener.upZ.setValueAtTime(up.z, t);
+  }
+
   /** Le navigateur n'autorise le son qu'après un clic : à appeler depuis un clic. */
   unlock(): void {
     if (!this.ctx) {
-      this.ctx = new AudioContext();
-      this.master = this.ctx.createGain();
+      const ctx = (this.ctx = new AudioContext());
+      // Compresseur sur la sortie : garde la clarté quand tout arrive en même temps.
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -16;
+      compressor.knee.value = 8;
+      compressor.ratio.value = 6;
+      compressor.attack.value = 0.003;
+      compressor.release.value = 0.25;
+      const makeUp = ctx.createGain();
+      makeUp.gain.value = 1.15;
+      compressor.connect(makeUp).connect(ctx.destination);
+      this.master = ctx.createGain();
       this.master.gain.value = this.volume * MAX_GAIN;
-      this.master.connect(this.ctx.destination);
+      this.master.connect(compressor);
 
-      const length = this.ctx.sampleRate;
-      this.noise = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
+      this.echo = ctx.createConvolver();
+      this.echo.buffer = this.echoResponse(ctx);
+      const lowCut = ctx.createBiquadFilter();
+      lowCut.type = 'highpass';
+      lowCut.frequency.value = 250;
+      this.echoLevel = ctx.createGain();
+      this.echoLevel.gain.value = this.space;
+      this.echo.connect(lowCut).connect(this.echoLevel).connect(this.master);
+
+      const length = ctx.sampleRate;
+      this.noise = ctx.createBuffer(1, length, ctx.sampleRate);
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
 
-      void this.loadSamples(this.ctx);
+      void this.loadSamples(ctx);
     }
     void this.ctx.resume();
   }
 
-  shot(def: WeaponDef, { distant = false, loudness = 1, pan = 0 }: ShotOptions = {}): void {
+  shot(def: WeaponDef, { distant = false, loudness = 1, at = HERE }: ShotOptions = {}): void {
     const style = SHOT_STYLES[def.id];
     const buffer = style && this.pick(distant ? `${style.samples}-far` : style.samples);
     if (buffer) {
       const rate = style.rate * (0.96 + Math.random() * 0.08);
-      this.play(buffer, { volume: (distant ? 1.2 : 0.8) * style.volume * loudness, pan, rate });
+      this.play(buffer, { volume: (distant ? 1.2 : 0.8) * style.volume * loudness, at, rate, echo: 1 });
     } else {
-      this.synthShot(def, loudness);
+      this.synthShot(def, loudness, at);
     }
   }
 
@@ -128,11 +209,11 @@ export class Audio {
   }
 
   /** Douille qui tombe : tintement de laiton, ou choc sourd de la cartouche en plastique. */
-  casing(plastic: boolean, volume: number, pan: number): void {
-    if (plastic) this.click(0, 700 + Math.random() * 300, 0.35 * volume, pan);
+  casing(plastic: boolean, volume: number, at: Place): void {
+    if (plastic) this.click(0, 700 + Math.random() * 300, 0.35 * volume, at);
     else {
-      this.tone(3200 + Math.random() * 1800, 0.07, 0.07 * volume, 'triangle', pan);
-      this.click(0, 5000, 0.12 * volume, pan);
+      this.tone(3200 + Math.random() * 1800, 0.07, 0.07 * volume, 'triangle', at);
+      this.click(0, 5000, 0.12 * volume, at);
     }
   }
 
@@ -152,48 +233,60 @@ export class Audio {
     this.click(0, 600, 0.5);
   }
 
-  // --- Pas et impacts (sons synthétisés, selon la surface) ---
+  // --- Pas et impacts (enregistrements selon la surface, sons synthétisés en attendant) ---
 
   /** Un pas (ou une réception de saut, plus forte et plus grave). */
-  footstep(surface: Surface, loudness: number, pan: number, landing = false): void {
+  footstep(surface: Surface, loudness: number, at: Place, landing = false): void {
     const v = loudness * (landing ? 1.6 : 1) * (0.85 + Math.random() * 0.3);
     const r = 0.9 + Math.random() * 0.2;
+    const buffer = this.pick(`step-${SURFACE_SOUND[surface]}`);
+    if (buffer) {
+      // Le métal (tôle) résonne plus longtemps : un peu moins fort.
+      const level = surface === 'metal' ? 0.6 : surface === 'sand' ? 0.8 : 1;
+      this.play(buffer, { volume: v * level, at, rate: r * (landing ? 0.85 : 1), echo: 0.25 });
+      return;
+    }
     switch (surface) {
       case 'sand':
-        this.noiseBurst('lowpass', 650 * r, 0.7, 0.55 * v, 0.1, 0, pan);
-        this.noiseBurst('highpass', 3200 * r, 0.7, 0.12 * v, 0.06, 0.01, pan);
+        this.noiseBurst('lowpass', 650 * r, 0.7, 0.55 * v, 0.1, 0, at);
+        this.noiseBurst('highpass', 3200 * r, 0.7, 0.12 * v, 0.06, 0.01, at);
         break;
       case 'wood':
-        this.noiseBurst('bandpass', 480 * r, 2, 0.8 * v, 0.13, 0, pan);
-        this.click(0, 1300 * r, 0.25 * v, pan);
+        this.noiseBurst('bandpass', 480 * r, 2, 0.8 * v, 0.13, 0, at);
+        this.click(0, 1300 * r, 0.25 * v, at);
         break;
       case 'metal':
-        this.noiseBurst('bandpass', 2600 * r, 5, 0.5 * v, 0.18, 0, pan);
-        this.noiseBurst('lowpass', 500, 0.7, 0.3 * v, 0.06, 0, pan);
+        this.noiseBurst('bandpass', 2600 * r, 5, 0.5 * v, 0.18, 0, at);
+        this.noiseBurst('lowpass', 500, 0.7, 0.3 * v, 0.06, 0, at);
         break;
       default:
         // Grès et crépi : pas net et sec.
-        this.noiseBurst('bandpass', 1700 * r, 1.1, 0.45 * v, 0.06, 0, pan);
-        this.noiseBurst('lowpass', 380 * r, 0.7, 0.4 * v, 0.07, 0, pan);
+        this.noiseBurst('bandpass', 1700 * r, 1.1, 0.45 * v, 0.06, 0, at);
+        this.noiseBurst('lowpass', 380 * r, 0.7, 0.4 * v, 0.07, 0, at);
     }
   }
 
-  /** Une balle frappe une surface : tintement sur le métal, coup sourd sur le bois, craquement sur la pierre. */
-  impact(surface: Surface, loudness: number, pan: number): void {
+  /** Une balle frappe une surface : tintement sur le métal, coup sourd sur le bois, éclats sur la pierre. */
+  impact(surface: Surface, loudness: number, at: Place): void {
     const v = loudness * (0.8 + Math.random() * 0.4);
+    const buffer = this.pick(`impact-${SURFACE_SOUND[surface]}`);
+    if (buffer) {
+      this.play(buffer, { volume: 0.7 * v, at, rate: 0.9 + Math.random() * 0.2, echo: 0.5 });
+      return;
+    }
     switch (surface) {
       case 'metal':
-        this.tone(1800 + Math.random() * 1500, 0.25, 0.18 * v, 'triangle', pan);
-        this.click(0, 4200, 0.4 * v, pan);
+        this.tone(1800 + Math.random() * 1500, 0.25, 0.18 * v, 'triangle', at);
+        this.click(0, 4200, 0.4 * v, at);
         break;
       case 'wood':
-        this.noiseBurst('bandpass', 700, 1.5, 0.6 * v, 0.1, 0, pan);
+        this.noiseBurst('bandpass', 700, 1.5, 0.6 * v, 0.1, 0, at);
         break;
       case 'sand':
-        this.noiseBurst('lowpass', 900, 0.7, 0.45 * v, 0.12, 0, pan);
+        this.noiseBurst('lowpass', 900, 0.7, 0.45 * v, 0.12, 0, at);
         break;
       default:
-        this.noiseBurst('bandpass', 2400, 1, 0.5 * v, 0.07, 0, pan);
+        this.noiseBurst('bandpass', 2400, 1, 0.5 * v, 0.07, 0, at);
     }
   }
 
@@ -207,7 +300,7 @@ export class Audio {
   /** Lame qui touche un corps : impact sourd. */
   knifeHit(): void {
     this.noiseBurst('lowpass', 500, 0.8, 0.9, 0.16);
-    this.sweep(160, 60, 0.12, 0.6, 0);
+    this.sweep(160, 60, 0.12, 0.6, HERE);
   }
 
   /** Lame contre un mur : tintement métallique. */
@@ -228,21 +321,21 @@ export class Audio {
     this.noiseBurst('bandpass', 700, 1, 0.3, 0.22);
   }
 
-  bounce(loudness: number, pan: number): void {
-    this.click(0, 1600 + Math.random() * 800, 0.35 * loudness, pan);
+  bounce(loudness: number, at: Place): void {
+    this.click(0, 1600 + Math.random() * 800, 0.35 * loudness, at, 0.4);
   }
 
   /** Explosion de HE : claquement, grondement grave et long. */
-  explosion(loudness: number, pan: number): void {
-    this.noiseBurst('bandpass', 1800, 0.8, 0.9 * loudness, 0.25, 0, pan);
-    this.noiseBurst('lowpass', 450, 0.7, 1.4 * loudness, 1.5, 0, pan, 0.6);
-    this.sweep(90, 28, 0.6, 1.1 * loudness, pan);
+  explosion(loudness: number, at: Place): void {
+    this.noiseBurst('bandpass', 1800, 0.8, 0.9 * loudness, 0.25, 0, at, 1, 1);
+    this.noiseBurst('lowpass', 450, 0.7, 1.4 * loudness, 1.5, 0, at, 0.6, 1);
+    this.sweep(90, 28, 0.6, 1.1 * loudness, at);
   }
 
   /** Détonation sèche de la flash. */
-  flashbang(loudness: number, pan: number): void {
-    this.noiseBurst('highpass', 1400, 0.7, 1.2 * loudness, 0.35, 0, pan);
-    this.noiseBurst('lowpass', 600, 0.7, 0.6 * loudness, 0.5, 0, pan);
+  flashbang(loudness: number, at: Place): void {
+    this.noiseBurst('highpass', 1400, 0.7, 1.2 * loudness, 0.35, 0, at, 1, 1);
+    this.noiseBurst('lowpass', 600, 0.7, 0.6 * loudness, 0.5, 0, at, 1, 1);
   }
 
   /** Sifflement d'oreilles quand on est aveuglé. */
@@ -262,21 +355,21 @@ export class Audio {
   }
 
   /** Fumigène : long sifflement de gaz. */
-  smoke(loudness: number, pan: number): void {
-    this.noiseBurst('bandpass', 3800, 0.6, 0.45 * loudness, 2.5, 0, pan);
+  smoke(loudness: number, at: Place): void {
+    this.noiseBurst('bandpass', 3800, 0.6, 0.45 * loudness, 2.5, 0, at);
   }
 
   /** Molotov : verre qui éclate, embrasement puis crépitement (ou extinction dans une fumée). */
-  molotov(loudness: number, pan: number, fizzled: boolean, burnTime: number): void {
-    this.noiseBurst('highpass', 3200, 0.8, 0.8 * loudness, 0.25, 0, pan);
-    for (let i = 0; i < 5; i++) this.click(Math.random() * 0.15, 3000 + Math.random() * 3000, 0.4 * loudness, pan);
+  molotov(loudness: number, at: Place, fizzled: boolean, burnTime: number): void {
+    this.noiseBurst('highpass', 3200, 0.8, 0.8 * loudness, 0.25, 0, at, 1, 0.5);
+    for (let i = 0; i < 5; i++) this.click(Math.random() * 0.15, 3000 + Math.random() * 3000, 0.4 * loudness, at);
     if (fizzled) {
-      this.noiseBurst('highpass', 2500, 0.7, 0.4 * loudness, 0.8, 0.1, pan);
+      this.noiseBurst('highpass', 2500, 0.7, 0.4 * loudness, 0.8, 0.1, at);
       return;
     }
-    this.noiseBurst('lowpass', 900, 0.7, 0.8 * loudness, 1.2, 0.05, pan);
+    this.noiseBurst('lowpass', 900, 0.7, 0.8 * loudness, 1.2, 0.05, at);
     for (let i = 0; i < burnTime * 6; i++) {
-      this.click(0.3 + Math.random() * burnTime, 900 + Math.random() * 2200, 0.18 * loudness, pan);
+      this.click(0.3 + Math.random() * burnTime, 900 + Math.random() * 2200, 0.18 * loudness, at);
     }
   }
 
@@ -295,14 +388,69 @@ export class Audio {
     );
   }
 
+  /**
+   * Écho des murs, calculé une fois : premières réflexions rapides (les façades d'en face), puis une
+   * queue diffuse courte. Gauche et droite légèrement décalées pour l'ampleur.
+   */
+  private echoResponse(ctx: AudioContext): AudioBuffer {
+    const rate = ctx.sampleRate;
+    const length = Math.round(rate * 1.3);
+    const response = ctx.createBuffer(2, length, rate);
+    const reflections: [number, number][] = [[23, 0.55], [41, 0.42], [67, 0.35], [94, 0.28], [131, 0.2]];
+    for (let c = 0; c < 2; c++) {
+      const data = response.getChannelData(c);
+      for (const [ms, gain] of reflections) data[Math.round(((ms + c * 6) * rate) / 1000)] = gain * (c ? -1 : 1);
+      for (let i = Math.round(rate * 0.05); i < length; i++) data[i] += (Math.random() * 2 - 1) * 0.16 * Math.exp(-i / (rate * 0.28));
+    }
+    return response;
+  }
+
   private pick(sound: string): AudioBuffer | null {
     const loaded = (SAMPLES[sound] ?? []).map((name) => this.buffers.get(name)).filter((b) => b !== undefined);
     return loaded.length > 0 ? loaded[Math.floor(Math.random() * loaded.length)] : null;
   }
 
+  /**
+   * Chemin d'un son jusqu'aux oreilles, renvoie son entrée : retard selon la distance, aigus coupés
+   * par l'air et les murs, position 3D, et une part `echo` (0 à 1) envoyée vers l'écho des murs. Les
+   * nœuds disparaissent d'eux-mêmes quand le son est fini.
+   */
+  private route(at: Place, echo: number, delay: number): { input: AudioNode; delay: number } {
+    const ctx = this.ctx!;
+    const input = ctx.createGain();
+    // L'écho part avant le filtre du mur : on entend résonner un tir caché derrière un angle.
+    if (echo > 0) {
+      const send = ctx.createGain();
+      send.gain.value = echo * (at.position ? 0.6 : 0.35);
+      input.connect(send).connect(this.echo);
+    }
+    if (!at.position) {
+      input.connect(this.master);
+      return { input, delay };
+    }
+    let node: AudioNode = input;
+    const cutoff = Math.min(AIR_CUTOFF / (1 + at.distance / AIR_HALVING), at.occluded ? WALL_CUTOFF : Infinity);
+    if (cutoff < 16000) {
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = cutoff;
+      node = node.connect(filter);
+    }
+    const panner = ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    // Le volume selon la distance est déjà réglé par le jeu : le panoramique ne fait que placer le son.
+    panner.distanceModel = 'linear';
+    panner.rolloffFactor = 0;
+    panner.positionX.value = at.position.x;
+    panner.positionY.value = at.position.y;
+    panner.positionZ.value = at.position.z;
+    node.connect(panner).connect(this.master);
+    return { input, delay: delay + (at.distance > DELAY_FROM ? at.distance / SOUND_SPEED : 0) };
+  }
+
   private play(
     buffer: AudioBuffer,
-    { volume = 1, pan = 0, rate = 1, delay = 0 }: { volume?: number; pan?: number; rate?: number; delay?: number },
+    { volume = 1, at = HERE, rate = 1, delay = 0, echo = 0 }: { volume?: number; at?: Place; rate?: number; delay?: number; echo?: number },
   ): AudioBufferSourceNode {
     const ctx = this.ctx!;
     const source = ctx.createBufferSource();
@@ -310,10 +458,9 @@ export class Audio {
     source.playbackRate.value = rate;
     const gain = ctx.createGain();
     gain.gain.value = volume;
-    const panner = ctx.createStereoPanner();
-    panner.pan.value = Math.max(-1, Math.min(1, pan));
-    source.connect(gain).connect(panner).connect(this.master);
-    source.start(ctx.currentTime + delay);
+    const route = this.route(at, echo, delay);
+    source.connect(gain).connect(route.input);
+    source.start(ctx.currentTime + route.delay);
     return source;
   }
 
@@ -327,12 +474,13 @@ export class Audio {
   }
 
   /** Coup de feu synthétisé : bruit filtré pour la détonation, plus une basse pour l'impact. */
-  private synthShot(def: WeaponDef, loudness: number): void {
+  private synthShot(def: WeaponDef, loudness: number, at: Place): void {
     const ctx = this.ctx;
     if (!ctx) return;
     const { cutoff, thump, decay } = def.sound;
     const volume = def.sound.volume * loudness;
-    const t = ctx.currentTime;
+    const route = this.route(at, 1, 0);
+    const t = ctx.currentTime + route.delay;
 
     const source = ctx.createBufferSource();
     source.buffer = this.noise;
@@ -341,22 +489,22 @@ export class Audio {
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(cutoff, t);
     filter.frequency.exponentialRampToValueAtTime(cutoff * 0.25, t + decay);
-    source.connect(filter).connect(this.envelope(t, volume, decay)).connect(this.master);
+    source.connect(filter).connect(this.envelope(t, volume, decay)).connect(route.input);
     source.start(t, Math.random() * 0.5, decay + 0.05);
 
     const osc = ctx.createOscillator();
     osc.frequency.setValueAtTime(thump, t);
     osc.frequency.exponentialRampToValueAtTime(40, t + 0.12);
-    osc.connect(this.envelope(t, volume * 0.9, 0.14)).connect(this.master);
+    osc.connect(this.envelope(t, volume * 0.9, 0.14)).connect(route.input);
     osc.start(t);
     osc.stop(t + 0.15);
   }
 
-  private click(delay: number, frequency: number, volume = 0.5, pan = 0): void {
-    this.noiseBurst('bandpass', frequency, 3, volume, 0.04, delay, pan);
+  private click(delay: number, frequency: number, volume = 0.5, at: Place = HERE, echo = 0): void {
+    this.noiseBurst('bandpass', frequency, 3, volume, 0.04, delay, at, 1, echo);
   }
 
-  /** Bruit filtré qui s'éteint en `decay` secondes, placé à gauche ou à droite. */
+  /** Bruit filtré qui s'éteint en `decay` secondes, placé dans l'espace. */
   private noiseBurst(
     type: BiquadFilterType,
     frequency: number,
@@ -364,12 +512,14 @@ export class Audio {
     volume: number,
     decay: number,
     delay = 0,
-    pan = 0,
+    at: Place = HERE,
     rate = 1,
+    echo = 0,
   ): void {
     const ctx = this.ctx;
     if (!ctx || volume <= 0) return;
-    const t = ctx.currentTime + delay;
+    const route = this.route(at, echo, delay);
+    const t = ctx.currentTime + route.delay;
     const source = ctx.createBufferSource();
     source.buffer = this.noise;
     source.loop = true;
@@ -378,38 +528,34 @@ export class Audio {
     filter.type = type;
     filter.frequency.value = frequency;
     filter.Q.value = q;
-    source.connect(filter).connect(this.envelope(t, Math.min(volume, 2), decay)).connect(this.panner(pan)).connect(this.master);
+    source.connect(filter).connect(this.envelope(t, Math.min(volume, 2), decay)).connect(route.input);
     source.start(t, Math.random() * 0.5);
     source.stop(t + decay + 0.05);
   }
 
   /** Son grave qui descend (le « boum » des explosions). */
-  private sweep(from: number, to: number, decay: number, volume: number, pan: number): void {
+  private sweep(from: number, to: number, decay: number, volume: number, at: Place): void {
     const ctx = this.ctx;
     if (!ctx) return;
-    const t = ctx.currentTime;
+    const route = this.route(at, 0, 0);
+    const t = ctx.currentTime + route.delay;
     const osc = ctx.createOscillator();
     osc.frequency.setValueAtTime(from, t);
     osc.frequency.exponentialRampToValueAtTime(to, t + decay);
-    osc.connect(this.envelope(t, volume, decay)).connect(this.panner(pan)).connect(this.master);
+    osc.connect(this.envelope(t, volume, decay)).connect(route.input);
     osc.start(t);
     osc.stop(t + decay + 0.05);
   }
 
-  private panner(pan: number): StereoPannerNode {
-    const node = this.ctx!.createStereoPanner();
-    node.pan.value = Math.max(-1, Math.min(1, pan));
-    return node;
-  }
-
-  private tone(frequency: number, decay: number, volume: number, type: OscillatorType, pan = 0): void {
+  private tone(frequency: number, decay: number, volume: number, type: OscillatorType, at: Place = HERE): void {
     const ctx = this.ctx;
     if (!ctx) return;
-    const t = ctx.currentTime;
+    const route = this.route(at, 0, 0);
+    const t = ctx.currentTime + route.delay;
     const osc = ctx.createOscillator();
     osc.type = type;
     osc.frequency.value = frequency;
-    osc.connect(this.envelope(t, volume, decay)).connect(this.panner(pan)).connect(this.master);
+    osc.connect(this.envelope(t, volume, decay)).connect(route.input);
     osc.start(t);
     osc.stop(t + decay + 0.02);
   }

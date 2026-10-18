@@ -3,8 +3,9 @@
 // normalise le volume.
 //
 // Utilisation : node scripts/prepare-sounds.mjs <dossier>
-// où <dossier> contient « Prepared SFX Library/AR-15 », « …/1911 »,
-// reload-rifle.wav et reload-pistol.wav (téléchargés depuis OpenGameArt).
+// où <dossier> contient « Prepared SFX Library/AR-15 », « …/1911 », « …/Nova »,
+// « …/Carl Gustav M45 », et éventuellement reload-rifle.wav et reload-pistol.wav
+// (téléchargés depuis OpenGameArt).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,6 +15,7 @@ const OUT = path.resolve(import.meta.dirname, '../public/sounds');
 const RATE = 44100;
 const MAX_LENGTH = 1.6;
 const FADE = 0.08;
+const SUPPRESSOR = { lowpass: 1900, highpass: 180 };
 
 if (!SOURCE) {
   console.error('Utilisation : node scripts/prepare-sounds.mjs <dossier des sons sources>');
@@ -21,7 +23,11 @@ if (!SOURCE) {
 }
 const library = path.join(SOURCE, 'Prepared SFX Library');
 
-/** Sortie : [fichier source, numéro du coup de feu dans l'enregistrement, nom de sortie]. */
+/**
+ * Sortie : [fichier source, numéro du coup de feu dans l'enregistrement, nom de sortie, filtre].
+ * Le filtre (passe-bas et passe-haut, en Hz) imite un silencieux : la M45 devient le MP5-SD. Ses prises
+ * lointaines sont toutes des rafales : le jeu éloigne le son proche (filtre de distance).
+ */
 const SHOTS = [
   ['AR-15/D_24P.wav', 0, 'rifle-1.wav'],
   ['AR-15/D_24P.wav', 1, 'rifle-2.wav'],
@@ -30,12 +36,18 @@ const SHOTS = [
   // Le 2e « coup » détecté juste après le 1er est un écho : le vrai 2e tir est le 3e.
   ['1911/A_34P.wav', 2, 'pistol-2.wav'],
   ['1911/A_42P.wav', 0, 'pistol-far.wav'],
+  ['Nova/O_17P.wav', 0, 'shotgun-1.wav'],
+  ['Nova/O_17P.wav', 1, 'shotgun-2.wav'],
+  ['Nova/O_21P.wav', 0, 'shotgun-far.wav'],
+  ['Carl Gustav M45/G_20P.wav', 0, 'smg-1.wav', SUPPRESSOR],
+  ['Carl Gustav M45/G_20P.wav', 1, 'smg-2.wav', SUPPRESSOR],
 ];
 
 fs.mkdirSync(OUT, { recursive: true });
-for (const [file, index, name] of SHOTS) {
+for (const [file, index, name, filter] of SHOTS) {
   const { samples, rate } = readWav(path.join(library, file));
-  const mono = resample(samples, rate, RATE);
+  let mono = resample(samples, rate, RATE);
+  if (filter) mono = biquad(biquad(mono, 'lowpass', filter.lowpass), 'highpass', filter.highpass);
   const onset = findOnsets(mono)[index];
   if (onset === undefined) throw new Error(`${file} : coup de feu n°${index} introuvable`);
   const clip = trimTail(mono.subarray(Math.max(0, onset - Math.round(RATE * 0.005))));
@@ -44,6 +56,10 @@ for (const [file, index, name] of SHOTS) {
 }
 
 for (const name of ['reload-rifle.wav', 'reload-pistol.wav']) {
+  if (!fs.existsSync(path.join(SOURCE, name))) {
+    console.log(`  ${name} absent : on garde celui de public/sounds`);
+    continue;
+  }
   const { samples, rate } = readWav(path.join(SOURCE, name));
   const mono = resample(samples, rate, RATE);
   const start = Math.max(0, firstAbove(mono, 0.02) - Math.round(RATE * 0.02));
@@ -81,6 +97,23 @@ function readWav(file) {
     offset += 8 + size + (size % 2);
   }
   throw new Error(`${file} : pas de données audio`);
+}
+
+/** Filtre du second ordre (formules RBJ), Q = 0,707. */
+function biquad(input, type, frequency) {
+  const w = (2 * Math.PI * frequency) / RATE;
+  const alpha = Math.sin(w) / (2 * Math.SQRT1_2);
+  const cos = Math.cos(w);
+  const [b0, b1, b2] = type === 'lowpass' ? [(1 - cos) / 2, 1 - cos, (1 - cos) / 2] : [(1 + cos) / 2, -(1 + cos), (1 + cos) / 2];
+  const [a0, a1, a2] = [1 + alpha, -2 * cos, 1 - alpha];
+  const output = new Float32Array(input.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < input.length; i++) {
+    const y = (b0 * input[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
+    x2 = x1; x1 = input[i]; y2 = y1; y1 = y;
+    output[i] = y;
+  }
+  return output;
 }
 
 /** Change la fréquence d'échantillonnage, avec un filtre moyenneur contre le repliement. */
