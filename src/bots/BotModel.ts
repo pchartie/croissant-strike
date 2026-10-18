@@ -45,25 +45,114 @@ const FABRIC_STRENGTH = '1.7, 1.9, 1.3';
 let fabric: THREE.Texture | null = null;
 
 /**
+ * Camouflage à trois tons sur la chemise et le pantalon (reconnus à leur couleur de sommet, celles de
+ * characters/build.py) : désert pour les T, urbain bleu nuit pour les CT. Le gilet et l'équipement
+ * restent unis, pour se détacher.
+ */
+const CAMO: Record<Team, { shirt: number; pants: number; tones: [number, number, number] }> = {
+  ally: { shirt: 0xcdb07c, pants: 0xa98f63, tones: [0x8f7a52, 0x5e4c33, 0xd9c49a] },
+  enemy: { shirt: 0x2a3b57, pants: 0x1f2a3d, tones: [0x141b27, 0x4a5a72, 0x33445f] },
+};
+
+/** Taches du camouflage : nombre de taches par motif pour chaque ton (canaux R, G, B), taille du motif en pixels. */
+const CAMO_CELLS = [7, 9, 12];
+const CAMO_SIZE = 128;
+
+let camoMap: THREE.DataTexture | null = null;
+
+/**
+ * Motif de camouflage (une fois, au chargement) : un bruit fractal qui se répète sans couture par canal,
+ * seuillé dans le shader. Projeté selon les trois axes comme le tissu : trois lectures de texture par
+ * pixel au lieu d'un bruit 3D calculé (trop cher sur les petites cartes graphiques).
+ */
+function camoTexture(): THREE.DataTexture {
+  const data = new Uint8Array(CAMO_SIZE * CAMO_SIZE * 4);
+  const noise = (cells: number, seed: number) => {
+    const lattice = Array.from({ length: cells * cells }, (_, i) => {
+      const x = Math.sin(i * 127.1 + seed * 311.7) * 43758.5453;
+      return x - Math.floor(x);
+    });
+    const at = (x: number, y: number) => lattice[(y % cells) * cells + (x % cells)];
+    return (u: number, v: number) => {
+      const x = u * cells, y = v * cells;
+      const ix = Math.floor(x), iy = Math.floor(y);
+      const fx = x - ix, fy = y - iy;
+      const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+      const top = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * sx;
+      const bottom = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * sx;
+      return top + (bottom - top) * sy;
+    };
+  };
+  CAMO_CELLS.forEach((cells, channel) => {
+    const octaves = [noise(cells, channel), noise(cells * 2, channel + 10), noise(cells * 4, channel + 20)];
+    for (let y = 0; y < CAMO_SIZE; y++) {
+      for (let x = 0; x < CAMO_SIZE; x++) {
+        const u = x / CAMO_SIZE, v = y / CAMO_SIZE;
+        const value = octaves[0](u, v) * 0.6 + octaves[1](u, v) * 0.3 + octaves[2](u, v) * 0.1;
+        data[(y * CAMO_SIZE + x) * 4 + channel] = Math.round(value * 255);
+      }
+    }
+  });
+  const texture = new THREE.DataTexture(data, CAMO_SIZE, CAMO_SIZE);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
  * Grain de tissu sur la tenue (characters/build.py range le tissu de chaque partie dans l'alpha de la
  * couleur des sommets) : l'image des tissus (un par canal) est projetée selon les trois axes, sur la
  * pose de repos, pour que le motif suive le corps sans coordonnées de texture.
  */
-function addFabric(material: THREE.MeshStandardMaterial): void {
+function addFabric(material: THREE.MeshStandardMaterial, team: Team): void {
+  const linear = (hex: number) => new THREE.Color().setHex(hex, THREE.SRGBColorSpace);
+  const camo = CAMO[team];
   fabric ??= new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}assets/characters/fabric.webp`, (texture) => {
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     texture.needsUpdate = true;
   });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.fabricMap = { value: fabric };
+    shader.uniforms.camoMap = { value: (camoMap ??= camoTexture()) };
+    shader.uniforms.camoShirt = { value: linear(camo.shirt) };
+    shader.uniforms.camoPants = { value: linear(camo.pants) };
+    shader.uniforms.camoTones = { value: camo.tones.map(linear) };
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vFabricPos;\nvarying vec3 vFabricNormal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFabricPos = position;\nvFabricNormal = normal;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D fabricMap;\nvarying vec3 vFabricPos;\nvarying vec3 vFabricNormal;')
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform sampler2D fabricMap;
+        uniform sampler2D camoMap;
+        uniform vec3 camoShirt, camoPants, camoTones[3];
+        varying vec3 vFabricPos;
+        varying vec3 vFabricNormal;`,
+      )
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
+        {
+          // Camouflage : chaque ton est un rapport à la couleur de base, pour que l'ombre (couleur du
+          // matériau assombrie) s'applique aussi.
+          float shirt = step(distance(vColor.rgb, camoShirt), 0.02);
+          if (shirt + step(distance(vColor.rgb, camoPants), 0.02) > 0.0) {
+            vec3 base = mix(camoPants, camoShirt, shirt);
+            vec3 cw = pow(abs(normalize(vFabricNormal)), vec3(4.0));
+            cw /= cw.x + cw.y + cw.z;
+            vec3 m = texture2D(camoMap, vFabricPos.yz).rgb * cw.x + texture2D(camoMap, vFabricPos.xz).rgb * cw.y
+              + texture2D(camoMap, vFabricPos.xy).rgb * cw.z;
+            float a = smoothstep(0.52, 0.56, m.r);
+            float b = smoothstep(0.58, 0.62, m.g);
+            float c = smoothstep(0.6, 0.64, m.b) * (1.0 - a);
+            vec3 tone = mix(mix(mix(base, camoTones[0], a), camoTones[2], c), camoTones[1], b);
+            diffuseColor.rgb *= tone / base;
+          }
+        }
         {
           vec3 w = pow(abs(normalize(vFabricNormal)), vec3(4.0));
           w /= w.x + w.y + w.z;
@@ -76,7 +165,7 @@ function addFabric(material: THREE.MeshStandardMaterial): void {
         }`,
       );
   };
-  material.customProgramCacheKey = () => 'soldier-fabric';
+  material.customProgramCacheKey = () => 'soldier-fabric-camo';
 }
 
 interface SoldierTemplate {
@@ -223,7 +312,7 @@ export class BotModel {
     this.root.add(body);
     this.takeMaterials(body);
     body.traverse((child) => {
-      if (child instanceof THREE.SkinnedMesh && child.material instanceof THREE.MeshStandardMaterial) addFabric(child.material);
+      if (child instanceof THREE.SkinnedMesh && child.material instanceof THREE.MeshStandardMaterial) addFabric(child.material, this.team);
     });
     const arm = (side: 'L' | 'R'): Arm | null => {
       const bones = ['upper_arm', 'forearm', 'hand', 'f_middle01'].map((name) => body.getObjectByName(`DEF-${name}${side}`));
