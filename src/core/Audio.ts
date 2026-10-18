@@ -19,14 +19,7 @@ const SAMPLES: Record<string, string[]> = {
   'smg-far': ['smg-1', 'smg-2'],
   'reload-rifle': ['reload-rifle'],
   'reload-pistol': ['reload-pistol'],
-  'impact-stone': ['impact-stone-1', 'impact-stone-2', 'impact-stone-3'],
-  'impact-wood': ['impact-wood-1', 'impact-wood-2', 'impact-wood-3'],
-  'impact-sand': ['impact-sand-1', 'impact-sand-2'],
-  'impact-metal': ['impact-metal-1', 'impact-metal-2', 'impact-metal-3'],
 };
-
-/** Matière touchée par une balle → famille d'enregistrements d'impacts. */
-const IMPACT_SOUND: Record<Surface, string> = { stone: 'stone', plaster: 'stone', sand: 'sand', wood: 'wood', metal: 'metal' };
 
 /** Sons de chaque arme. Le Barrett reprend l'AR-15, ralenti. */
 const SHOT_STYLES: Partial<Record<WeaponId, { samples: string; rate: number; volume: number; reload: string }>> = {
@@ -70,19 +63,9 @@ export class Audio {
   unlock(): void {
     if (!this.ctx) {
       this.ctx = new AudioContext();
-      // Compresseur sur la sortie : garde la clarté quand tout arrive en même temps.
-      const compressor = this.ctx.createDynamicsCompressor();
-      compressor.threshold.value = -16;
-      compressor.knee.value = 8;
-      compressor.ratio.value = 6;
-      compressor.attack.value = 0.003;
-      compressor.release.value = 0.25;
-      const makeUp = this.ctx.createGain();
-      makeUp.gain.value = 1.15;
-      compressor.connect(makeUp).connect(this.ctx.destination);
       this.master = this.ctx.createGain();
       this.master.gain.value = this.volume * MAX_GAIN;
-      this.master.connect(compressor);
+      this.master.connect(this.ctx.destination);
 
       const length = this.ctx.sampleRate;
       this.noise = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
@@ -196,14 +179,9 @@ export class Audio {
     }
   }
 
-  /** Une balle frappe une surface : enregistrement selon la matière (sons synthétisés en attendant). */
+  /** Une balle frappe une surface : tintement sur le métal, coup sourd sur le bois, craquement sur la pierre. */
   impact(surface: Surface, loudness: number, pan: number): void {
     const v = loudness * (0.8 + Math.random() * 0.4);
-    const buffer = this.pick(`impact-${IMPACT_SOUND[surface]}`);
-    if (buffer) {
-      this.play(buffer, { volume: 0.7 * v, pan, rate: 0.9 + Math.random() * 0.2 });
-      return;
-    }
     switch (surface) {
       case 'metal':
         this.tone(1800 + Math.random() * 1500, 0.25, 0.18 * v, 'triangle', pan);
