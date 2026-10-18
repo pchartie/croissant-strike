@@ -345,6 +345,13 @@ def shop(side, at, c, base, rng):
     relief(side, at, c - 1.15, c + 1.15, base + 2.15, base + 2.55, 0.06, rng.choice(AWNINGS))
 
 
+def shuttered_door(side, at, c, base):
+    """Porte fermée par un rideau de fer (modèle Poly Haven), dans un encadrement de pierre, sous un linteau."""
+    relief(side, at, c - 0.7, c + 0.7, base, base + 2.5, 0.04, 'stone')
+    wall_prop('doorShutter', side, at, c, base, 0.3, gap=0.045)
+    relief(side, at, c - 0.8, c + 0.8, base + 2.5, base + 2.68, 0.12, 'beam')
+
+
 def facade_runs(x1, z1, x2, z2):
     """Parties des côtés d'un mur qui donnent sur une zone jouable : (côté, plan, début, fin, zone)."""
     sides = [('x+', x2, z1, z2, lambda t: (x2 + 0.3, t)), ('x-', x1, z1, z2, lambda t: (x1 - 0.3, t)),
@@ -401,8 +408,16 @@ def dress(x1, z1, x2, z2, height, seed):
             c = a + rng.uniform(1.0, length - 1.0)
             if mashrabiya_at is None or abs(c - mashrabiya_at) > 1.9:
                 wall_prop('aircon', side, at, c, base + 4.75, 0.38)
+        # Objets ajoutés après coup : leur propre tirage, pour ne pas changer le reste des façades.
+        extra = random.Random(f'{x1},{z1},{side},{a},objets')
         door_at = None
-        if length >= 3.0 and rng.random() < 0.5:
+        # Portes à rideau de fer dans les rues sans boutiques (les boutiques gardent leurs façades).
+        if zone not in RAISED and zone not in SHOPS and length >= 3.0 and extra.random() < 0.1:
+            c = a + length * extra.uniform(0.35, 0.65)
+            if clear_of_props(side, at, c, 0.8):
+                door_at = c
+                shuttered_door(side, at, c, base)
+        if door_at is None and length >= 3.0 and rng.random() < 0.5:
             door_at = c = a + length * rng.uniform(0.3, 0.7)
             if zone in SHOPS and length >= 3.4 and rng.random() < 0.45 and clear_of_props(side, at, c, 1.2):
                 shop(side, at, c, base, rng)
@@ -427,6 +442,18 @@ def dress(x1, z1, x2, z2, height, seed):
                 k = rng.randrange(decals.POSTERS)
                 y = base + rng.uniform(1.65, 1.8)
                 decal(side, at, c - 0.4, c + 0.4, y, y + 1.1, 'decalPosters', (k / decals.POSTERS, (k + 1) / decals.POSTERS), offset=0.02)
+        # Au pied du mur (au-delà du soubassement), loin de la porte : deux bonbonnes de gaz, un vieux pneu appuyé ou un bac en bois.
+        if zone not in RAISED and length >= 2.5:
+            roll = extra.random()
+            c = a + extra.uniform(0.7, length - 0.7)
+            if door_at is None or abs(c - door_at) > 1.5:
+                if roll < 0.06 and clear_of_props(side, at, c, 0.45):
+                    for dc in (-0.19, 0.19):
+                        wall_prop('gasBottle', side, at, c + dc, base, 0.34, gap=0.07)
+                elif roll < 0.1 and zone != SOUK and clear_of_props(side, at, c, 0.35):
+                    wall_prop('tyre', side, at, c, base, 0.165, gap=0.07)
+                elif roll < 0.2 and clear_of_props(side, at, c, 0.5):
+                    wall_prop('planterBox', side, at, c, base, 0.41, gap=0.07)
         # Fissure, jamais sur l'affiche.
         if rng.random() < 0.3:
             c = a + rng.uniform(0.8, max(0.8, length - 0.8))
@@ -663,6 +690,9 @@ for x, z in ((-9.4, 37.8), (-9.4, 38.6), (-8.7, 38.2), (-7.6, 45.2), (7.6, 45.2)
     prop('clayPot', x, z)
 for x, z in ((-9.4, 39.4), (19.1, -9.2), (-39.4, 42.8)):
     prop('jug', x, z, 30)
+# Faïences bleues (cassables) avec les jarres.
+for x, z in ((-8.6, 39.1), (19.8, -9.7), (-39.3, 42.0)):
+    prop('faienceVase', x, z)
 for x, z in ((-9.3, 35), (9.3, 35), (-13, -45.3), (13, -45.3), (39.4, -33.3)):
     prop('pottedPlant', x, z)
 for x, z, yaw in ((9.6, 37.4, 90), (-14, 43.6, 0), (-39.6, 6, 90), (39.6, -1, 90)):
@@ -688,24 +718,28 @@ for x, z in ((-11.3, -45.4), (-10.6, -45.4)):
 prop('jerrycan', -11, -44.8, 15)
 # Café : deux tables le long des façades est de la place et trois autour du puits, chaises de part et
 # d'autre. Les chaises regardent vers +z : 90 les tourne vers l'est, -90 vers l'ouest.
-def cafe_table(x, z, lantern=True):
+# Sièges : chaises en plastique, chaises de bois bleues et tabourets peints, mélangés d'une table à l'autre
+# (ouest nord, ouest sud, est nord, est sud).
+def cafe_table(x, z, seats=('plasticChair',) * 4, lantern=True):
     prop('cafeTable', x, z, 90)
     if lantern:
         prop('lantern', x, z + 0.4, 0, 0.75)
-    for dz in (-0.5, 0.5):
-        prop('plasticChair', x - 0.85, z + dz, 90)
-        prop('plasticChair', x + 0.85, z + dz, -90)
+    for seat, (dx, dz, yaw) in zip(seats, ((-0.85, -0.5, 90), (-0.85, 0.5, 90), (0.85, -0.5, -90), (0.85, 0.5, -90))):
+        prop(seat, x + dx, z + dz, yaw)
 
 
-for tz in (-0.5, -6.5):
-    cafe_table(7.2, tz)
-for x, z in ((-4.2, -2), (-1.8, 2.8), (2.6, -6.6)):
-    cafe_table(x, z, lantern=False)
+P, B, S = 'plasticChair', 'blueChair', 'woodenStool'
+cafe_table(7.2, -0.5, (P, P, B, B))
+cafe_table(7.2, -6.5, (S, P, P, S))
+cafe_table(-4.2, -2, (B, B, P, P), lantern=False)
+cafe_table(-1.8, 2.8, (P, S, S, P), lantern=False)
+cafe_table(2.6, -6.6, (B, P, B, S), lantern=False)
 
-# Étals du souk : jarres et caisses en plastique dessus.
-for x, z1 in ((22.6, 10), (22.6, 20), (22.6, 28), (29.4, 15), (29.4, 25)):
-    prop('jug', x, z1 + 1.2, 0, 0.9)
-    prop('crate', x, z1 + 1.75, 90, 0.9)
+# Étals du souk : jarre, marmite de cuivre ou faïence bleue, puis caisse en plastique ou vase de laiton.
+for x, z1, front, back in ((22.6, 10, 'jug', 'crate'), (22.6, 20, 'brassPot', 'brassVase'), (22.6, 28, 'jug', 'brassVase'),
+                           (29.4, 15, 'brassPot', 'crate'), (29.4, 25, 'faienceVase', 'crate')):
+    prop(front, x, z1 + 1.2, 0, 0.9)
+    prop(back, x, z1 + 1.75, 90 if back == 'crate' else 0, 0.9)
 
 # --- Détails au sol : plaques d'égout dans les rues pavées, taches, bancs le long des places, sacs de ciment ---
 for x, z in ((-35.5, 4), (-35, 28), (1.2, 20), (1, -24), (-25, 40), (20, 40.5), (14, -3.5), (8, -38)):
@@ -747,7 +781,7 @@ def check_props_against_blocks():
     found = 0
     for spot in PROPS:
         # Objets de façade (collés au mur) et plaques d'égout (enfoncées dans le sol exprès).
-        if spot['id'] in ('aircon', 'windowShutter', 'shopShutter', 'utilityBox', 'lantern', 'manhole'):
+        if spot['id'] in ('aircon', 'windowShutter', 'shopShutter', 'utilityBox', 'lantern', 'manhole', 'doorShutter'):
             continue
         x1, y1, z1, x2, y2, z2 = props.footprint(spot)
         for b in carte.boxes:

@@ -33,12 +33,24 @@ MODELS = {
     'manhole': ('water_manhole_cover', 0.07, (0.69, 0.69)),
     'cementBag': ('cement_bag', 0.18, (0.46, 0.7)),
     'bench': ('painted_wooden_bench', 0.89, (1.16, 0.5)),
+    # Agrandis comme les jarres (vrais modèles trop petits pour se voir) : marmite ×1,3, vase ×2, faïence ×1,4.
+    'brassPot': ('brass_pot_01', 0.38, (0.39, 0.39)),
+    'brassVase': ('brass_vase_03', 0.4, (0.17, 0.17)),
+    'faienceVase': ('antique_ceramic_vase_01', 0.62, (0.36, 0.36)),
+    'planterBox': ('planter_box_01', 0.42, (0.91, 0.41)),
+    'woodenStool': ('painted_wooden_stool', 0.58, (0.38, 0.41)),
+    # Dossier très haut dans le modèle (1,26 m) : réduit.
+    'blueChair': ('painted_wooden_chair_02', 1.0, (0.51, 0.52)),
+    'gasBottle': ('propane_tank', 0.55, (0.34, 0.34)),
+    # Debout, appuyé contre un mur (son épaisseur face à la rue).
+    'tyre': ('old_tyre', 0.6, (0.6, 0.165)),
+    'doorShutter': ('rollershutter_door', 2.4, (1.08, 0.3), '_graffiti'),
 }
 
 
 # Objets ronds : leur emprise ne grossit pas quand on les tourne, et deux d'entre eux se touchent selon
 # la distance entre leurs centres.
-ROUND = {'barrelBlue', 'barrelRed', 'clayPot', 'pottedPlant', 'jug'}
+ROUND = {'barrelBlue', 'barrelRed', 'clayPot', 'pottedPlant', 'jug', 'brassPot', 'brassVase', 'faienceVase', 'gasBottle'}
 
 
 def footprint(spot):

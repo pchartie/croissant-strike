@@ -43,6 +43,17 @@ const PROPS = [
   { id: 'water_manhole_cover', file: 'manhole', triangles: 600 },
   { id: 'cement_bag', file: 'cement-bag', triangles: 800 },
   { id: 'painted_wooden_bench', file: 'bench', triangles: 700 },
+  // Médina, troisième passe : dinanderie des étals, faïence bleue (cassable), bac en bois, mobilier du
+  // café, bonbonne de gaz, vieux pneu, rideau de fer d'une porte (avec une version taguée, écartée).
+  { id: 'brass_pot_01', file: 'brass-pot', triangles: 800 },
+  { id: 'brass_vase_03', file: 'brass-vase', triangles: 600 },
+  { id: 'antique_ceramic_vase_01', file: 'faience-vase', triangles: 800 },
+  { id: 'planter_box_01', file: 'planter-box', triangles: 900 },
+  { id: 'painted_wooden_stool', file: 'wooden-stool', triangles: 600 },
+  { id: 'painted_wooden_chair_02', file: 'blue-chair', triangles: 900 },
+  { id: 'propane_tank', file: 'gas-bottle', triangles: 800 },
+  { id: 'old_tyre', file: 'tyre', triangles: 800 },
+  { id: 'rollershutter_door', file: 'door-shutter', triangles: 600, skip: '_graffiti' },
 ];
 const ERROR = 0.02;
 

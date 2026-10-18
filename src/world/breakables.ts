@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import type { PropId, PropPlacement } from './props';
 import type { Collider, World } from './World';
 
-/** Objets qui se cassent sous les balles : les jarres et les pots vides (pas ceux qui ont une plante). */
-export const BREAKABLE: ReadonlySet<PropId> = new Set<PropId>(['clayPot', 'jug']);
+/** Objets qui se cassent sous les balles : jarres, faïences et pots vides (pas ceux qui ont une plante). */
+export const BREAKABLE: ReadonlySet<PropId> = new Set<PropId>(['clayPot', 'jug', 'faienceVase']);
 
-/** Couleur des éclats, celle de l'objet : terre cuite des pots, faïence blanche des jarres. */
-export const SHARD_COLORS: Partial<Record<PropId, number>> = { clayPot: 0xa65f3c, jug: 0xe6e1d6 };
+/** Couleur des éclats, celle de l'objet : terre cuite des pots, faïence blanche des jarres, bleutée des vases. */
+export const SHARD_COLORS: Partial<Record<PropId, number>> = { clayPot: 0xa65f3c, jug: 0xe6e1d6, faienceVase: 0xc9d2e8 };
 
 export interface Breakable {
   spot: PropPlacement;
