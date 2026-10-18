@@ -14,9 +14,9 @@ FPS façon Counter-Strike, directement dans le navigateur : bots, manches avec �
   <img src="docs/screenshots/fontaine.jpg" width="49%" alt="Médina : la fontaine du site B">
   <img src="docs/screenshots/puits.jpg" width="49%" alt="Médina : le puits et le café de la place du Milieu">
   <img src="docs/screenshots/souk.jpg" width="49%" alt="Médina : le souk couvert">
-  <img src="docs/screenshots/soldats.jpg" width="49%" alt="Les soldats : coéquipiers T en sable, ennemis CT en bleu marine, casque et gilet porte-plaques">
+  <img src="docs/screenshots/soldats.jpg" width="49%" alt="Les soldats : coéquipiers T en camouflage désert, ennemis CT en camouflage urbain bleu, casque et gilet porte-plaques">
   <img src="docs/screenshots/menu.jpg" width="49%" alt="Le menu et le choix de la carte">
-  <img src="docs/screenshots/achat.jpg" width="49%" alt="Le menu d'achat">
+  <img src="docs/screenshots/achat.jpg" width="49%" alt="Le menu d'achat : armes, équipement et grenades, au clic ou au clavier">
 </p>
 
 ## Au programme
