@@ -32,7 +32,7 @@ import { setSunBlockers } from '../world/sunlight';
 import { surfaceOf, type Surface } from '../world/surfaces';
 import { World } from '../world/World';
 import { absorbDamage, BLAST_ARMOR_RATIO, type DamageZone } from './armor';
-import { Audio, HERE, type Place } from './Audio';
+import { Audio } from './Audio';
 import { Economy } from './Economy';
 import { HELMET_UPGRADE_PRICE, SHOP_ITEMS, type ShopItem } from './shop';
 import { Input } from './Input';
@@ -46,8 +46,6 @@ const RESPAWN_DELAY = 3;
 const HEARING_DISTANCE = 60;
 /** En deçà, un tir de bot utilise la prise de son rapprochée. */
 const CLOSE_SHOT_DISTANCE = 10;
-/** En deçà (mètres), on ne cherche pas de mur entre un son et le joueur. */
-const OCCLUSION_FROM = 2;
 /** On n'entend pas « aïe » à chaque tick passé dans le feu. */
 const HURT_SOUND_INTERVAL = 0.35;
 /** 500 unités Source : distance de référence du « range modifier » des armes. */
@@ -117,10 +115,7 @@ export class Game {
   private readonly forward = new THREE.Vector3();
   private readonly eye = new THREE.Vector3();
   private readonly toSound = new THREE.Vector3();
-  private readonly soundTarget = new THREE.Vector3();
-  private readonly soundHit = new THREE.Vector3();
-  private readonly soundRay = new THREE.Ray();
-  private readonly listenerUp = new THREE.Vector3();
+  private readonly right = new THREE.Vector3();
 
   private kills = 0;
   /** Statistiques du joueur pour le tableau des scores et la fin de match. */
@@ -169,7 +164,6 @@ export class Game {
         location.reload();
         return;
       }
-      this.audio.setSpace(ACTIVE_MAP.echo);
       this.audio.unlock();
       this.input.requestLock();
     });
@@ -218,8 +212,8 @@ export class Game {
       landed: (position, kind, strength) => {
         const distance = position.distanceTo(this.camera.position);
         if (distance > CASING_DISTANCE) return;
-        const { at } = this.hearing(position);
-        this.audio.casing(kind === 'buckshot', strength * (1 - distance / CASING_DISTANCE), at);
+        const { pan } = this.hearing(position);
+        this.audio.casing(kind === 'buckshot', strength * (1 - distance / CASING_DISTANCE), pan);
       },
     });
     this.bots.setVisionBlocker((from, to) => this.grenades.blocksVision(from, to));
@@ -306,7 +300,6 @@ export class Game {
     this.updateRadar();
 
     this.applyZoom(zoom);
-    this.audio.setListener(this.camera.position, this.camera.getWorldDirection(this.forward), this.listenerUp.set(0, 1, 0).applyQuaternion(this.camera.quaternion));
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
     // Dans la lunette, on ne voit plus l'arme en main.
@@ -704,8 +697,8 @@ export class Game {
   }
 
   private onBotShot(shot: BotShot): void {
-    const { loudness, at, distance } = this.hearing(shot.origin);
-    this.audio.shot(RIFLE, { distant: distance > CLOSE_SHOT_DISTANCE, loudness: Math.min(loudness, 0.8), at });
+    const { loudness, pan, distance } = this.hearing(shot.origin);
+    this.audio.shot(RIFLE, { distant: distance > CLOSE_SHOT_DISTANCE, loudness: Math.min(loudness, 0.8), pan });
     this.tracers.add(shot.origin, shot.end);
     if (distance < CASING_DISTANCE) this.ejectBotCasing(shot.origin, shot.end);
     if (shot.worldHit) this.impactSound(this.impacts.add(shot.worldHit), shot.worldHit.point, true);
@@ -763,8 +756,8 @@ export class Game {
   /** L'adversaire tire : son selon la distance, traînées depuis son arme et impacts sur les murs. */
   private onRemoteShot(def: WeaponDef, from: THREE.Vector3, ends: THREE.Vector3[]): void {
     const muzzle = this.duel.remote.muzzle(new THREE.Vector3());
-    const { loudness, at, distance } = this.hearing(muzzle);
-    this.audio.shot(def, { distant: distance > CLOSE_SHOT_DISTANCE, loudness, at });
+    const { loudness, pan, distance } = this.hearing(muzzle);
+    this.audio.shot(def, { distant: distance > CLOSE_SHOT_DISTANCE, loudness, pan });
     ends.forEach((end, i) => {
       // Trois traînées au plus pour un fusil à pompe.
       if (i < 3) this.tracers.add(muzzle, end);
@@ -814,12 +807,12 @@ export class Game {
       thrown: () => this.audio.throwWhoosh(),
       emptyHanded: () => this.weapons.unholster(),
       bounce: (position, speed) => {
-        const { loudness, at } = this.hearing(position);
-        this.audio.bounce(loudness * Math.min(speed / 8, 1), at);
+        const { loudness, pan } = this.hearing(position);
+        this.audio.bounce(loudness * Math.min(speed / 8, 1), pan);
       },
       explode: (position, owner) => {
-        const { loudness, at, distance } = this.hearing(position);
-        this.audio.explosion(loudness, at);
+        const { loudness, pan, distance } = this.hearing(position);
+        this.audio.explosion(loudness, pan);
         if (owner && owner === this.duel.remote) this.remoteAreaDamage(position, HE.radius, HE.damage, GRENADES.he.name);
         else this.applyAreaDamage(position, HE.radius, HE.damage, GRENADES.he.name, owner as Bot | null);
         this.bots.playerFired(position);
@@ -829,8 +822,8 @@ export class Game {
         this.weapons.punch.yaw += (Math.random() - 0.5) * shake;
       },
       flashbang: (position, owner) => {
-        const { loudness, at } = this.hearing(position);
-        this.audio.flashbang(loudness, at);
+        const { loudness, pan } = this.hearing(position);
+        this.audio.flashbang(loudness, pan);
         this.bots.flash(position, owner);
         if (!this.player.alive) return;
         this.player.eyePosition(this.eye);
@@ -841,12 +834,12 @@ export class Game {
         this.flashTime = Math.max(this.flashTime, duration);
       },
       smoke: (position) => {
-        const { loudness, at } = this.hearing(position);
-        this.audio.smoke(loudness, at);
+        const { loudness, pan } = this.hearing(position);
+        this.audio.smoke(loudness, pan);
       },
       fire: (position, fizzled) => {
-        const { loudness, at } = this.hearing(position);
-        this.audio.molotov(loudness, at, fizzled, MOLOTOV.duration);
+        const { loudness, pan } = this.hearing(position);
+        this.audio.molotov(loudness, pan, fizzled, MOLOTOV.duration);
       },
       // En ligne : l'adversaire voit nos grenades voler, puis éclater au même endroit que chez nous.
       launched: (type, origin, velocity, id) => this.duel.active && this.duel.sendGrenade(type, id, origin, velocity),
@@ -857,8 +850,8 @@ export class Game {
   /** Bruit d'une balle qui frappe une surface (si `audible`), atténué avec la distance. */
   private impactSound(surface: Surface, point: THREE.Vector3, audible: boolean): void {
     if (!audible) return;
-    const { loudness, at, distance } = this.hearing(point);
-    if (distance < IMPACT_HEARING) this.audio.impact(surface, loudness * 0.6, at);
+    const { loudness, pan, distance } = this.hearing(point);
+    if (distance < IMPACT_HEARING) this.audio.impact(surface, loudness * 0.6, pan);
   }
 
   /** Pas du joueur et des bots : un bruit tous les `STRIDE` mètres en courant (silence en marchant ou accroupi). */
@@ -867,7 +860,7 @@ export class Game {
     if (player.alive) {
       // Réception d'un saut ou d'une chute.
       if (player.onGround && !this.wasOnGround && this.fallSpeed > LANDING_SPEED) {
-        this.audio.footstep(this.surfaceUnder(player.position), 0.8, HERE, true);
+        this.audio.footstep(this.surfaceUnder(player.position), 0.8, 0, true);
         this.bots.heardStep(player.position);
       }
       if (!player.onGround) this.fallSpeed = Math.max(0, -player.velocity.y);
@@ -877,7 +870,7 @@ export class Game {
         this.playerStride += player.horizontalSpeed * TICK;
         if (this.playerStride > STRIDE) {
           this.playerStride = 0;
-          this.audio.footstep(this.surfaceUnder(player.position), 0.45, HERE);
+          this.audio.footstep(this.surfaceUnder(player.position), 0.45, 0);
           this.bots.heardStep(player.position);
         }
       }
@@ -890,8 +883,8 @@ export class Game {
         continue;
       }
       this.botStrides.set(bot, 0);
-      const { loudness, at, distance } = this.hearing(bot.body.position);
-      if (distance < FOOTSTEP_HEARING) this.audio.footstep(this.surfaceUnder(bot.body.position), loudness * (1 - distance / FOOTSTEP_HEARING), at);
+      const { loudness, pan, distance } = this.hearing(bot.body.position);
+      if (distance < FOOTSTEP_HEARING) this.audio.footstep(this.surfaceUnder(bot.body.position), loudness * (1 - distance / FOOTSTEP_HEARING), pan);
     }
 
     // L'adversaire en ligne : on l'entend courir, comme un bot.
@@ -900,8 +893,8 @@ export class Game {
     this.remoteStride += remote.speed * TICK;
     if (this.remoteStride < STRIDE) return;
     this.remoteStride = 0;
-    const { loudness, at, distance } = this.hearing(remote.position);
-    if (distance < FOOTSTEP_HEARING) this.audio.footstep(this.surfaceUnder(remote.position), loudness * (1 - distance / FOOTSTEP_HEARING), at);
+    const { loudness, pan, distance } = this.hearing(remote.position);
+    if (distance < FOOTSTEP_HEARING) this.audio.footstep(this.surfaceUnder(remote.position), loudness * (1 - distance / FOOTSTEP_HEARING), pan);
   }
 
   /** Matière du sol sous des pieds (pour le bruit des pas). */
@@ -917,38 +910,20 @@ export class Game {
     const aim = target.clone().setY(target.y + 0.3);
     origin.addScaledVector(aim.clone().sub(origin).setY(0).normalize(), 0.4);
     this.grenades.launch(type, origin, throwVelocity(origin, aim), bot.body.box, bot);
-    const { loudness, at } = this.hearing(origin);
-    this.audio.bounce(loudness * 0.6, at);
+    const { loudness, pan } = this.hearing(origin);
+    this.audio.bounce(loudness * 0.6, pan);
   }
 
-  /**
-   * Volume d'un son selon sa distance, et sa place pour l'audio : position (son 3D), distance (retard,
-   * aigus atténués) et mur entre lui et le joueur (son étouffé).
-   */
-  private hearing(position: THREE.Vector3): { loudness: number; distance: number; at: Place } {
+  /** Volume et position gauche/droite d'un son, selon où il se trouve par rapport au joueur. */
+  private hearing(position: THREE.Vector3): { loudness: number; pan: number; distance: number } {
     const distance = position.distanceTo(this.camera.position);
+    this.toSound.subVectors(position, this.camera.position).normalize();
+    this.right.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
     return {
       distance,
       loudness: THREE.MathUtils.clamp(1 - distance / HEARING_DISTANCE, 0.12, 1),
-      at: { position: position.clone(), distance, occluded: this.walledOff(position, distance) },
+      pan: this.toSound.dot(this.right) * 0.8,
     };
-  }
-
-  /**
-   * Vrai si un mur sépare le son du joueur. Rayon contre les boîtes de collision (bien moins cher que
-   * contre les maillages) ; le son est visé un peu au-dessus de son point (pas au ras du sol, et un
-   * impact est collé à son mur).
-   */
-  private walledOff(position: THREE.Vector3, distance: number): boolean {
-    if (distance < OCCLUSION_FROM) return false;
-    const target = this.soundTarget.copy(position).setY(position.y + 0.3);
-    const length = target.distanceTo(this.camera.position);
-    this.soundRay.set(this.camera.position, this.toSound.subVectors(target, this.camera.position).divideScalar(length));
-    for (const box of this.world.colliders) {
-      const hit = this.soundRay.intersectBox(box, this.soundHit);
-      if (hit && hit.distanceTo(this.camera.position) < length - 0.4) return true;
-    }
-    return false;
   }
 
   /** Douille du joueur : elle sort à droite de l'arme, vers le haut et un peu vers l'arrière. */
