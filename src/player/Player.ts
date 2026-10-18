@@ -30,6 +30,8 @@ export class Player extends Body {
   helmet = false;
   /** Radians par point de souris (réglage « Sensibilité »). */
   sensitivity = CAMERA.sensitivity;
+  /** Vitesse permise par l'arme en main (1 = normale ; le sniper ralentit, plus encore lunette en place). */
+  weaponSpeed = 1;
   invertY = true;
   /** Boîte de collision en position accroupie. */
   crouched = false;
@@ -91,7 +93,7 @@ export class Player extends Body {
     const cos = Math.cos(this.yaw);
     // Avant = -z quand yaw vaut 0 ; droite = +x.
     this.wishDir.set(-sin * forward + cos * side, 0, -cos * forward - sin * side);
-    const speedScale = (this.crouched ? MOVE.duckSpeedScale : walking ? MOVE.walkSpeedScale : 1) * this.tagSpeed;
+    const speedScale = (this.crouched ? MOVE.duckSpeedScale : walking ? MOVE.walkSpeedScale : 1) * this.tagSpeed * this.weaponSpeed;
     this.tagSpeed = Math.min(1, this.tagSpeed + TAG_RECOVERY * dt);
     const wishSpeed = this.wishDir.lengthSq() > 0 ? MOVE.maxSpeed * speedScale : 0;
     this.wishDir.normalize();

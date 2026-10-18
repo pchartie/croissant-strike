@@ -70,6 +70,9 @@ export class WeaponSystem {
   private sinceShot = Infinity;
   private pendingStrike: { kind: MeleeKind; timer: number } | null = null;
   private sinceMeleeHit = Infinity;
+  /** Cran de lunette (0 : sans), et celui à reprendre une fois l'arme réarmée après un tir. */
+  private zoom = 0;
+  private rezoom = 0;
 
   private readonly raycaster = new THREE.Raycaster();
   private readonly origin = new THREE.Vector3();
@@ -106,14 +109,29 @@ export class WeaponSystem {
     return this.drawTimer / this.current.def.drawTime;
   }
 
+  /** Grossissement de la lunette (1 sans lunette ou sans zoom). */
+  get zoomFactor(): number {
+    const { scope } = this.current.def;
+    return scope && this.zoom > 0 && !this.holstered ? scope.zoom[this.zoom - 1] : 1;
+  }
+
+  /** Vitesse de déplacement permise par l'arme en main (lunette en place : plus lente encore). */
+  get moveSpeed(): number {
+    if (this.holstered) return 1;
+    const { def } = this.current;
+    return this.zoomFactor > 1 ? def.scope!.moveSpeed : (def.moveSpeed ?? 1);
+  }
+
   /** Imprécision actuelle en radians. */
   get spread(): number {
-    const { spread } = this.current.def;
+    const { spread, scope } = this.current.def;
+    // Sniper : précis seulement dans la lunette.
+    const base = scope && this.zoomFactor > 1 ? scope.spread : spread.base;
     const speed = Math.min(this.player.horizontalSpeed / MOVE.maxSpeed, 1);
     // Accroupi et au sol, on est plus précis.
     const stance = this.player.crouched && this.player.onGround ? CROUCH_ACCURACY : 1;
     return (
-      spread.base * stance +
+      base * stance +
       spread.moving * speed +
       (this.player.onGround ? 0 : spread.air) +
       spread.perShot * Math.min(this.shotsFired, spread.maxShots)
@@ -152,6 +170,7 @@ export class WeaponSystem {
     }
 
     const ready = this.cooldown === 0 && !this.reload && this.drawTimer === 0;
+    this.updateScope(input, ready);
     // Chargeur vide : on recharge tout seul, dès que l'arme est prête.
     if (ready && weapon.def.magazine > 0 && weapon.ammo === 0 && weapon.reserve > 0) this.startReload();
     else if (trigger && ready) {
@@ -205,11 +224,29 @@ export class WeaponSystem {
   holster(): void {
     this.holstered = true;
     this.reload = null;
+    this.zoom = this.rezoom = 0;
   }
 
   /** Ressort l'arme en cours (après avoir lancé sa dernière grenade). */
   unholster(): void {
     this.equip(this.index);
+  }
+
+  /**
+   * Lunette, comme dans CS : le clic droit passe d'un cran au suivant puis revient sans. Après un tir, on
+   * en ressort le temps de réarmer, puis on y revient tout seul.
+   */
+  private updateScope(input: Input, ready: boolean): void {
+    const { scope } = this.current.def;
+    if (!scope) return;
+    if (input.consumePress('attack2') && !this.reload && this.drawTimer === 0) {
+      this.zoom = ((this.rezoom || this.zoom) + 1) % (scope.zoom.length + 1);
+      this.rezoom = 0;
+    }
+    if (this.rezoom && ready) {
+      this.zoom = this.rezoom;
+      this.rezoom = 0;
+    }
   }
 
   /** Le viseur revient en place quand on ne tire plus. */
@@ -249,6 +286,8 @@ export class WeaponSystem {
       shots.push({ hit: this.raycaster.intersectObjects(targets, false)[0] ?? null, direction });
     }
     this.effects.fired(def, shots);
+    if (this.zoom > 0 && weapon.ammo > 0) this.rezoom = this.zoom;
+    this.zoom = 0;
 
     // Le recul s'applique après le tir : la première balle part toujours au centre.
     const { pattern, random } = def.recoil;
@@ -311,6 +350,7 @@ export class WeaponSystem {
     if (this.reload || this.drawTimer > 0) return;
     if (weapon.ammo === weapon.def.magazine || weapon.reserve === 0) return;
     const shells = weapon.def.shellReload;
+    this.zoom = this.rezoom = 0;
     this.beginPhase(shells ? 'start' : 'full', shells ? shells.start : weapon.def.reloadTime);
   }
 
@@ -353,6 +393,7 @@ export class WeaponSystem {
     this.holstered = false;
     this.pendingStrike = null;
     this.reload = null;
+    this.zoom = this.rezoom = 0;
     this.drawTimer = this.current.def.drawTime;
     this.shotsFired = 0;
     this.effects.drawn(this.current.def);

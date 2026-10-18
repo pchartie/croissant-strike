@@ -1,9 +1,10 @@
 import { WEAPONS, type WeaponId } from '../weapons/definitions';
 
-// Silhouettes des armes à feu (tirées du pack d'armes par `npm run import-weapons`).
+// Silhouettes des armes à feu (tirées du pack d'armes par `npm run import-weapons`, et du sniper par
+// `npm run import-sniper`).
 
 const BASE = `${import.meta.env.BASE_URL}assets/weapons/`;
-const WITH_ICON: WeaponId[] = ['rifle', 'smg', 'shotgun', 'pistol'];
+const WITH_ICON: WeaponId[] = ['rifle', 'smg', 'shotgun', 'sniper', 'pistol'];
 const loaded = new Set<WeaponId>();
 for (const id of WITH_ICON) {
   const image = new Image();

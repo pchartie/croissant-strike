@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "import-weapons": "node scripts/import-retro-weapons.mjs",
+    "import-sniper": "node scripts/import-sniper.mjs",
     "optimize-props": "node scripts/optimize-props.mjs",
     "build-map": "node scripts/build-map.mjs",
     "bench": "node scripts/bench.mjs",

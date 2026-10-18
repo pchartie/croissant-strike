@@ -272,7 +272,9 @@ export class Game {
 
     // La souris est lue à chaque image (et pas à chaque tick) pour une visée sans latence.
     const mouse = this.input.consumeMouse();
-    if (this.player.alive) this.player.look(mouse.dx, mouse.dy);
+    // Lunette : la souris tourne moins, au prorata du grossissement (comme dans CS).
+    const zoom = this.player.alive ? this.weapons.zoomFactor : 1;
+    if (this.player.alive) this.player.look(mouse.dx / zoom, mouse.dy / zoom);
 
     // Physique à pas fixe, indépendante du nombre d'images par seconde.
     if (this.input.locked) {
@@ -297,12 +299,26 @@ export class Game {
     this.updateHud();
     this.updateRadar();
 
+    this.applyZoom(zoom);
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
-    if (this.player.alive) {
+    // Dans la lunette, on ne voit plus l'arme en main.
+    if (this.player.alive && zoom === 1) {
       this.renderer.clearDepth();
       this.renderer.render(this.viewModel.scene, this.viewModel.camera);
     }
+  }
+
+  /** Champ de vision de la lunette (même grossissement que l'AWP de CS), cercle noir et réticule. */
+  private applyZoom(zoom: number): void {
+    const base = this.settings.fov;
+    const fov = zoom > 1 ? (2 * Math.atan(Math.tan(((base / 2) * Math.PI) / 180) / zoom) * 180) / Math.PI : base;
+    if (this.camera.fov !== fov) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    const sniper = this.player.alive && !this.weapons.holstered && this.weapons.current.def.scope !== undefined;
+    this.hud.setScope(sniper ? zoom > 1 : null);
   }
 
   private tick(): void {
@@ -316,6 +332,7 @@ export class Game {
       this.hud.setFrozen(this.bots.frozen);
     }
     if (this.player.alive && !frozen) {
+      this.player.weaponSpeed = this.weapons.moveSpeed;
       this.player.update(TICK, this.input, [...this.world.colliders, ...this.bots.colliders, ...this.remoteColliders]);
       if (this.player.outOfMap) this.player.spawn(PLAYER_SPAWN.position, PLAYER_SPAWN.yaw);
       if (this.input.consumePress('grenades') && this.grenades.cycle()) {

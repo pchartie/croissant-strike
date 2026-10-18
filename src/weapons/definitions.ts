@@ -1,6 +1,6 @@
 import type { CasingKind } from './Casings';
 
-export type WeaponId = 'rifle' | 'smg' | 'shotgun' | 'pistol' | 'knife';
+export type WeaponId = 'rifle' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'knife';
 
 /** Une attaque au couteau. */
 export interface MeleeAttack {
@@ -63,6 +63,13 @@ export interface WeaponDef {
   shellReload?: { start: number; step: number; end: number };
   /** Douille éjectée à chaque tir, après `delay` secondes (le temps du coup de pompe). */
   casing?: { kind: CasingKind; delay?: number };
+  /** Vitesse de déplacement avec l'arme en main (1 = normale ; l'AWP de CS ralentit). */
+  moveSpeed?: number;
+  /**
+   * Lunette (clic droit) : grossissement de chaque cran, dispersion de base et vitesse lunette en place.
+   * Hors lunette, l'arme n'a pas de réticule et sa dispersion de base est très forte.
+   */
+  scope?: { zoom: number[]; spread: number; moveSpeed: number };
   /** Arme de corps à corps : clic gauche rapide, clic droit puissant (pas de munitions). */
   melee?: {
     light: MeleeAttack & { /** Dégâts des coups enchaînés après une touche. */ followUp: number };
@@ -223,10 +230,40 @@ export const SHOTGUN: WeaponDef = {
   shellReload: { start: 0.45, step: 0.55, end: 0.7 },
 };
 
+/**
+ * Barrett M82 aux valeurs de l'AWP de CS:GO : une balle dans le torse tue, gilet ou pas ; deux crans
+ * de lunette (×2,25 et ×9, comme les champs de vision 40° et 10° de l'AWP).
+ */
+export const SNIPER: WeaponDef = {
+  id: 'sniper',
+  casing: { kind: '556' },
+  name: 'Barrett M82',
+  slot: 1,
+  automatic: false,
+  damage: 115,
+  fireInterval: 1.46,
+  magazine: 5,
+  reserve: 60,
+  reloadTime: 3.7,
+  drawTime: 1.1,
+  range: 300,
+  // Hors lunette : tir au jugé, très imprécis (le « no-scope » de CS).
+  spread: { base: 0.09, moving: 0.25, air: 0.5, perShot: 0, maxShots: 0 },
+  recoil: { pattern: [[3.2, 0.2]], random: 1, recovery: 3 },
+  viewKick: { back: 0.09, pitch: 0.2 },
+  sound: { cutoff: 1300, thump: 55, decay: 0.7, volume: 1.2 },
+  armorRatio: 0.975,
+  price: 4750,
+  killReward: 100,
+  rangeModifier: 0.99,
+  moveSpeed: 0.8,
+  scope: { zoom: [2.25, 9], spread: 0.0008, moveSpeed: 0.4 },
+};
+
 /** Armes principales (touche 1), au menu d'achat. */
-export const PRIMARIES: WeaponDef[] = [RIFLE, SMG, SHOTGUN];
+export const PRIMARIES: WeaponDef[] = [RIFLE, SMG, SHOTGUN, SNIPER];
 
 export const LOADOUT: WeaponDef[] = [RIFLE, PISTOL, KNIFE];
 
 /** Toutes les armes, par identifiant (pour le jeu en ligne). */
-export const WEAPONS: Record<WeaponId, WeaponDef> = { rifle: RIFLE, smg: SMG, shotgun: SHOTGUN, pistol: PISTOL, knife: KNIFE };
+export const WEAPONS: Record<WeaponId, WeaponDef> = { rifle: RIFLE, smg: SMG, shotgun: SHOTGUN, sniper: SNIPER, pistol: PISTOL, knife: KNIFE };

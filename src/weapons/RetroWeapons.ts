@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CASING_COLORS, type CasingKind } from './Casings';
 import type { WeaponId } from './definitions';
 import { buildKnife, knifeOrientation } from './models';
+import { buildScope } from './scope';
 
 // Armes et bras animés du Retro Weapon Pack, préparés par
 // `npm run import-weapons` dans public/assets/weapons/.
@@ -30,7 +32,7 @@ interface GunSpec {
   muzzle: [number, number, number];
 }
 
-type GunId = Exclude<WeaponId, 'knife'>;
+type GunId = Exclude<WeaponId, 'knife' | 'sniper'>;
 
 const GUNS: Record<GunId, GunSpec> = {
   rifle: { file: 'rifle', magazine: { mesh: 'Rifle_01_Magazine_2+Bullets', bone: 'Magazine' }, muzzle: [60, 16.5, 0] },
@@ -38,6 +40,19 @@ const GUNS: Record<GunId, GunSpec> = {
   // Fusil à pompe : sa pose de repos est retournée dans le FBX (voir alignRestPose).
   shotgun: { file: 'shotgun', muzzle: [64.5, 9.2, 0] },
   pistol: { file: 'pistol', magazine: { mesh: 'Pistol_01_Magazine_Full_Mesh', bone: 'Main' }, muzzle: [19.2, 12, 0] },
+};
+
+/**
+ * Sniper (Barrett M82, `npm run import-sniper`), tenu comme le fusil : mêmes bras et mêmes animations.
+ * Repère de l'arme en cm (canon vers +x, origine sur la poignée) : décalage dans la main, bout du canon,
+ * et lunette posée sur le rail.
+ */
+const SNIPER = {
+  offset: new THREE.Vector3(0, 3, 0),
+  muzzle: [116, 11.9, 0] as [number, number, number],
+  scope: new THREE.Vector3(14, 19, 0),
+  /** Lunette un peu plus petite que nature : en vue à la première personne, elle est juste sous l'œil. */
+  scopeScale: 0.8,
 };
 
 /**
@@ -211,6 +226,7 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
     const viewModels = {} as Record<WeaponId, AnimatedWeapon>;
     let botRifle: THREE.Object3D | null = null;
     let pistolClips: THREE.AnimationClip[] = [];
+    let rifleClips: THREE.AnimationClip[] = [];
     for (const id of Object.keys(GUNS) as GunId[]) {
       const spec = GUNS[id];
       const [gun, extra, gunTexture, armsClips, gunClips] = await Promise.all([
@@ -227,6 +243,7 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
       applyMaterials(gun, materials);
       if (id === 'rifle') botRifle = bakeStatic(gun);
       if (id === 'pistol') pistolClips = armsClips;
+      if (id === 'rifle') rifleClips = armsClips;
 
       const arms = cloneSkinned(armsSource);
       applyMaterials(arms, materials);
@@ -242,6 +259,7 @@ export async function loadRetroWeapons(): Promise<RetroWeapons | null> {
 
       viewModels[id] = new AnimatedWeapon(root, arms, gun, armsClips, gunClips, spec.muzzle);
     }
+    viewModels.sniper = await buildSniperArms(armsSource, rifleClips, { arms: armsTexture, gun: armsTexture, projectiles: projectilesTexture });
     viewModels.knife = buildKnifeArms(armsSource, pistolClips, { arms: armsTexture, gun: armsTexture, projectiles: projectilesTexture });
     const casings = projectiles ? casingModels(projectiles) : null;
     return { viewModels, botRifle: botRifle!, casings, debris };
@@ -383,6 +401,49 @@ function applyMaterials(
 
 const EMPTY_PNG =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+/** Sniper : bras du fusil, Barrett et lunette figés dans la main droite (rien à animer sur l'arme). */
+async function buildSniperArms(
+  armsSource: THREE.Object3D,
+  rifleClips: THREE.AnimationClip[],
+  textures: { arms: THREE.Texture; gun: THREE.Texture; projectiles: THREE.Texture },
+): Promise<AnimatedWeapon> {
+  const [gltf, texture] = await Promise.all([
+    new GLTFLoader().loadAsync(`${BASE}sniper.glb`),
+    new THREE.TextureLoader().loadAsync(`${BASE}sniper.png`),
+  ]);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  // Texture d'une photo de profil : glTF compte les v depuis le haut.
+  texture.flipY = false;
+  // La photo est plus claire que les textures du Retro Weapon Pack : on la fonce pour aller avec.
+  const material = new THREE.MeshStandardMaterial({ map: texture, color: 0x707070, roughness: 1, metalness: 0 });
+
+  const gun = new THREE.Group();
+  gltf.scene.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    child.material = material;
+    child.frustumCulled = false;
+  });
+  gun.add(gltf.scene);
+  const scope = buildScope();
+  scope.position.copy(SNIPER.scope);
+  scope.scale.setScalar(SNIPER.scopeScale);
+  gun.add(scope);
+  gun.position.copy(SNIPER.offset);
+
+  const arms = cloneSkinned(armsSource);
+  applyMaterials(arms, textures);
+  arms.getObjectByName('hand_item_r')!.add(gun);
+  arms.rotation.y = Math.PI / 2;
+  arms.scale.setScalar(CM);
+  arms.position.copy(VIEW_OFFSET);
+  const root = new THREE.Group();
+  root.add(arms);
+  root.visible = false;
+  return new AnimatedWeapon(root, arms, gun, rifleClips, [], SNIPER.muzzle);
+}
 
 /** Couteau : mêmes bras en pose « pistolet », couteau dans la main droite, bras gauche masqué. */
 function buildKnifeArms(

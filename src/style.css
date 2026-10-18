@@ -397,6 +397,22 @@ canvas {
   background: #fff;
 }
 
+/* Lunette du sniper : cercle noir (bord légèrement flou) et fils fins qui traversent tout l'écran. */
+#scope-overlay {
+  --radius: 48vmin;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(#000, #000) center / 100% 1px no-repeat,
+    linear-gradient(#000, #000) center / 1px 100% no-repeat,
+    radial-gradient(circle at center, transparent calc(var(--radius) - 3px), rgba(0, 0, 0, 0.55) calc(var(--radius) - 1px), #000 var(--radius));
+}
+
+#scope-overlay.hidden {
+  display: none;
+}
+
 #smoke-overlay {
   background: #9a9a96;
 }

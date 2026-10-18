@@ -27,6 +27,8 @@ const SHOT_STYLES: Partial<Record<WeaponId, { samples: string; rate: number; vol
   // Nova : détonation plus grave et plus forte.
   shotgun: { samples: 'pistol', rate: 0.62, volume: 1.25, reload: 'pistol' },
   pistol: { samples: 'pistol', rate: 1, volume: 1, reload: 'pistol' },
+  // Barrett : la détonation du fusil, bien plus grave et plus forte.
+  sniper: { samples: 'rifle', rate: 0.62, volume: 1.5, reload: 'rifle' },
 };
 
 export interface ShotOptions {

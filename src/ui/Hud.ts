@@ -65,6 +65,8 @@ export class Hud {
   private paused = true;
   private pausedAt = 0;
   private readonly crosshair = document.getElementById('crosshair')!;
+  private readonly scope = document.getElementById('scope-overlay')!;
+  private lastScope = '';
   private readonly money = document.getElementById('money')!;
   private readonly scoreboard = document.getElementById('scoreboard')!;
   private readonly fps = document.getElementById('fps')!;
@@ -234,6 +236,18 @@ export class Hud {
   /** Couleur et taille du réticule. */
   setCrosshair(color: CrosshairColor, size: CrosshairSize): void {
     styleCrosshair(this.crosshair, color, size);
+  }
+
+  /**
+   * Sniper en main : pas de réticule (tir au jugé, comme dans CS) ; lunette en place, le cercle noir et
+   * ses fils. `null` : autre arme, réticule normal.
+   */
+  setScope(scoped: boolean | null): void {
+    const key = String(scoped);
+    if (key === this.lastScope) return;
+    this.lastScope = key;
+    this.crosshair.style.visibility = scoped === null ? '' : 'hidden';
+    this.scope.classList.toggle('hidden', scoped !== true);
   }
 
   /** Argent (mode manches) et dernier gain récent ; null pour cacher (deathmatch). */

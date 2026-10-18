@@ -107,7 +107,22 @@ function shotgun(): WeaponModel {
   return { root, muzzle, rest: new THREE.Vector3(0.16, -0.2, -0.4) };
 }
 
-export const MODEL_BUILDERS: Record<WeaponId, () => WeaponModel> = { rifle, smg, shotgun, pistol, knife };
+/** Sniper : long canon et lunette. */
+function sniper(): WeaponModel {
+  const root = new THREE.Group();
+  part(root, metal, [0.06, 0.08, 0.5], [0, 0, -0.05]); // boîtier
+  cylinder(root, darkMetal, 0.013, 0.6, [0, 0.02, -0.6]); // canon
+  cylinder(root, polymer, 0.022, 0.32, [0, 0.085, -0.05]); // lunette
+  part(root, darkMetal, [0.04, 0.12, 0.09], [0, -0.08, -0.12]); // chargeur
+  part(root, polymer, [0.036, 0.11, 0.05], [0, -0.08, 0.1], -0.35); // poignée
+  part(root, polymer, [0.05, 0.1, 0.24], [0, -0.02, 0.3]); // crosse
+  const muzzle = new THREE.Object3D();
+  muzzle.position.set(0, 0.02, -0.9);
+  root.add(muzzle);
+  return { root, muzzle, rest: new THREE.Vector3(0.16, -0.2, -0.4) };
+}
+
+export const MODEL_BUILDERS: Record<WeaponId, () => WeaponModel> = { rifle, smg, shotgun, sniper, pistol, knife };
 
 function knife(): WeaponModel {
   const root = new THREE.Group();
