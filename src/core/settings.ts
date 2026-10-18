@@ -27,6 +27,8 @@ export interface Settings {
   // Audio et affichage
   /** Volume général, de 0 à 100. */
   volume: number;
+  /** Volume des pas (les siens et ceux des autres), de 0 à 100, en plus du volume général. */
+  footstepVolume: number;
   crosshairColor: CrosshairColor;
   crosshairSize: CrosshairSize;
   // Graphismes
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   invertY: true,
   fov: 75,
   volume: 70,
+  footstepVolume: 100,
   crosshairColor: 'green',
   crosshairSize: 'medium',
   renderScale: 100,
@@ -131,6 +134,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
     title: 'Audio et affichage',
     fields: [
       { key: 'volume', label: 'Volume', type: 'range', min: 0, max: 100, step: 1, unit: ' %' },
+      { key: 'footstepVolume', label: 'Volume des pas', type: 'range', min: 0, max: 100, step: 1, unit: ' %' },
       {
         key: 'crosshairColor',
         label: 'Couleur du réticule',

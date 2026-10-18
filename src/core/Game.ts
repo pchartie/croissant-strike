@@ -978,6 +978,7 @@ export class Game {
       this.camera.updateProjectionMatrix();
     }
     this.audio.setVolume(settings.volume / 100);
+    this.audio.setFootstepVolume(settings.footstepVolume / 100);
     this.hud.setCrosshair(settings.crosshairColor, settings.crosshairSize);
     this.applyGraphics(settings);
 

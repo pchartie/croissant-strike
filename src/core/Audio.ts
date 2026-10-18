@@ -52,11 +52,18 @@ export class Audio {
   private readonly buffers = new Map<string, AudioBuffer>();
   private reloadSource: AudioBufferSourceNode | null = null;
   private volume = 0.7;
+  /** Volume des pas, de 0 à 1 (réglage à part). */
+  private footstepVolume = 1;
 
   /** Volume général, de 0 à 1. */
   setVolume(volume: number): void {
     this.volume = volume;
     if (this.ctx) this.master.gain.value = volume * MAX_GAIN;
+  }
+
+  /** Volume des pas, de 0 à 1. */
+  setFootstepVolume(volume: number): void {
+    this.footstepVolume = volume;
   }
 
   /** Le navigateur n'autorise le son qu'après un clic : à appeler depuis un clic. */
@@ -148,7 +155,7 @@ export class Audio {
 
   /** Un pas (ou une réception de saut, plus forte et plus grave). */
   footstep(surface: Surface, loudness: number, pan: number, landing = false): void {
-    const v = loudness * (landing ? 1.6 : 1) * (0.85 + Math.random() * 0.3);
+    const v = loudness * this.footstepVolume * (landing ? 1.6 : 1) * (0.85 + Math.random() * 0.3);
     const r = 0.9 + Math.random() * 0.2;
     switch (surface) {
       case 'sand':
