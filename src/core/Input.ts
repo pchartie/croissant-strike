@@ -15,6 +15,8 @@ export class Input {
   private pressed = new Set<string>();
   private mouseDX = 0;
   private mouseDY = 0;
+  /** Actions ignorées (tir pendant le menu d'achat : le clic sert à acheter). */
+  private readonly muted = new Set<Action>();
   private lockListeners: ((locked: boolean) => void)[] = [];
 
   locked = false;
@@ -84,13 +86,26 @@ export class Input {
     this.bindings = bindings;
   }
 
+  /** Ignore ces actions (null : plus aucune), jusqu'au prochain appel. */
+  mute(actions: Action[] | null): void {
+    this.muted.clear();
+    for (const action of actions ?? []) this.muted.add(action);
+  }
+
   /** Vrai tant qu'une des touches de l'action est enfoncée. */
   isDown(action: Action): boolean {
+    if (this.muted.has(action)) return false;
     return this.bindings[action].some((code) => this.held.has(code));
+  }
+
+  /** Vrai tant que cette touche précise est enfoncée, même si son action est ignorée. */
+  isCodeDown(code: string): boolean {
+    return this.held.has(code);
   }
 
   /** Vrai une seule fois par appui sur une des touches de l'action. */
   consumePress(action: Action): boolean {
+    if (this.muted.has(action)) return false;
     let pressed = false;
     for (const code of this.bindings[action]) if (this.pressed.delete(code)) pressed = true;
     return pressed;

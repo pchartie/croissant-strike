@@ -274,7 +274,9 @@ export class Game {
     const mouse = this.input.consumeMouse();
     // Lunette : la souris tourne moins, au prorata du grossissement (comme dans CS).
     const zoom = this.player.alive ? this.weapons.zoomFactor : 1;
-    if (this.player.alive) this.player.look(mouse.dx / zoom, mouse.dy / zoom);
+    // Menu d'achat ouvert : la souris déplace son curseur, la vue ne tourne pas.
+    if (this.buyMenu.open) this.buyMenu.moveCursor(mouse.dx, mouse.dy);
+    else if (this.player.alive) this.player.look(mouse.dx / zoom, mouse.dy / zoom);
 
     // Physique à pas fixe, indépendante du nombre d'images par seconde.
     if (this.input.locked) {
@@ -471,12 +473,17 @@ export class Game {
   private updateBuyMenu(): void {
     const canBuy = this.canBuy;
     if (this.input.consumePress('buy') && canBuy) this.buyMenu.toggle();
+    if (this.buyMenu.open && !canBuy) this.buyMenu.close();
+    // Pendant le menu, le clic sert à acheter ; après, on ne tire qu'une fois les boutons relâchés.
+    if (this.buyMenu.open) this.input.mute(['attack', 'attack2']);
+    else if (!this.input.isCodeDown('Mouse0') && !this.input.isCodeDown('Mouse2')) this.input.mute(null);
     if (!this.buyMenu.open) return;
-    if (!canBuy) {
-      this.buyMenu.close();
-      return;
-    }
     for (const item of SHOP_ITEMS) if (this.input.consumeCode(item.code)) this.buy(item);
+    if (this.input.consumeCode('Mouse0')) {
+      const key = this.buyMenu.click();
+      const item = SHOP_ITEMS.find((candidate) => candidate.key === key);
+      if (item) this.buy(item);
+    }
   }
 
   private priceOf(item: ShopItem): number {
