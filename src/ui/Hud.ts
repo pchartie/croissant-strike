@@ -11,6 +11,34 @@ const KILLFEED_MAX = 5;
 const FLASH_MAX_OPACITY = 0.85;
 const FLASH_FADE_TIME = 1.5;
 
+export interface ScoreRow {
+  name: string;
+  kills: number;
+  deaths: number;
+  me: boolean;
+  dead: boolean;
+}
+
+interface ScoreTeam {
+  name: string;
+  side: 'ally' | 'enemy';
+  score: number;
+  rows: ScoreRow[];
+}
+
+interface Scoreboard {
+  title: string;
+  info: string;
+  teams: ScoreTeam[];
+  /** Ton bilan, en HTML (valeurs en gras). */
+  stats: string[];
+}
+
+const SKULL =
+  '<svg viewBox="0 0 16 16" aria-label="Mort"><path fill="currentColor" d="M8 1C4.4 1 2 3.4 2 6.6c0 1.9.9 3.3 2.2 4.1V13c0 .6.4 1 1 1h.8v-1.5h1.2V14h1.6v-1.5h1.2V14h.8c.6 0 1-.4 1-1v-2.3C13.1 9.9 14 8.5 14 6.6 14 3.4 11.6 1 8 1Zm-2.6 8.2a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm5.2 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>';
+
+const escape = (text: string) => text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+
 export class Hud {
   private readonly weaponName = document.getElementById('weapon-name')!;
   private readonly ammo = document.getElementById('ammo-count')!;
@@ -224,16 +252,33 @@ export class Hud {
   }
 
   /** Tableau des scores (touche Tab), ou null pour le cacher. */
-  setScoreboard(
-    board: { title: string; rows: { name: string; kills: number; deaths: number; extra: string; me: boolean; dead: boolean; ally: boolean }[] } | null,
-  ): void {
+  /** Tableau des scores (null pour le cacher) : un bloc par camp, ton bilan en bas. */
+  setScoreboard(board: Scoreboard | null): void {
     this.scoreboard.classList.toggle('hidden', board === null);
     if (!board) return;
-    const escape = (text: string) => text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
-    const rows = board.rows
-      .map((r) => `<tr class="${r.me ? 'me' : r.ally ? 'ally' : ''} ${r.dead ? 'dead' : ''}"><td>${escape(r.name)}</td><td>${r.kills}</td><td>${r.deaths}</td><td>${escape(r.extra)}</td></tr>`)
-      .join('');
-    const html = `<h2>${escape(board.title)}</h2><table><tr><th>Joueur</th><th>Élim.</th><th>Morts</th><th></th></tr>${rows}</table>`;
+    const ratio = (r: ScoreRow) => (r.kills / Math.max(r.deaths, 1)).toFixed(2);
+    const diff = (r: ScoreRow) => {
+      const value = r.kills - r.deaths;
+      return `<td class="${value > 0 ? 'up' : value < 0 ? 'down' : ''}">${value > 0 ? '+' : ''}${value}</td>`;
+    };
+    const line = (r: ScoreRow) =>
+      `<tr class="${r.me ? 'me' : ''} ${r.dead ? 'dead' : ''}">` +
+      `<td class="player">${r.dead ? `<span class="skull">${SKULL}</span>` : ''}${escape(r.name)}</td>` +
+      `<td>${r.kills}</td><td>${r.deaths}</td>${diff(r)}<td>${ratio(r)}</td></tr>`;
+    const team = (t: ScoreTeam) => {
+      const alive = t.rows.filter((r) => !r.dead).length;
+      return (
+        `<section class="team ${t.side}">` +
+        `<header><span class="team-score">${t.score}</span><span class="team-name">${escape(t.name)}</span>` +
+        `<span class="team-alive">${alive}/${t.rows.length} en vie</span></header>` +
+        `<table><thead><tr><th class="player">Joueur</th><th>É</th><th>M</th><th>±</th><th>Ratio</th></tr></thead>` +
+        `<tbody>${t.rows.map(line).join('')}</tbody></table></section>`
+      );
+    };
+    const html =
+      `<div class="board-head"><h2>${escape(board.title)}</h2>${board.info ? `<span>${escape(board.info)}</span>` : ''}</div>` +
+      board.teams.map(team).join('') +
+      `<footer>${board.stats.map((s) => `<span>${s}</span>`).join('')}</footer>`;
     if (html === this.lastScoreboard) return;
     this.lastScoreboard = html;
     this.scoreboard.innerHTML = html;

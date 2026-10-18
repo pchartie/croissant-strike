@@ -1190,16 +1190,20 @@ kbd {
   font-size: 13px;
 }
 
+/* Tableau des scores façon CS2 : un bloc par camp aux couleurs des tenues (sable, bleu). */
 #scoreboard {
+  --ally: #f0cb85;
+  --enemy: #8fb8ff;
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  min-width: 420px;
-  padding: 16px 20px;
-  border-radius: 8px;
-  background: rgba(12, 14, 17, 0.9);
-  color: #eee;
+  width: min(640px, calc(100vw - 32px));
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(10, 12, 15, 0.88);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 30px rgba(0, 0, 0, 0.5);
+  color: #e8e8e8;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1207,11 +1211,65 @@ kbd {
   display: none;
 }
 
+#scoreboard .board-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 4px 10px;
+}
+
 #scoreboard h2 {
-  margin-bottom: 10px;
-  font-size: 18px;
-  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+#scoreboard .board-head span {
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+#scoreboard .team {
+  --side: var(--ally);
+  margin-top: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+#scoreboard .team.enemy {
+  --side: var(--enemy);
+}
+
+#scoreboard .team header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-left: 4px solid var(--side);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--side) 22%, transparent), transparent 75%);
+}
+
+#scoreboard .team-score {
+  min-width: 28px;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--side);
+}
+
+#scoreboard .team-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
   letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+#scoreboard .team-alive {
+  font-size: 12px;
+  opacity: 0.6;
 }
 
 #scoreboard table {
@@ -1221,33 +1279,75 @@ kbd {
 
 #scoreboard th,
 #scoreboard td {
-  padding: 4px 8px;
+  width: 56px;
+  padding: 5px 12px;
   text-align: right;
 }
 
-#scoreboard th:first-child,
-#scoreboard td:first-child {
+#scoreboard th.player,
+#scoreboard td.player {
+  width: auto;
   text-align: left;
 }
 
 #scoreboard th {
-  font-size: 12px;
-  font-weight: 400;
-  opacity: 0.6;
-  border-bottom: 1px solid #333;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  opacity: 0.5;
+}
+
+#scoreboard td {
+  font-size: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+#scoreboard td.player {
+  color: var(--side);
+  font-weight: 600;
+}
+
+#scoreboard td.up {
+  color: #7ad67a;
+}
+
+#scoreboard td.down {
+  color: #e57373;
 }
 
 #scoreboard tr.me td {
-  color: var(--accent);
-  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
-#scoreboard tr.ally td {
-  color: #4da3ff;
+#scoreboard tr.me td.player {
+  color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 #scoreboard tr.dead td {
-  opacity: 0.45;
+  opacity: 0.4;
+}
+
+#scoreboard .skull svg {
+  width: 13px;
+  height: 13px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+#scoreboard footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 22px;
+  margin-top: 12px;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+#scoreboard footer b {
+  margin-left: 4px;
+  color: #fff;
 }
 
 #radar {

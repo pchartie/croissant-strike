@@ -3,7 +3,7 @@ import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js
 import type { Bot } from '../bots/Bot';
 import { BotManager, type BotShot } from '../bots/BotManager';
 import { DAMAGE_MULTIPLIER, type HitPart } from '../bots/BotModel';
-import { CAMERA, ECONOMY, MOVE, PLAYER, TICK, UNIT } from '../config';
+import { CAMERA, ECONOMY, MOVE, PLAYER, ROUNDS, TICK, UNIT } from '../config';
 import { GRENADE_ORDER, GRENADES, HE, MOLOTOV, type GrenadeType } from '../grenades/definitions';
 import { throwVelocity } from '../grenades/ballistics';
 import { flashDuration } from '../grenades/flashbang';
@@ -11,7 +11,7 @@ import { GrenadeSystem } from '../grenades/GrenadeSystem';
 import { Player } from '../player/Player';
 import { BuyMenu } from '../ui/BuyMenu';
 import { Radar } from '../ui/Radar';
-import { Hud } from '../ui/Hud';
+import { Hud, type ScoreRow } from '../ui/Hud';
 import { loadPlayerName } from '../ui/OnlinePanel';
 import { shopIcon } from '../ui/shopIcons';
 import { weaponIcon } from '../ui/weaponIcons';
@@ -1053,32 +1053,45 @@ export class Game {
 
   // --- Affichage ---
 
-  /** Tableau des scores, tant que la touche (Tab) est maintenue. */
+  /** Tableau des scores, tant que la touche (Tab) est maintenue : un bloc par camp, comme dans CS2. */
   private updateScoreboard(): void {
     if (!this.input.isDown('scoreboard')) {
       this.hud.setScoreboard(null);
       return;
     }
-    const accuracy = this.stats.shots > 0 ? Math.round((100 * this.stats.hits) / this.stats.shots) : 0;
-    const row = (bot: Bot) => ({ name: bot.name, kills: bot.kills, deaths: bot.deaths, extra: '', me: false, dead: !bot.alive, ally: bot.team === 'ally' });
-    const byScore = (a: { kills: number; deaths: number }, b: { kills: number; deaths: number }) => b.kills - a.kills || a.deaths - b.deaths;
-    const me = { name: this.playerName, kills: this.kills, deaths: this.deaths, extra: `${this.stats.headshots} HS · ${accuracy} %`, me: true, dead: !this.player.alive, ally: true };
+    const row = (bot: Bot): ScoreRow => ({ name: bot.name, kills: bot.kills, deaths: bot.deaths, me: false, dead: !bot.alive });
+    const byScore = (a: ScoreRow, b: ScoreRow) => b.kills - a.kills || a.deaths - b.deaths;
+    const me: ScoreRow = { name: this.playerName, kills: this.kills, deaths: this.deaths, me: true, dead: !this.player.alive };
+    const allies = [me, ...this.bots.allies.map(row)].sort(byScore);
     const enemies = this.bots.enemies.map(row);
     if (this.duel.active) {
       // En ligne : ses éliminations sont nos morts de sa main, et ses morts nos éliminations.
       const remote = this.duel.remote;
-      enemies.push({ name: remote.name, kills: this.remoteKills, deaths: this.kills, extra: '', me: false, dead: !remote.alive, ally: false });
+      enemies.push({ name: remote.name, kills: this.remoteKills, deaths: this.kills, me: false, dead: !remote.alive });
     }
-    // Avec des coéquipiers : ton équipe d'abord, puis les ennemis, chaque camp trié par éliminations.
-    const rows =
-      this.bots.allies.length > 0 ? [...[me, ...this.bots.allies.map(row)].sort(byScore), ...enemies.sort(byScore)] : [me, ...enemies].sort(byScore);
+    enemies.sort(byScore);
+
+    // Score d'un camp : manches gagnées, sinon le total de ses éliminations.
     const round = this.rounds.current;
-    const title = this.roundBased
-      ? `Manches · manche ${round.round} · Toi ${round.playerScore} – ${round.botScore} Bots`
-      : this.duel.active
-        ? `En ligne · 1 contre 1 face à ${this.duel.remote.name}`
-        : 'Deathmatch';
-    this.hud.setScoreboard({ title, rows });
+    const total = (rows: ScoreRow[]) => rows.reduce((sum, r) => sum + r.kills, 0);
+    const mode = this.roundBased ? 'Manches' : this.duel.active ? 'En ligne · 1 contre 1' : 'Deathmatch';
+    const { shots, hits, headshots, damage } = this.stats;
+    const accuracy = shots > 0 ? Math.round((100 * hits) / shots) : 0;
+    const stats = [
+      `Précision <b>${accuracy} %</b>`,
+      `Headshots <b>${headshots}</b>`,
+      `Dégâts <b>${Math.round(damage)}</b>`,
+      ...(this.roundBased ? [`Argent <b>${this.economy.money} $</b>`] : []),
+    ];
+    this.hud.setScoreboard({
+      title: `${mode} · ${ACTIVE_MAP.label.replace(/ \(.*\)$/, '')}`,
+      info: this.roundBased ? `Manche ${round.round} · premier à ${ROUNDS.toWin}` : '',
+      teams: [
+        { name: 'Terroristes', side: 'ally', score: this.roundBased ? round.playerScore : total(allies), rows: allies },
+        { name: this.duel.active ? 'Adversaire' : 'Antiterroristes', side: 'enemy', score: this.roundBased ? round.botScore : total(enemies), rows: enemies },
+      ],
+      stats,
+    });
   }
 
   /** Bilan du joueur : éliminations, morts, précision, headshots, dégâts. */
