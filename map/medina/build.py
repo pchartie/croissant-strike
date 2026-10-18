@@ -774,6 +774,9 @@ for x, z, pid, yaw in (
     prop(pid, x, z, yaw)
 for x, z, yaw in ((-4.0, 13.3, 90), (5.0, -14.9, 0), (-12.2, 5.6, 30)):
     prop('jerrycan', x, z, yaw)
+# Barils rouges (ils explosent) près des sites et sur les voies : Longue, terrasse A, site B, entrée du souk.
+for x, z, y, yaw in ((-39.4, 15.0, 0.0, 40), (-39.4, -22.0, A_HEIGHT, 110), (39.4, -8.0, 0.0, 200), (22.45, 7.2, 0.0, 300)):
+    prop('barrelRed', x, z, yaw, y)
 prop('coveredCar', 37.6, -20, 0)
 prop('coveredCar', -17.6, -44.6, 90)
 for x, z in ((-11.3, -45.4), (-10.6, -45.4)):
