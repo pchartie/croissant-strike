@@ -71,7 +71,7 @@ const SPOT_MEMORY_MS = 1500;
 /** Taille de la carte d'ombre du soleil selon la qualité choisie (0 = pas d'ombres). */
 /** Coup dans le dos si le bot regarde à moins de ~65° de la direction opposée au joueur. */
 const BACKSTAB_DOT = 0.4;
-/** Au-delà, on n'éjecte pas les douilles des bots (invisibles d'aussi loin), ni n'entend celles qui tombent. */
+/** Au-delà, on n'éjecte pas les douilles des bots (invisibles d'aussi loin). */
 const CASING_DISTANCE = 25;
 const UP = new THREE.Vector3(0, 1, 0);
 
