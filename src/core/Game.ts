@@ -29,6 +29,7 @@ import type { GrenadeOwner } from '../grenades/Projectile';
 import { ACTIVE_MAP, buildLevel, LEVEL_BOUNDS, PLAYER_SPAWN, type Animated } from '../world/Level';
 import { NavGrid } from '../world/NavGrid';
 import { MAPS } from '../world/maps';
+import type { PropId } from '../world/props';
 import { loadSky } from '../world/sky';
 import { setSunBlockers } from '../world/sunlight';
 import { surfaceOf, type Surface } from '../world/surfaces';
@@ -80,12 +81,17 @@ const BACKSTAB_DOT = 0.4;
 const CASING_DISTANCE = 25;
 /** Une explosion casse les jarres jusqu'à cette part de son rayon (environ 3,5 m pour une HE). */
 const BLAST_BREAK = 0.4;
-/** Baril rouge qui explose : un peu moins fort et moins large qu'une HE. */
-const BARREL_BLAST = { damage: 90, radius: 300 * UNIT, weapon: 'Baril explosif' };
+/**
+ * Objets qui explosent : baril rouge un peu moins fort et moins large qu'une HE, bonbonne de gaz
+ * nettement plus petite. `size` : taille de la boule de feu, du bruit et du tremblement (1 : HE).
+ * `shards` : couleur des éclats de tôle.
+ */
+const PROP_BLASTS: Partial<Record<PropId, { damage: number; radius: number; weapon: string; size: number; shards: number }>> = {
+  barrelRed: { damage: 90, radius: 300 * UNIT, weapon: 'Baril explosif', size: 1, shards: 0x7a2a20 },
+  gasBottle: { damage: 55, radius: 180 * UNIT, weapon: 'Bonbonne de gaz', size: 0.55, shards: 0x8c2a24 },
+};
 /** Délai d'un baril à l'autre quand une explosion en fait sauter un autre (réaction en chaîne). */
 const CHAIN_DELAY = 0.25;
-/** Éclats de tôle d'un baril qui saute. */
-const BARREL_SHARDS = 0x7a2a20;
 const UP = new THREE.Vector3(0, 1, 0);
 
 export class Game {
@@ -588,14 +594,14 @@ export class Game {
     }
   }
 
-  /** Explosion (HE, baril) : bruit, dégâts, les bots l'entendent, la vue tremble si elle est proche. */
-  private detonate(position: THREE.Vector3, owner: GrenadeOwner | null, radius: number, damage: number, weapon: string): void {
+  /** Explosion (HE, baril, bonbonne) : bruit, dégâts, les bots l'entendent, la vue tremble si elle est proche. `size` : 1 pour une HE. */
+  private detonate(position: THREE.Vector3, owner: GrenadeOwner | null, radius: number, damage: number, weapon: string, size = 1): void {
     const { loudness, pan, distance } = this.hearing(position);
-    this.audio.explosion(loudness, pan);
+    this.audio.explosion(loudness * Math.sqrt(size), pan);
     if (owner && owner === this.duel.remote) this.remoteAreaDamage(position, radius, damage, weapon);
     else this.applyAreaDamage(position, radius, damage, weapon, owner as Bot | null);
     this.bots.playerFired(position);
-    const shake = Math.max(0, 1 - distance / 15) * 0.06;
+    const shake = Math.max(0, 1 - distance / 15) * 0.06 * size;
     this.weapons.punch.pitch += (Math.random() - 0.3) * shake;
     this.weapons.punch.yaw += (Math.random() - 0.5) * shake;
   }
@@ -769,10 +775,11 @@ export class Game {
     if (!breakProp(this.world, breakable)) return;
     // Sa collision est déjà retirée : le rayon trouve le sol (ou l'étal) dessous.
     const floor = this.floorBelow(this.shardProbe.copy(breakable.center));
-    if (EXPLOSIVE[breakable.spot.id] !== undefined) {
-      this.impacts.shatter(breakable.center, breakable.radius, breakable.height, BARREL_SHARDS, floor, true);
-      this.grenades.blast(breakable.center);
-      this.detonate(breakable.center, owner, BARREL_BLAST.radius, BARREL_BLAST.damage, BARREL_BLAST.weapon);
+    const blast = PROP_BLASTS[breakable.spot.id];
+    if (blast) {
+      this.impacts.shatter(breakable.center, breakable.radius, breakable.height, blast.shards, floor, true);
+      this.grenades.blast(breakable.center, blast.size);
+      this.detonate(breakable.center, owner, blast.radius, blast.damage, blast.weapon, blast.size);
       return;
     }
     // Posé en hauteur (jarre sur un étal) : les morceaux éclatent et s'effacent aussitôt.

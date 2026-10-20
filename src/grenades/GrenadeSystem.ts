@@ -324,11 +324,11 @@ export class GrenadeSystem {
     }
   }
 
-  /** Boule de feu d'une HE (ou d'un baril), et trace noire au sol si elle éclate près du sol. */
-  blast(position: THREE.Vector3): void {
-    this.addEffect(this.explosions, new Explosion(position));
+  /** Boule de feu d'une HE (ou d'un baril, d'une bonbonne : `size` plus petit), et trace noire au sol si elle éclate près du sol. */
+  blast(position: THREE.Vector3, size = 1): void {
+    this.addEffect(this.explosions, new Explosion(position, 'he', size));
     const floorY = this.hooks.floorBelow(position.clone().setY(position.y + 0.1));
-    if (position.y - floorY < 1.5) this.addEffect(this.scorches, new Scorch(position.clone().setY(floorY), 3.4, 25));
+    if (position.y - floorY < 1.5) this.addEffect(this.scorches, new Scorch(position.clone().setY(floorY), 3.4 * size, 25));
   }
 
   private detonate(projectile: Projectile): void {

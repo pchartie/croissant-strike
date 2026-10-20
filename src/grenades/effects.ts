@@ -24,7 +24,7 @@ interface Puff {
 /**
  * Explosion. HE : éclair, boule de feu qui monte et vire à la fumée noire,
  * anneau de poussière au sol, étincelles et fumée qui traîne. Flash : éclair
- * blanc et quelques étincelles.
+ * blanc et quelques étincelles. `size` réduit le tout (bonbonne de gaz).
  */
 export class Explosion {
   readonly group = new THREE.Group();
@@ -41,9 +41,10 @@ export class Explosion {
   constructor(
     center: THREE.Vector3,
     private readonly kind: 'he' | 'flash' = 'he',
+    private readonly size = 1,
   ) {
     const he = kind === 'he';
-    this.glow = he ? 140 : 220;
+    this.glow = (he ? 140 : 220) * size;
     this.duration = he ? 3.5 : 0.6;
 
     this.core = sprite(glowTexture(), he ? 0xfff0c0 : 0xffffff, THREE.AdditiveBlending);
@@ -54,22 +55,22 @@ export class Explosion {
       // Flammes : partent vite dans toutes les directions, ralenties par l'air.
       for (let i = 0; i < 16; i++) {
         const dir = new THREE.Vector3(random(-1, 1), random(0.2, 1.2), random(-1, 1)).normalize();
-        this.fire.push(this.addPuff(0xffa040, THREE.AdditiveBlending, dir.multiplyScalar(random(3, 7)), 0, random(0.35, 0.6), [0.8, random(2, 3.2)]));
+        this.fire.push(this.addPuff(0xffa040, THREE.AdditiveBlending, dir.multiplyScalar(random(3, 7) * size), 0, random(0.35, 0.6), [0.8 * size, random(2, 3.2) * size]));
       }
       // Fumée noire qui prend le relais et monte lentement.
       for (let i = 0; i < 14; i++) {
-        const velocity = new THREE.Vector3(random(-1.2, 1.2), random(0.8, 2.2), random(-1.2, 1.2));
-        this.smoke.push(this.addPuff(0x2e2a26, THREE.NormalBlending, velocity, random(0.08, 0.3), random(2.4, 3.3), [1.2, random(3, 4.5)]));
+        const velocity = new THREE.Vector3(random(-1.2, 1.2), random(0.8, 2.2), random(-1.2, 1.2)).multiplyScalar(size);
+        this.smoke.push(this.addPuff(0x2e2a26, THREE.NormalBlending, velocity, random(0.08, 0.3), random(2.4, 3.3), [1.2 * size, random(3, 4.5) * size]));
       }
       // Poussière soulevée qui court au ras du sol.
       for (let i = 0; i < 18; i++) {
         const angle = (i / 18) * Math.PI * 2 + random(-0.15, 0.15);
-        const velocity = new THREE.Vector3(Math.cos(angle), 0.08, Math.sin(angle)).multiplyScalar(random(6, 9));
-        this.dust.push(this.addPuff(0xb39a76, THREE.NormalBlending, velocity, 0, random(1, 1.5), [0.8, random(2, 3)]));
+        const velocity = new THREE.Vector3(Math.cos(angle), 0.08, Math.sin(angle)).multiplyScalar(random(6, 9) * size);
+        this.dust.push(this.addPuff(0xb39a76, THREE.NormalBlending, velocity, 0, random(1, 1.5), [0.8 * size, random(2, 3) * size]));
       }
     }
 
-    this.sparks = new Sparks(he ? 60 : 24, he ? 0xffb347 : 0xffffff, he ? [6, 15] : [3, 7], he ? [0.4, 1] : [0.2, 0.45]);
+    this.sparks = new Sparks(Math.round((he ? 60 : 24) * size), he ? 0xffb347 : 0xffffff, he ? [6 * size, 15 * size] : [3, 7], he ? [0.4, 1] : [0.2, 0.45]);
     this.group.add(this.sparks.points);
     this.group.position.copy(center);
   }
@@ -84,9 +85,9 @@ export class Explosion {
 
     // Éclair du cœur : très bref.
     const flash = Math.min(this.age / 0.12, 1);
-    this.core.scale.setScalar((he ? 2 : 3) + (he ? 5 : 3) * flash);
+    this.core.scale.setScalar(((he ? 2 : 3) + (he ? 5 : 3) * flash) * this.size);
     this.core.material.opacity = Math.max(0, 1 - this.age / (he ? 0.25 : 0.18));
-    this.glow = (he ? 140 : 220) * Math.max(0, 1 - this.age / (he ? 0.3 : 0.15));
+    this.glow = (he ? 140 : 220) * this.size * Math.max(0, 1 - this.age / (he ? 0.3 : 0.15));
 
     for (const puff of this.fire) this.updatePuff(puff, dt, 2.5, 0);
     for (const puff of this.smoke) this.updatePuff(puff, dt, 0.8, 0.85);
